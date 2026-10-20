@@ -80,13 +80,17 @@ private fun <T> loadOrNull(key: Any, action: suspend () -> T?): T? {
 fun DiffPane(
     viewModel: RepositoryOpenViewModel,
     onCloseDiffView: () -> Unit,
+    onDeletedFileConflict: (filePath: String, deletedBy: ConflictSide, repositoryState: RepositoryState) -> Unit,
 ) {
     val diffResultState = viewModel.diffResult.collectAsState()
     val textDiffType by viewModel.diffTypeFlow.collectAsState(DiffTextViewType.Unified)
     val isDisplayFullFile by viewModel.isDisplayFullFile.collectAsState(false)
     val viewDiffResult = diffResultState.value ?: return
     val isRepositoryInSafeState by viewModel.isRepositoryInSafeState.collectAsState(false)
+    val repositoryState by viewModel.repositoryState.collectAsState()
     val focusRequester = remember { FocusRequester() }
+    // File for which the deleted file conflict dialog has been shown, to show it once per selection
+    var deletedConflictPromptedFor by remember { mutableStateOf<String?>(null) }
 
     fun closeDiffView() {
         viewModel.clearDiff()
@@ -130,18 +134,40 @@ fun DiffPane(
                     isDisplayFullFile = isDisplayFullFile,
                     onStageFile = { viewModel.stageFile(it) },
                     onUnstageFile = { viewModel.unstageFile(it) },
+                    onResolveConflict = { statusEntry, side -> viewModel.resolveConflict(statusEntry.filePath, side) },
                     onChangeDiffType = { viewModel.changeTextDiffType(it) },
                     onDisplayFullFile = { viewModel.changeDisplayFullFile(it) },
                 )
 
                 val scrollState by viewModel.lazyListState.collectAsState()
 
+                LaunchedEffect(diffType.filePath) {
+                    // A conflict diff without one of its sides means that side deleted the file
+                    val deletedBy = when {
+                        !diffType.isConflict -> null
+                        diffEntry.changeType == DiffEntry.ChangeType.ADD -> ConflictSide.CURRENT
+                        diffEntry.changeType == DiffEntry.ChangeType.DELETE -> ConflictSide.INCOMING
+                        else -> null
+                    }
+
+                    if (deletedBy == null) {
+                        deletedConflictPromptedFor = null
+                    } else if (deletedConflictPromptedFor != diffType.filePath) {
+                        deletedConflictPromptedFor = diffType.filePath
+                        onDeletedFileConflict(diffType.filePath, deletedBy, repositoryState)
+                    }
+                }
+
+                if (diffType.isConflict && diffEntry.changeType == DiffEntry.ChangeType.MODIFY) {
+                    ConflictSidesHeader()
+                }
+
                 when (diffResult) {
                     is DiffResult.TextSplit -> HunkSplitTextDiff(
                         diffType = diffType,
                         scrollState = scrollState,
                         diffResult = diffResult,
-                        canUseHunkActions = isRepositoryInSafeState,
+                        canUseHunkActions = isRepositoryInSafeState && !diffType.isConflict,
                         onUnstageHunk = { entry, hunk ->
                             viewModel.unstageHunk(entry, hunk)
                         },
@@ -341,6 +367,32 @@ fun SubmoduleDiff(diffResult: DiffResult.Submodule, onOpenSubmodule: () -> Unit)
         }
     }
 
+}
+
+/**
+ * Titles of the split view columns when showing both sides of a conflict
+ */
+@Composable
+private fun ConflictSidesHeader() {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colors.surface)
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+    ) {
+        Text(
+            text = "Current (HEAD)",
+            style = MaterialTheme.typography.body2,
+            color = MaterialTheme.colors.onBackground,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = "Incoming",
+            style = MaterialTheme.typography.body2,
+            color = MaterialTheme.colors.onBackground,
+            modifier = Modifier.weight(1f),
+        )
+    }
 }
 
 @Composable
@@ -846,6 +898,7 @@ private fun DiffHeader(
     onCloseDiffView: () -> Unit,
     onStageFile: (StatusEntry) -> Unit,
     onUnstageFile: (StatusEntry) -> Unit,
+    onResolveConflict: (StatusEntry, ConflictSide) -> Unit,
     onChangeDiffType: (DiffTextViewType) -> Unit,
     onDisplayFullFile: (Boolean) -> Unit,
 ) {
@@ -904,7 +957,7 @@ private fun DiffHeader(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            if (diffType.statusType != StatusType.ADDED && diffType.statusType != StatusType.REMOVED && isTextDiff) {
+            if (diffType.statusType != StatusType.ADDED && diffType.statusType != StatusType.REMOVED && isTextDiff && !diffType.isConflict) {
                 DiffTypeButtons(
                     diffType = textDiffViewType,
                     isDisplayFullFile = isDisplayFullFile,
@@ -917,7 +970,8 @@ private fun DiffHeader(
                 UncommittedDiffFileHeaderButtons(
                     diffType,
                     onUnstageFile = onUnstageFile,
-                    onStageFile = onStageFile
+                    onStageFile = onStageFile,
+                    onResolveConflict = onResolveConflict,
                 )
             }
 
@@ -1023,7 +1077,22 @@ fun UncommittedDiffFileHeaderButtons(
     diffType: DiffType.UncommittedDiff,
     onUnstageFile: (StatusEntry) -> Unit,
     onStageFile: (StatusEntry) -> Unit,
+    onResolveConflict: (StatusEntry, ConflictSide) -> Unit,
 ) {
+    if (diffType.statusEntry.statusType == StatusType.CONFLICTING) {
+        SecondaryButton(
+            text = "Keep current",
+            backgroundButton = MaterialTheme.colors.primary,
+            onClick = { onResolveConflict(diffType.statusEntry, ConflictSide.CURRENT) },
+        )
+
+        SecondaryButton(
+            text = "Keep incoming",
+            backgroundButton = MaterialTheme.colors.primary,
+            onClick = { onResolveConflict(diffType.statusEntry, ConflictSide.INCOMING) },
+        )
+    }
+
     val buttonText: String
     val color: Color
 

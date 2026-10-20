@@ -26,7 +26,8 @@ class GetDiffUseCase @Inject constructor(
             val diffFormat = formatDiffGitAction(repositoryPath, diffType, isDisplayFullFile).okOrNull()!!
             val diffEntry = diffFormat.diffEntry
             if (
-                diffViewType == DiffTextViewType.Split &&
+                // Conflicts are always shown side by side: current on the left, incoming on the right
+                (diffViewType == DiffTextViewType.Split || diffType.isConflict) &&
                 diffFormat is DiffResult.Text &&
                 diffEntry.changeType != DiffEntry.ChangeType.ADD &&
                 diffEntry.changeType != DiffEntry.ChangeType.DELETE

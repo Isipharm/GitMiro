@@ -125,6 +125,7 @@ class RepositoryOpenViewModel @Inject constructor(
     private val discardHunkLineUseCase: DiscardHunkLineUseCase,
     private val statusStageUseCase: StatusStageUseCase,
     private val statusUnstageUseCase: StatusUnstageUseCase,
+    private val resolveConflictWithSideUseCase: ResolveConflictWithSideUseCase,
     private val openFileInExternalAppUseCase: OpenFileInExternalAppUseCase,
     private val revealFileInSystemUseCase: RevealFileInSystemUseCase,
     private val getDiffUseCase: GetDiffUseCase,
@@ -1011,6 +1012,8 @@ class RepositoryOpenViewModel @Inject constructor(
     fun stageFile(statusEntry: StatusEntry) = statusStageUseCase(statusEntry)
 
     fun unstageFile(statusEntry: StatusEntry) = statusUnstageUseCase(statusEntry)
+
+    fun resolveConflict(filePath: String, side: ConflictSide) = resolveConflictWithSideUseCase(filePath, side)
 
     fun cancelRunningJobs() {
         diffJob?.cancel()

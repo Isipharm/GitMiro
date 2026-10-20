@@ -312,6 +312,7 @@ fun ColumnScope.ChangesList(
             onReset = { onAction(StatusAction.Reset(statusEntry)) },
             onDelete = { onAction(StatusAction.Delete(statusEntry)) },
             onOpenFileInFolder = { onAction(StatusAction.OpenInFolder(statusEntry.filePath)) },
+            onResolveConflict = { side -> onAction(StatusAction.ResolveConflict(statusEntry, side)) },
             onCopyFilePath = { relative ->
                 onCopy(
                     relative,

@@ -36,6 +36,7 @@ class StatusViewModelExtender @AssistedInject constructor(
     private val unstageAllUseCase: StatusUnstageAllUseCase,
     private val discardEntriesUseCase: DiscardEntriesUseCase,
     private val deleteFileUseCase: DeleteFileUseCase,
+    private val resolveConflictWithSideUseCase: ResolveConflictWithSideUseCase,
     private val resetRepositoryStateUseCase: ResetRepositoryStateUseCase,
     private val abortRebaseUseCase: AbortRebaseUseCase,
     private val continueRebaseUseCase: ContinueRebaseUseCase,
@@ -274,6 +275,7 @@ class StatusViewModelExtender @AssistedInject constructor(
         }
 
         is StatusAction.Delete -> deleteFile(action.statusEntry)
+        is StatusAction.ResolveConflict -> resolveConflictWithSideUseCase(action.statusEntry.filePath, action.side)
         is StatusAction.DirectoryAction -> when (action.entryType) {
             EntryType.STAGED -> unstageByDirectory(action.path)
             EntryType.UNSTAGED -> stageByDirectory(action.path)

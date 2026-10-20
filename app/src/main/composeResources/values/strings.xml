@@ -98,6 +98,8 @@
     <string name="status_entries_context_menu_blame_file">Blame file</string>
     <string name="status_entries_context_menu_discard_file_changes">Discard file changes</string>
     <string name="status_entries_context_menu_open_file_in_folder">Show in file explorer</string>
+    <string name="status_entries_context_menu_keep_current">Resolve conflict: keep current</string>
+    <string name="status_entries_context_menu_keep_incoming">Resolve conflict: keep incoming</string>
     <string name="status_entries_context_menu_copy_file_absolute_path">Copy path</string>
     <string name="status_entries_context_menu_copy_file_relative_path">Copy relative path</string>
     <string name="status_entries_context_menu_discard_multiple_files">Discard %1$s files</string>

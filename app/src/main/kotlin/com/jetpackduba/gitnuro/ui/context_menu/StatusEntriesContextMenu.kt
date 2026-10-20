@@ -1,6 +1,7 @@
 package com.jetpackduba.gitnuro.ui.context_menu
 
 import com.jetpackduba.gitnuro.app.generated.resources.*
+import com.jetpackduba.gitnuro.domain.models.ConflictSide
 import com.jetpackduba.gitnuro.domain.models.EntryType
 import com.jetpackduba.gitnuro.domain.models.StatusEntry
 import com.jetpackduba.gitnuro.domain.models.StatusType
@@ -16,8 +17,25 @@ fun statusEntryContextMenuItems(
     onHistory: () -> Unit,
     onCopyFilePath: (relative: Boolean) -> Unit,
     onOpenFileInFolder: () -> Unit,
+    onResolveConflict: (ConflictSide) -> Unit,
 ): List<ContextMenuElement> {
     return mutableListOf<ContextMenuElement>().apply {
+        if (statusEntry.statusType == StatusType.CONFLICTING) {
+            addContextMenu(
+                composableLabel = { stringResource(Res.string.status_entries_context_menu_keep_current) },
+                icon = { painterResource(Res.drawable.merge) },
+                onClick = { onResolveConflict(ConflictSide.CURRENT) },
+            )
+
+            addContextMenu(
+                composableLabel = { stringResource(Res.string.status_entries_context_menu_keep_incoming) },
+                icon = { painterResource(Res.drawable.merge) },
+                onClick = { onResolveConflict(ConflictSide.INCOMING) },
+            )
+
+            add(ContextMenuElement.ContextSeparator)
+        }
+
         if (statusEntry.statusType != StatusType.ADDED) {
             addContextMenu(
                 composableLabel = { stringResource(Res.string.status_entries_context_menu_discard_file_changes) },

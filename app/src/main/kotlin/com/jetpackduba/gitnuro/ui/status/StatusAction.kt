@@ -2,6 +2,7 @@ package com.jetpackduba.gitnuro.ui.status
 
 import androidx.compose.ui.text.input.TextFieldValue
 import com.jetpackduba.gitnuro.domain.models.AuthorInfo
+import com.jetpackduba.gitnuro.domain.models.ConflictSide
 import com.jetpackduba.gitnuro.domain.models.DiffType
 import com.jetpackduba.gitnuro.domain.models.EntryType
 import com.jetpackduba.gitnuro.domain.models.StatusEntry
@@ -12,6 +13,7 @@ sealed interface StatusAction {
     data class AllEntriesAction(val entryType: EntryType) : StatusAction
     data class Reset(val statusEntry: StatusEntry) : StatusAction
     data class Delete(val statusEntry: StatusEntry) : StatusAction
+    data class ResolveConflict(val statusEntry: StatusEntry, val side: ConflictSide) : StatusAction
     data class SelectEntry(
         val statusEntry: StatusEntry,
         val isCtrlPressed: Boolean,
