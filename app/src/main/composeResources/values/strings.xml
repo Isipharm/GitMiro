@@ -97,7 +97,7 @@
     <string name="status_entries_context_menu_file_history">File history</string>
     <string name="status_entries_context_menu_blame_file">Blame file</string>
     <string name="status_entries_context_menu_discard_file_changes">Discard file changes</string>
-    <string name="status_entries_context_menu_open_file_in_folder">Open file in folder</string>
+    <string name="status_entries_context_menu_open_file_in_folder">Show in file explorer</string>
     <string name="status_entries_context_menu_copy_file_absolute_path">Copy path</string>
     <string name="status_entries_context_menu_copy_file_relative_path">Copy relative path</string>
     <string name="status_entries_context_menu_discard_multiple_files">Discard %1$s files</string>
@@ -121,7 +121,7 @@
     <!-- Committed changes context menu -->
     <string name="committed_changes_context_menu_blame_file">Blame file</string>
     <string name="committed_changes_context_menu_file_history">File history</string>
-    <string name="committed_changes_context_menu_open_file_in_folder">Open file in folder</string>
+    <string name="committed_changes_context_menu_open_file_in_folder">Show in file explorer</string>
 
     <!-- Log context menu -->
     <string name="log_context_menu_show_status_to_amend">Show status to amend this commit</string>
@@ -159,6 +159,7 @@
     <string name="status_dir_entries_context_menu_unstage_changes">Unstage changes in the directory</string>
     <string name="status_dir_entries_context_menu_stage_changes">Stage changes in the directory</string>
     <string name="status_dir_entries_context_menu_discard_changes">Discard changes</string>
+    <string name="status_dir_entries_context_menu_open_in_folder">Show in file explorer</string>
 
     <!-- Submodules context menu -->
     <string name="submodules_context_menu_initialize_submodule">Initialize submodule</string>

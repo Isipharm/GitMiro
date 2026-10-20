@@ -9,6 +9,7 @@ fun statusDirEntriesContextMenuItems(
     entryType: EntryType,
     onStageChanges: () -> Unit,
     onDiscardDirectoryChanges: () -> Unit,
+    onOpenInFolder: () -> Unit,
 ): List<ContextMenuElement> {
     return mutableListOf<ContextMenuElement>().apply {
         addContextMenu(
@@ -27,6 +28,12 @@ fun statusDirEntriesContextMenuItems(
                 }
             },
             onClick = onStageChanges,
+        )
+
+        addContextMenu(
+            composableLabel = { stringResource(Res.string.status_dir_entries_context_menu_open_in_folder) },
+            icon = { painterResource(Res.drawable.folder_open) },
+            onClick = onOpenInFolder,
         )
 
         if (entryType == EntryType.UNSTAGED) {

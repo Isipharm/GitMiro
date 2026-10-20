@@ -16,7 +16,6 @@ import com.jetpackduba.gitnuro.domain.errors.Either
 import com.jetpackduba.gitnuro.domain.errors.okOrNull
 import com.jetpackduba.gitnuro.domain.exceptions.InvalidMessageException
 import com.jetpackduba.gitnuro.domain.extensions.lowercaseContains
-import com.jetpackduba.gitnuro.domain.extensions.openFileInFolder
 import com.jetpackduba.gitnuro.domain.extensions.toMutableSetAndAdd
 import com.jetpackduba.gitnuro.domain.extensions.toMutableSetAndRemove
 import com.jetpackduba.gitnuro.domain.models.*
@@ -127,6 +126,7 @@ class RepositoryOpenViewModel @Inject constructor(
     private val statusStageUseCase: StatusStageUseCase,
     private val statusUnstageUseCase: StatusUnstageUseCase,
     private val openFileInExternalAppUseCase: OpenFileInExternalAppUseCase,
+    private val revealFileInSystemUseCase: RevealFileInSystemUseCase,
     private val getDiffUseCase: GetDiffUseCase,
     private val repositoryStateRepository: RepositoryStateRepository,
     private val settings: AppSettingsService,
@@ -1229,12 +1229,9 @@ class RepositoryOpenViewModel @Inject constructor(
     }
 
 
-    fun openFileInFolder(folderPath: String?) = viewModelScope.launch {
-        if (folderPath != null) {
-            val worktreeDir = getWorktreeUseCase().okOrNull() ?: return@launch
-            val file = File(worktreeDir + File.separator + folderPath)
-            file.openFileInFolder()
-        }
+    fun openFileInFolder(filePath: String) = viewModelScope.launch {
+        val worktreeDir = getWorktreeUseCase().okOrNull() ?: return@launch
+        revealFileInSystemUseCase(File(worktreeDir, filePath))
     }
 }
 

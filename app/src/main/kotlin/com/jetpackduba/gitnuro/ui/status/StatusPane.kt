@@ -311,7 +311,7 @@ fun ColumnScope.ChangesList(
             onHistory = { onHistoryFile(statusEntry.filePath) },
             onReset = { onAction(StatusAction.Reset(statusEntry)) },
             onDelete = { onAction(StatusAction.Delete(statusEntry)) },
-            onOpenFileInFolder = { onAction(StatusAction.OpenInFolder(statusEntry.parentDirectoryPath)) },
+            onOpenFileInFolder = { onAction(StatusAction.OpenInFolder(statusEntry.filePath)) },
             onCopyFilePath = { relative ->
                 onCopy(
                     relative,
@@ -401,6 +401,7 @@ fun ColumnScope.ChangesList(
                         entryType = entryType,
                         onStageChanges = { onAction(StatusAction.DirectoryAction(dir.fullPath, entryType)) },
                         onDiscardDirectoryChanges = {},
+                        onOpenInFolder = { onAction(StatusAction.OpenInFolder(dir.fullPath)) },
                     )
                 },
             )
