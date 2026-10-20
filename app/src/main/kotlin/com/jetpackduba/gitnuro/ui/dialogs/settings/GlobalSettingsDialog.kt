@@ -575,7 +575,7 @@ private fun Appearance(settingsViewState: SettingsViewState, onAction: (Settings
 
     SettingDropDown(
         title = "Theme",
-        subtitle = "Select the UI theme between light and dark mode",
+        subtitle = "Select the UI theme",
         dropDownOptions = themeLists,
         currentOption = currentTheme,
         onOptionSelected = { themeDropDown ->

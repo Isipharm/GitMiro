@@ -45,6 +45,7 @@ fun AppTheme(
     val theme = when (selectedTheme) {
         Theme.Light -> lightTheme
         Theme.Dark -> darkTheme
+        Theme.DarkBlue -> darkBlueTheme
         Theme.Custom -> customTheme ?: defaultAppTheme
     }
 
@@ -163,5 +164,6 @@ val Colors.isDark: Boolean
 val themeLists = listOf(
     DropDownOption(Theme.Light, "Light"),
     DropDownOption(Theme.Dark, "Dark"),
+    DropDownOption(Theme.DarkBlue, "Dark Blue"),
     DropDownOption(Theme.Custom, "Custom"),
 )

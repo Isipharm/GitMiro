@@ -2,6 +2,7 @@ package com.jetpackduba.gitnuro.data.repositories.configuration
 
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.*
+import com.jetpackduba.gitnuro.common.APP_FOLDER_NAME
 import com.jetpackduba.gitnuro.common.OS
 import com.jetpackduba.gitnuro.common.currentOs
 import com.jetpackduba.gitnuro.common.systemSeparator
@@ -19,7 +20,7 @@ import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import java.util.prefs.Preferences as LegacyPreferences
 
-private const val PREFERENCES_NAME = "GitnuroConfig"
+private const val PREFERENCES_NAME = APP_FOLDER_NAME + "Config"
 
 private const val PREF_LATEST_REPOSITORIES_TABS_OPENED = "latestRepositoriesTabsOpened"
 private const val PREF_LATEST_REPOSITORY_TAB_SELECTED = "latestRepositoryTabSelected"
@@ -225,9 +226,9 @@ fun initPreferencesPath() {
 
         val settingsPath = if (xdgConfigHome.isNullOrBlank()) {
             val home = System.getProperty("user.home").orEmpty()
-            "$home/.config/gitnuro"
+            "$home/.config/$APP_FOLDER_NAME"
         } else {
-            "$xdgConfigHome/gitnuro"
+            "$xdgConfigHome/$APP_FOLDER_NAME"
         }
 
         System.setProperty("java.util.prefs.userRoot", settingsPath)
@@ -243,20 +244,20 @@ fun getPreferencesPath(): String {
             val xdgConfigHome: String? = System.getenv("XDG_CONFIG_HOME")
 
             val settingsPath = if (xdgConfigHome.isNullOrBlank()) {
-                "$home/.config/gitnuro"
+                "$home/.config/$APP_FOLDER_NAME"
             } else {
-                "$xdgConfigHome/gitnuro"
+                "$xdgConfigHome/$APP_FOLDER_NAME"
             }
 
             settingsPath
         }
 
         OS.MAC -> {
-            "$home/Library/Application Support/gitnuro"
+            "$home/Library/Application Support/$APP_FOLDER_NAME"
         }
 
         else -> {
-            System.getProperty("java.util.prefs.userRoot") ?: "$home${systemSeparator}gitnuro"
+            System.getProperty("java.util.prefs.userRoot") ?: "$home${systemSeparator}$APP_FOLDER_NAME"
         }
     } + systemSeparator + "user_prefs.preferences_pb"
 }

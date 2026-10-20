@@ -66,3 +66,9 @@ val darkTheme = ColorsScheme(
     diffComment = Color(0xFF70C290),
     isLight = false,
 )
+
+// Dark theme used before the 2.0 redesign, with blueish background and surfaces
+val darkBlueTheme = darkTheme.copy(
+    background = Color(0xFF10161e),
+    surface = Color(0xff1d2630),
+)
