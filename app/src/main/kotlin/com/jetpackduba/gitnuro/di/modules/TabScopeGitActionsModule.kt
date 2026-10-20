@@ -118,6 +118,14 @@ interface TabScopeGitActionsModule {
 
     @Binds
     @TabScope
+    fun bindsGetConflictFileGitAction(action: GetConflictFileGitAction): IGetConflictFileGitAction
+
+    @Binds
+    @TabScope
+    fun bindsWriteConflictResolutionGitAction(action: WriteConflictResolutionGitAction): IWriteConflictResolutionGitAction
+
+    @Binds
+    @TabScope
     fun bindsDeleteLocallyRemoteBranchesGitAction(action: DeleteLocallyRemoteBranchesGitAction): IDeleteLocallyRemoteBranchesGitAction
 
     @Binds
