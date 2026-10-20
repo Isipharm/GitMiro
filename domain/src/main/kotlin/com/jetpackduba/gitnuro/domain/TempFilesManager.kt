@@ -1,5 +1,6 @@
 package com.jetpackduba.gitnuro.domain
 
+import com.jetpackduba.gitnuro.common.APP_FOLDER_NAME
 import com.jetpackduba.gitnuro.common.OS
 import com.jetpackduba.gitnuro.common.currentOs
 import com.jetpackduba.gitnuro.common.printError
@@ -50,7 +51,7 @@ class AppFilesManager @Inject constructor() {
 
         baseFolder.mkdirs()
 
-        val appFolder = File(baseFolder, "gitnuro")
+        val appFolder = File(baseFolder, APP_FOLDER_NAME)
         // TODO test if mkdir fails for some reason
         if (!appFolder.exists() || !appFolder.isDirectory)
             appFolder.mkdir()
