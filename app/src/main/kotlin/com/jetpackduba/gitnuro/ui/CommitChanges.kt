@@ -162,7 +162,7 @@ private fun CommitChangesView(
                             diffEntry,
                             onBlame = { onBlame(diffEntry.filePath) },
                             onHistory = { onHistory(diffEntry.filePath) },
-                            onOpenFileInFolder = { onOpenFileInFolder(diffEntry.parentDirectoryPath) },
+                            onOpenFileInFolder = { onOpenFileInFolder(diffEntry.filePath) },
                         )
                     },
                     onDirectoryClicked = onDirectoryClicked,
@@ -182,7 +182,7 @@ private fun CommitChangesView(
                             diffEntry,
                             onBlame = { onBlame(diffEntry.filePath) },
                             onHistory = { onHistory(diffEntry.filePath) },
-                            onOpenFileInFolder = { onOpenFileInFolder(diffEntry.parentDirectoryPath) },
+                            onOpenFileInFolder = { onOpenFileInFolder(diffEntry.filePath) },
                         )
                     }
                 )
