@@ -39,4 +39,9 @@ sealed class DiffType {
             return this is UncommittedDiff && this.entryType == EntryType.UNSTAGED
         }
 
+    val isConflict: Boolean
+        get() {
+            contract { returns(true) implies (this@DiffType is UncommittedDiff) }
+            return this is UncommittedDiff && this.statusType == StatusType.CONFLICTING
+        }
 }

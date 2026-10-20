@@ -19,7 +19,9 @@ import com.jetpackduba.gitnuro.domain.repositories.CompletedTask
 import com.jetpackduba.gitnuro.domain.repositories.FailureSeverity
 import com.jetpackduba.gitnuro.domain.repositories.RepositoryDataRepository
 import com.jetpackduba.gitnuro.domain.repositories.RepositoryStateRepository
+import com.jetpackduba.gitnuro.domain.models.ConflictSide
 import com.jetpackduba.gitnuro.domain.usecases.OpenRepositoryUseCase
+import com.jetpackduba.gitnuro.domain.usecases.ResolveConflictWithSideUseCase
 import com.jetpackduba.gitnuro.domain.usecases.SetRepositorySelectionStateToNoneUseCase
 import com.jetpackduba.gitnuro.extensions.stateIn
 import com.jetpackduba.gitnuro.domain.AppStateManager
@@ -62,6 +64,7 @@ class RepositoryTabViewModel @AssistedInject constructor(
     private val repositoryDataRepository: RepositoryDataRepository,
     private val repositoryStateRepository: RepositoryStateRepository,
     private val setRepositorySelectionStateToNoneUseCase: SetRepositorySelectionStateToNoneUseCase,
+    private val resolveConflictWithSideUseCase: ResolveConflictWithSideUseCase,
     private val tabComponent: TabComponent,
     @Assisted private val initialPath: String?,
     updatesRepository: UpdatesRepository,
@@ -229,6 +232,8 @@ class RepositoryTabViewModel @AssistedInject constructor(
     fun cancelOngoingTask() {
         // TODO Do something at some point?
     }
+
+    fun resolveConflict(filePath: String, side: ConflictSide) = resolveConflictWithSideUseCase(filePath, side)
 
     fun openUrlInBrowser(url: String) {
         openUrlInBrowserUseCase(url)

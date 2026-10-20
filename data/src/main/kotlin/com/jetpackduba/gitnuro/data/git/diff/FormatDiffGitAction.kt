@@ -37,7 +37,13 @@ class FormatDiffGitAction @Inject constructor(
         val repository = git.repository
         val submodules = getSubmodulesGitAction(repositoryPath).bind()
 
-        val diffEntry = getDiffEntryFromDiffTypeGitAction(git, diffType)
+        val conflictDiffEntry = if (diffType.isConflict) {
+            ConflictDiffEntry.fromIndex(repository.readDirCache(), diffType.filePath)
+        } else {
+            null
+        }
+
+        val diffEntry = conflictDiffEntry ?: getDiffEntryFromDiffTypeGitAction(git, diffType)
 
         var diffResult: DiffResult
         val submoduleStatus = submodules[diffEntry.filePath]
@@ -48,7 +54,8 @@ class FormatDiffGitAction @Inject constructor(
             val oldTree: DirCacheIterator?
             val newTree: FileTreeIterator?
 
-            if (diffType is DiffType.UncommittedDiff && diffType.entryType == EntryType.UNSTAGED) {
+            // Both sides of a conflict are read from the index objects, not from the working tree
+            if (conflictDiffEntry == null && diffType is DiffType.UncommittedDiff && diffType.entryType == EntryType.UNSTAGED) {
                 oldTree = DirCacheIterator(repository.readDirCache())
                 newTree = FileTreeIterator(repository)
             } else {

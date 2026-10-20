@@ -313,7 +313,10 @@ fun MainContentView(
                                     viewModel = viewModel,
                                     onCloseDiffView = {
                                         tabFocusRequester.requestFocus()
-                                    }
+                                    },
+                                    onDeletedFileConflict = { filePath, deletedBy, repositoryState ->
+                                        onNavigate(Screen.DeletedFileConflict(filePath, deletedBy, repositoryState))
+                                    },
                                 )
                             }
                         }

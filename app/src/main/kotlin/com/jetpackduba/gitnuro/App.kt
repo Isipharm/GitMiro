@@ -88,6 +88,11 @@ sealed interface Screen : NavKey {
     data object SignOffData : Screen
     data object Author : Screen
     data object StashWithMessage : Screen
+    data class DeletedFileConflict(
+        val filePath: String,
+        val deletedBy: ConflictSide,
+        val repositoryState: RepositoryState,
+    ) : Screen
 }
 
 

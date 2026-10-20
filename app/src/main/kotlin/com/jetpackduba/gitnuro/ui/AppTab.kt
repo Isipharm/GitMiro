@@ -298,6 +298,20 @@ fun AppTab(
                                 }
                             )
                         }
+                        entry<Screen.DeletedFileConflict>(
+                            metadata = dialogsMetadata
+                        ) { entry ->
+                            DeletedFileConflictDialog(
+                                filePath = entry.filePath,
+                                deletedBy = entry.deletedBy,
+                                repositoryState = entry.repositoryState,
+                                onResolve = { side ->
+                                    repositoryTabViewModel.resolveConflict(entry.filePath, side)
+                                    backStack.removeLastOrNull()
+                                },
+                                onDismiss = { backStack.removeLastOrNull() },
+                            )
+                        }
                         entry<Screen.SignOffData>(
                             metadata = dialogsMetadata
                         ) { entry ->
