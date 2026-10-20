@@ -158,11 +158,29 @@ fun DiffPane(
                     }
                 }
 
-                if (diffType.isConflict && diffEntry.changeType == DiffEntry.ChangeType.MODIFY) {
+                val isContentConflict = diffType.isConflict && diffEntry.changeType == DiffEntry.ChangeType.MODIFY
+                var conflictFile by remember(diffType.filePath) { mutableStateOf<ConflictFile?>(null) }
+
+                LaunchedEffect(diffType.filePath, isContentConflict) {
+                    conflictFile = if (isContentConflict) viewModel.getConflictFile(diffType.filePath) else null
+                }
+
+                val loadedConflictFile = conflictFile
+
+                if (isContentConflict && loadedConflictFile == null) {
+                    // Binary files can't be split in blocks, both sides are shown as a diff instead
                     ConflictSidesHeader()
                 }
 
-                when (diffResult) {
+                if (loadedConflictFile != null) {
+                    ConflictResolver(
+                        filePath = diffType.filePath,
+                        conflictFile = loadedConflictFile,
+                        onResolve = { choices ->
+                            viewModel.applyConflictResolution(diffType.filePath, loadedConflictFile, choices)
+                        },
+                    )
+                } else when (diffResult) {
                     is DiffResult.TextSplit -> HunkSplitTextDiff(
                         diffType = diffType,
                         scrollState = scrollState,
