@@ -1,5 +1,8 @@
 package com.hugodehu.gitmiro.domain.models
 
+import org.eclipse.jgit.diff.HistogramDiff
+import org.eclipse.jgit.diff.RawText
+import org.eclipse.jgit.diff.RawTextComparator
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 import java.nio.charset.CharacterCodingException
@@ -93,6 +96,28 @@ data class ConflictFile(val chunks: List<ConflictChunk>) {
         val endsWithNewLine = resolvedBytes.isNotEmpty() && resolvedBytes.last() == '\n'.code.toByte()
 
         return lines.joinToString("\n") + if (endsWithNewLine) "\n" else ""
+    }
+
+    /**
+     * Indexes of the lines of a result [text] that are not common to both sides: lines kept from the conflicting blocks
+     * and lines edited by hand. Lines are matched with a diff, so editing the text keeps the highlight on the right lines.
+     */
+    fun changedLines(text: String): Set<Int> {
+        val commonText = chunks
+            .filterIsInstance<ConflictChunk.Common>()
+            .flatMap { it.lines }
+            .joinToString("") { "${it.text}\n" }
+
+        // The trailing new line of the text isn't a line of its own
+        val resultText = text.removeSuffix("\n").lines().joinToString("") { "$it\n" }
+
+        val edits = HistogramDiff().diff(
+            RawTextComparator.DEFAULT,
+            RawText(commonText.toByteArray()),
+            RawText(resultText.toByteArray()),
+        )
+
+        return edits.flatMap { it.beginB until it.endB }.toSet()
     }
 
     /**
