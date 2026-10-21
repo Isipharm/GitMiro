@@ -43,13 +43,11 @@ fun BottomInfoBar(
             )
         }
 
+        // Not clickable: it used to open Gitnuro's releases and GitMiro has no public releases page
         Text(
             stringResource(Res.string.bottom_info_bar_app_version, AppConstants.APP_VERSION),
             style = MaterialTheme.typography.body2,
             maxLines = 1,
-            modifier = Modifier.handMouseClickable {
-                onOpenUrlInBrowser("https://github.com/JetpackDuba/Gitnuro/releases")
-            }
         )
     }
 }
