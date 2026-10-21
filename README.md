@@ -6,7 +6,7 @@ went *miro* (French slang for short-sighted), hence the name. On top of Gitnuro,
 - Conflict resolution inside the app: keep a whole side, or pick blocks with checkboxes, preview and edit the result.
 - "Show in file explorer" that selects the file, also available on directories.
 - The "Dark Blue" theme from Gitnuro 1.x.
-- Its own settings, logs and temporary files (`gitnuro_perso` folders), so it runs next to the official Gitnuro.
+- Its own settings, logs and temporary files (`gitmiro` folders), so it runs next to the official Gitnuro.
 
 The rest of this README comes from Gitnuro.
 
