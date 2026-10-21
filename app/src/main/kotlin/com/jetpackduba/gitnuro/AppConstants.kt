@@ -18,9 +18,9 @@ object AppConstants {
 
 
     // Remember to update build.gradle when changing this
-    const val APP_NAME = "Gitnuro"
+    const val APP_NAME = "GitMiro"
     const val APP_DESCRIPTION =
-        "Gitnuro is a Git client that allows you to manage multiple repositories with a modern experience and live visual representation of your repositories' state."
+        "GitMiro is a modified Gitnuro, a Git client to manage multiple repositories with a modern experience and a live visual representation of their state. It looked at so many Git repositories that it went \"miro\" (French slang for short-sighted)."
     const val APP_VERSION = "2.0-beta04"
     const val APP_VERSION_CODE = 26
     const val VERSION_CHECK_URL = "https://raw.githubusercontent.com/JetpackDuba/Gitnuro/main/latest.json"
