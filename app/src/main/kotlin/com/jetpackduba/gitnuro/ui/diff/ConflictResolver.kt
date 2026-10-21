@@ -1,19 +1,24 @@
 package com.jetpackduba.gitnuro.ui.diff
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.selection.DisableSelection
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.Checkbox
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.material.TriStateCheckbox
 import androidx.compose.runtime.*
-import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.jetpackduba.gitnuro.domain.models.ConflictChoice
@@ -25,10 +30,13 @@ import com.jetpackduba.gitnuro.extensions.toStringWithSpaces
 import com.jetpackduba.gitnuro.theme.*
 import com.jetpackduba.gitnuro.ui.components.PrimaryButton
 import com.jetpackduba.gitnuro.ui.components.ScrollableLazyColumn
+import com.jetpackduba.gitnuro.ui.components.SecondaryButton
 import com.jetpackduba.gitnuro.ui.diff.syntax_highlighter.SyntaxHighlighter
 import com.jetpackduba.gitnuro.ui.diff.syntax_highlighter.getSyntaxHighlighterFromExtension
+import kotlinx.coroutines.delay
 
 private val CHECKBOX_GUTTER_WIDTH = 32.dp
+private const val LOCKED_WARNING_DURATION_MS = 4_000L
 
 /**
  * First line number of a chunk in the current and incoming versions of the file
@@ -37,18 +45,42 @@ private data class ChunkLineNumbers(val current: Int, val incoming: Int)
 
 /**
  * Lets the user pick, for each conflicting block, the current and/or incoming lines, with a preview of the resulting
- * file at the bottom.
+ * file at the bottom. Once every block is decided, the result can also be edited by hand.
  */
 @Composable
 fun ConflictResolver(
     filePath: String,
     conflictFile: ConflictFile,
-    onResolve: (Map<Int, ConflictChoice>) -> Unit,
+    onResolve: (content: ByteArray) -> Unit,
 ) {
     val choices = remember(conflictFile) { mutableStateMapOf<Int, ConflictChoice>() }
     val conflicts = conflictFile.conflicts
     val decidedCount = conflicts.count { choices[it.index]?.isDecided == true }
+    val isFullyDecided = conflictFile.isFullyDecided(choices)
     val syntaxHighlighter = remember(filePath) { getSyntaxHighlighterFromExtension(filePath.substringAfterLast(".")) }
+
+    // Once edited by hand, the result no longer follows the checkboxes, which are locked until the edits are discarded
+    var editedText by remember(conflictFile) { mutableStateOf<String?>(null) }
+    val isEditedByHand = editedText != null
+    val canResolve = editedText?.let { !ConflictFile.hasConflictMarkers(it) } ?: isFullyDecided
+
+    // Incremented on each click on a locked checkbox, to show the warning again for its whole duration
+    var lockedClicksCount by remember { mutableIntStateOf(0) }
+    var showLockedWarning by remember { mutableStateOf(false) }
+
+    LaunchedEffect(lockedClicksCount) {
+        if (lockedClicksCount > 0) {
+            showLockedWarning = true
+            delay(LOCKED_WARNING_DURATION_MS)
+            showLockedWarning = false
+        }
+    }
+
+    LaunchedEffect(isEditedByHand) {
+        if (!isEditedByHand) showLockedWarning = false
+    }
+
+    val onLockedClick: () -> Unit = { lockedClicksCount++ }
 
     val chunksLineNumbers = remember(conflictFile) {
         var current = 1
@@ -110,8 +142,25 @@ fun ConflictResolver(
             )
             PrimaryButton(
                 text = "Mark as resolved",
-                enabled = conflictFile.isFullyDecided(choices),
-                onClick = { onResolve(choices.toMap()) },
+                enabled = canResolve,
+                onClick = {
+                    // The checkboxes result keeps the exact original bytes, the edited text is encoded like the file
+                    val content = editedText?.let { conflictFile.encode(it) } ?: conflictFile.resolve(choices)
+                    onResolve(content)
+                },
+            )
+        }
+
+        if (showLockedWarning) {
+            Text(
+                text = "The result has been edited by hand, checkbox changes can't be applied to it. " +
+                        "Discard the edits to use the checkboxes again.",
+                style = MaterialTheme.typography.body2,
+                color = MaterialTheme.colors.onBackground,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colors.conflictFile.copy(alpha = 0.4f))
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
             )
         }
 
@@ -124,14 +173,18 @@ fun ConflictResolver(
                 title = "Current (HEAD)",
                 keptCount = keptCurrentCount,
                 totalCount = conflicts.size,
+                isLocked = isEditedByHand,
                 onKeepAllChanged = ::keepAllCurrent,
+                onLockedClick = onLockedClick,
                 modifier = Modifier.weight(1f),
             )
             SideHeader(
                 title = "Incoming",
                 keptCount = keptIncomingCount,
                 totalCount = conflicts.size,
+                isLocked = isEditedByHand,
                 onKeepAllChanged = ::keepAllIncoming,
+                onLockedClick = onLockedClick,
                 modifier = Modifier.weight(1f),
             )
         }
@@ -159,8 +212,10 @@ fun ConflictResolver(
                                 lineNumberDigits = lineNumberDigits,
                                 syntaxHighlighter = syntaxHighlighter,
                                 isKept = choice.keepCurrent,
+                                isLocked = isEditedByHand,
                                 color = MaterialTheme.colors.diffLineRemoved,
                                 onKeptChanged = { choices[chunk.index] = choice.withCurrent(it) },
+                                onLockedClick = onLockedClick,
                                 modifier = Modifier.weight(1f).fillMaxHeight(),
                             )
                             ConflictSide(
@@ -169,8 +224,10 @@ fun ConflictResolver(
                                 lineNumberDigits = lineNumberDigits,
                                 syntaxHighlighter = syntaxHighlighter,
                                 isKept = choice.keepIncoming,
+                                isLocked = isEditedByHand,
                                 color = MaterialTheme.colors.diffLineAdded,
                                 onKeptChanged = { choices[chunk.index] = choice.withIncoming(it) },
+                                onLockedClick = onLockedClick,
                                 modifier = Modifier.weight(1f).fillMaxHeight(),
                             )
                         }
@@ -179,54 +236,128 @@ fun ConflictResolver(
             }
         }
 
-        SectionTitle(
-            text = "Result",
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(MaterialTheme.colors.surface)
                 .padding(horizontal = 16.dp, vertical = 2.dp),
-        )
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            SectionTitle("Result")
 
-        // Line numbers of the result depend on the choices, so they are computed on each recomposition
-        val resultFirstLineNumbers = conflictFile.chunks.runningFold(1) { lineNumber, chunk ->
-            lineNumber + when (chunk) {
-                is ConflictChunk.Common -> chunk.lines.size
-                is ConflictChunk.Conflict -> chunk.linesFor(choices[chunk.index]).size
+            Text(
+                text = when {
+                    isEditedByHand -> "Edited by hand"
+                    isFullyDecided -> "Editable"
+                    else -> "Resolve every conflict to edit the result"
+                },
+                style = MaterialTheme.typography.caption,
+                color = if (isEditedByHand) MaterialTheme.colors.conflictFile else MaterialTheme.colors.onBackgroundSecondary,
+                modifier = Modifier.weight(1f),
+            )
+
+            if (isEditedByHand) {
+                SecondaryButton(text = "Discard edits", onClick = { editedText = null })
             }
         }
 
-        ScrollableLazyColumn(modifier = Modifier.weight(0.4f).fillMaxWidth()) {
-            items(conflictFile.chunks.size) { index ->
-                val firstLineNumber = resultFirstLineNumbers[index]
+        val resultModifier = Modifier.weight(0.4f).fillMaxWidth()
 
-                when (val chunk = conflictFile.chunks[index]) {
-                    is ConflictChunk.Common -> Row {
-                        Spacer(Modifier.width(CHECKBOX_GUTTER_WIDTH))
-                        CodeLines(chunk.lines, firstLineNumber, lineNumberDigits, syntaxHighlighter)
-                    }
+        if (isEditedByHand || isFullyDecided) {
+            EditableResult(
+                text = editedText ?: conflictFile.resolvedText(choices),
+                minLineNumberDigits = lineNumberDigits,
+                onTextChanged = { editedText = it },
+                modifier = resultModifier,
+            )
+        } else {
+            ResultPreview(conflictFile, choices, lineNumberDigits, syntaxHighlighter, resultModifier)
+        }
+    }
+}
 
-                    is ConflictChunk.Conflict -> {
-                        val choice = choices[chunk.index]
+/**
+ * Read only result shown while some conflicts are not decided yet
+ */
+@Composable
+private fun ResultPreview(
+    conflictFile: ConflictFile,
+    choices: Map<Int, ConflictChoice>,
+    lineNumberDigits: Int,
+    syntaxHighlighter: SyntaxHighlighter,
+    modifier: Modifier,
+) {
+    val firstLineNumbers = conflictFile.chunks.runningFold(1) { lineNumber, chunk ->
+        lineNumber + when (chunk) {
+            is ConflictChunk.Common -> chunk.lines.size
+            is ConflictChunk.Conflict -> chunk.linesFor(choices[chunk.index]).size
+        }
+    }
 
-                        if (choice?.isDecided == true) {
-                            Row(modifier = Modifier.background(MaterialTheme.colors.secondarySurface)) {
-                                Spacer(Modifier.width(CHECKBOX_GUTTER_WIDTH))
-                                CodeLines(chunk.linesFor(choice), firstLineNumber, lineNumberDigits, syntaxHighlighter)
-                            }
-                        } else {
-                            Text(
-                                text = "Conflict ${chunk.index + 1} not resolved yet",
-                                style = MaterialTheme.typography.body2,
-                                color = MaterialTheme.colors.onBackground,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(MaterialTheme.colors.conflictFile.copy(alpha = 0.3f))
-                                    .padding(horizontal = 16.dp, vertical = 2.dp),
-                            )
+    ScrollableLazyColumn(modifier = modifier) {
+        items(conflictFile.chunks.size) { index ->
+            val firstLineNumber = firstLineNumbers[index]
+
+            when (val chunk = conflictFile.chunks[index]) {
+                is ConflictChunk.Common -> Row {
+                    Spacer(Modifier.width(CHECKBOX_GUTTER_WIDTH))
+                    CodeLines(chunk.lines, firstLineNumber, lineNumberDigits, syntaxHighlighter)
+                }
+
+                is ConflictChunk.Conflict -> {
+                    val choice = choices[chunk.index]
+
+                    if (choice?.isDecided == true) {
+                        Row(modifier = Modifier.background(MaterialTheme.colors.secondarySurface)) {
+                            Spacer(Modifier.width(CHECKBOX_GUTTER_WIDTH))
+                            CodeLines(chunk.linesFor(choice), firstLineNumber, lineNumberDigits, syntaxHighlighter)
                         }
+                    } else {
+                        Text(
+                            text = "Conflict ${chunk.index + 1} not resolved yet",
+                            style = MaterialTheme.typography.body2,
+                            color = MaterialTheme.colors.onBackground,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(MaterialTheme.colors.conflictFile.copy(alpha = 0.3f))
+                                .padding(horizontal = 16.dp, vertical = 2.dp),
+                        )
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun EditableResult(
+    text: String,
+    minLineNumberDigits: Int,
+    onTextChanged: (String) -> Unit,
+    modifier: Modifier,
+) {
+    val linesCount = text.lines().size
+    val lineNumberDigits = maxOf(minLineNumberDigits, linesCount.toString().length)
+    val textStyle = MaterialTheme.typography.body2.copy(fontFamily = monoTypography())
+
+    // Line numbers and text share the vertical scroll, the text scrolls horizontally so lines are not wrapped
+    Row(modifier = modifier.verticalScroll(rememberScrollState())) {
+        Spacer(Modifier.width(CHECKBOX_GUTTER_WIDTH))
+        Text(
+            text = (1..linesCount).joinToString("\n") { it.toStringWithSpaces(lineNumberDigits) },
+            style = textStyle,
+            color = MaterialTheme.colors.onBackgroundSecondary,
+            modifier = Modifier.padding(start = 8.dp, end = 4.dp),
+        )
+        Box(modifier = Modifier.weight(1f).horizontalScroll(rememberScrollState())) {
+            BasicTextField(
+                value = text,
+                onValueChange = onTextChanged,
+                textStyle = textStyle.copy(color = MaterialTheme.colors.onBackground),
+                cursorBrush = SolidColor(MaterialTheme.colors.onBackground),
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp),
+            )
         }
     }
 }
@@ -239,7 +370,9 @@ private fun SideHeader(
     title: String,
     keptCount: Int,
     totalCount: Int,
+    isLocked: Boolean,
     onKeepAllChanged: (Boolean) -> Unit,
+    onLockedClick: () -> Unit,
     modifier: Modifier,
 ) {
     val state = when (keptCount) {
@@ -248,7 +381,7 @@ private fun SideHeader(
         else -> ToggleableState.Indeterminate
     }
     // Partially kept goes to fully kept, as it's the most common reason to click it
-    val onClick = { onKeepAllChanged(state != ToggleableState.On) }
+    val onClick = { if (isLocked) onLockedClick() else onKeepAllChanged(state != ToggleableState.On) }
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -262,6 +395,7 @@ private fun SideHeader(
             TriStateCheckbox(
                 state = state,
                 onClick = onClick,
+                enabled = !isLocked,
                 modifier = Modifier.padding(vertical = 4.dp).size(16.dp),
             )
         }
@@ -291,8 +425,10 @@ private fun ConflictSide(
     lineNumberDigits: Int,
     syntaxHighlighter: SyntaxHighlighter,
     isKept: Boolean,
+    isLocked: Boolean,
     color: Color,
     onKeptChanged: (Boolean) -> Unit,
+    onLockedClick: () -> Unit,
     modifier: Modifier,
 ) {
     Row(modifier = modifier.background(color.copy(alpha = if (isKept) 0.6f else 0.25f))) {
@@ -304,12 +440,13 @@ private fun ConflictSide(
                 .handMouseClickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
-                    onClick = { onKeptChanged(!isKept) },
+                    onClick = { if (isLocked) onLockedClick() else onKeptChanged(!isKept) },
                 ),
         ) {
             Checkbox(
                 checked = isKept,
                 onCheckedChange = onKeptChanged,
+                enabled = !isLocked,
                 modifier = Modifier.padding(top = 4.dp).size(16.dp),
             )
         }

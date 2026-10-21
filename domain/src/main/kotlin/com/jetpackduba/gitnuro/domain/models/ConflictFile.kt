@@ -1,6 +1,9 @@
 package com.jetpackduba.gitnuro.domain.models
 
 import java.io.ByteArrayOutputStream
+import java.nio.ByteBuffer
+import java.nio.charset.CharacterCodingException
+import java.nio.charset.CodingErrorAction
 
 /**
  * A line of a conflicting file. [bytes] is the exact content (including its line ending) so the resolved file keeps
@@ -73,5 +76,58 @@ data class ConflictFile(val chunks: List<ConflictChunk>) {
                 }
             }
         }.toByteArray()
+    }
+
+    /**
+     * Text of the resolved file, to be edited by hand. Conflicts without a choice keep no lines, like in [resolve].
+     */
+    fun resolvedText(choices: Map<Int, ConflictChoice>): String {
+        val lines = chunks.flatMap { chunk ->
+            when (chunk) {
+                is ConflictChunk.Common -> chunk.lines.map { it.text }
+                is ConflictChunk.Conflict -> chunk.linesFor(choices[chunk.index]).map { it.text }
+            }
+        }
+
+        val resolvedBytes = resolve(choices)
+        val endsWithNewLine = resolvedBytes.isNotEmpty() && resolvedBytes.last() == '\n'.code.toByte()
+
+        return lines.joinToString("\n") + if (endsWithNewLine) "\n" else ""
+    }
+
+    /**
+     * Encodes a text edited by hand like the original file: same line endings and, if it was valid UTF-8, same charset.
+     */
+    fun encode(text: String): ByteArray {
+        val originalBytes = chunks.flatMap { chunk ->
+            when (chunk) {
+                is ConflictChunk.Common -> chunk.lines
+                is ConflictChunk.Conflict -> chunk.current + chunk.incoming
+            }
+        }.fold(ByteArrayOutputStream()) { output, line -> output.apply { write(line.bytes) } }.toByteArray()
+
+        val usesCrlf = String(originalBytes, Charsets.ISO_8859_1).contains("\r\n")
+        val lfText = text.replace("\r\n", "\n")
+        val textWithLineEndings = if (usesCrlf) lfText.replace("\n", "\r\n") else lfText
+
+        // Lines that are not valid UTF-8 are decoded as ISO-8859-1, which keeps every byte as it was
+        val charset = if (isValidUtf8(originalBytes)) Charsets.UTF_8 else Charsets.ISO_8859_1
+
+        return textWithLineEndings.toByteArray(charset)
+    }
+
+    private fun isValidUtf8(bytes: ByteArray) = try {
+        Charsets.UTF_8.newDecoder()
+            .onMalformedInput(CodingErrorAction.REPORT)
+            .onUnmappableCharacter(CodingErrorAction.REPORT)
+            .decode(ByteBuffer.wrap(bytes))
+        true
+    } catch (ex: CharacterCodingException) {
+        false
+    }
+
+    companion object {
+        /** Detects conflict markers typed or pasted by hand, which would leave the file broken */
+        fun hasConflictMarkers(text: String) = text.lines().any { it.startsWith("<<<<<<<") || it.startsWith(">>>>>>>") }
     }
 }

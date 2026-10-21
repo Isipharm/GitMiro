@@ -176,8 +176,8 @@ fun DiffPane(
                     ConflictResolver(
                         filePath = diffType.filePath,
                         conflictFile = loadedConflictFile,
-                        onResolve = { choices ->
-                            viewModel.applyConflictResolution(diffType.filePath, loadedConflictFile, choices)
+                        onResolve = { content ->
+                            viewModel.applyConflictResolution(diffType.filePath, content)
                         },
                     )
                 } else when (diffResult) {
