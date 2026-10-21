@@ -3,7 +3,7 @@
 
 #define MyAppName "GitMiro"
 #define MyAppPublisher "Hugodehu (fork of Gitnuro by Abdelilah El Aissaoui)"
-#define MyAppURL "https://github.com/Hugodehu/GitMiro"
+#define MyAppURL "https://github.com/Isipharm/GitMiro"
 #define MyAppExeName "GitMiro.exe"
 
 [Setup]
