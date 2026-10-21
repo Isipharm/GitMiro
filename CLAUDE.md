@@ -6,19 +6,26 @@ Gitnuro is a desktop Git client written in Kotlin/JVM with Compose Multiplatform
 
 ## Build & run
 
-Requirements: JDK 25 (the Gradle toolchain is pinned to 25 in `buildSrc` and `app/build.gradle.kts`; `DEVELOPMENT.md` still says 17, which is outdated), `cargo`/`rustc` on PATH, and Perl (for the vendored OpenSSL build).
+Requirements: JDK 25 (the Gradle toolchain is pinned to 25 in `buildSrc` and `app/build.gradle.kts`; `DEVELOPMENT.md` still says 17, which is outdated), `cargo`/`rustc` on PATH, and Perl (for the vendored OpenSSL build; on Windows it must be a native Perl such as Strawberry Perl, Git Bash's Perl is rejected by OpenSSL's `Configure`).
+
+The Gradle daemon itself must run on a HotSpot JDK 25: OpenJ9 builds (e.g. IBM Semeru) make KSP fail with "Flight Recorder is not supported on this VM", and a JDK below 25 can't load `buildSrc`. If `~/.gradle/gradle.properties` sets `org.gradle.java.home` to another JDK, override it per command:
 
 ```bash
-./gradlew run                     # run the app
+./gradlew :domain:test :data:test "-Dorg.gradle.java.home=C:\Program Files\Eclipse Adoptium\jdk-25.0.4.101-hotspot"
+```
+
+```bash
+./gradlew run                     # run the app (pass a repository path with --args="<path>" to open it)
 ./gradlew build                   # full build (what CI runs)
 ./gradlew test                    # all tests (JUnit 5 + MockK)
-./gradlew :domain:test --tests "com.jetpackduba.gitnuro.SomeTest"   # single test class
+./gradlew :domain:test :data:test # tests only, without the Rust build
+./gradlew :data:test --tests "com.jetpackduba.gitnuro.data.git.workspace.ResolveConflictWithSideGitActionTest"   # single test class
 ./gradlew rustTasks               # build Rust lib, copy it into app resources, regenerate Kotlin bindings
 ./gradlew fatJarLinux             # portable Linux JAR (-PisLinuxAarch64=true -PuseCross=true for ARM)
 ./gradlew createDistributable     # native distribution (Windows/macOS)
 ```
 
-There are currently no test sources in the repo; tests go in `<module>/src/test/kotlin`.
+Tests live in `domain/src/test/kotlin` (pure model logic) and `data/src/test/kotlin` (Git actions). Git action tests run against real temporary repositories (`@TempDir` + `Git.init()`), build `JGit { WindowsFs(ShellManager()) }` directly instead of going through Dagger, and set `core.autocrlf=false` on the test repo so results don't depend on the machine's global Git config. Only `:app:compileKotlin` triggers the Rust build, so `:domain:test` and `:data:test` run without `cargo` (they still need the generated bindings from a previous `rustTasks` run).
 
 `compileKotlin` in `:app` depends on `rustTasks`, so every app compile runs `cargo build`. That task:
 1. builds `rs/` (release by default; `-PisRustRelease=false` for debug),
