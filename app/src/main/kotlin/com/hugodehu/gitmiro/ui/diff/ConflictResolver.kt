@@ -16,8 +16,12 @@ import androidx.compose.material.TriStateCheckbox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -265,8 +269,11 @@ fun ConflictResolver(
         val resultModifier = Modifier.weight(0.4f).fillMaxWidth()
 
         if (isEditedByHand || isFullyDecided) {
+            val resultText = editedText ?: conflictFile.resolvedText(choices)
+
             EditableResult(
-                text = editedText ?: conflictFile.resolvedText(choices),
+                text = resultText,
+                changedLines = remember(conflictFile, resultText) { conflictFile.changedLines(resultText) },
                 minLineNumberDigits = lineNumberDigits,
                 onTextChanged = { editedText = it },
                 modifier = resultModifier,
@@ -309,7 +316,7 @@ private fun ResultPreview(
                     val choice = choices[chunk.index]
 
                     if (choice?.isDecided == true) {
-                        Row(modifier = Modifier.background(MaterialTheme.colors.secondarySurface)) {
+                        Row(modifier = Modifier.background(MaterialTheme.colors.diffLineAdded)) {
                             Spacer(Modifier.width(CHECKBOX_GUTTER_WIDTH))
                             CodeLines(chunk.linesFor(choice), firstLineNumber, lineNumberDigits, syntaxHighlighter)
                         }
@@ -333,6 +340,7 @@ private fun ResultPreview(
 @Composable
 private fun EditableResult(
     text: String,
+    changedLines: Set<Int>,
     minLineNumberDigits: Int,
     onTextChanged: (String) -> Unit,
     modifier: Modifier,
@@ -340,9 +348,29 @@ private fun EditableResult(
     val linesCount = text.lines().size
     val lineNumberDigits = maxOf(minLineNumberDigits, linesCount.toString().length)
     val textStyle = MaterialTheme.typography.body2.copy(fontFamily = monoTypography())
+    val changedLineColor = MaterialTheme.colors.diffLineAdded
+    var textLayout by remember { mutableStateOf<TextLayoutResult?>(null) }
 
-    // Line numbers and text share the vertical scroll, the text scrolls horizontally so lines are not wrapped
-    Row(modifier = modifier.verticalScroll(rememberScrollState())) {
+    // Line numbers and text share the vertical scroll, the text scrolls horizontally so lines are not wrapped.
+    // Changed lines are painted on the whole row width, using the text layout to know where each line is
+    Row(
+        modifier = modifier
+            .verticalScroll(rememberScrollState())
+            .drawBehind {
+                val layout = textLayout ?: return@drawBehind
+
+                for (line in changedLines) {
+                    if (line >= layout.lineCount) continue
+
+                    val top = layout.getLineTop(line)
+                    drawRect(
+                        color = changedLineColor,
+                        topLeft = Offset(0f, top),
+                        size = Size(size.width, layout.getLineBottom(line) - top),
+                    )
+                }
+            }
+    ) {
         Spacer(Modifier.width(CHECKBOX_GUTTER_WIDTH))
         Text(
             text = (1..linesCount).joinToString("\n") { it.toStringWithSpaces(lineNumberDigits) },
@@ -356,6 +384,7 @@ private fun EditableResult(
                 onValueChange = onTextChanged,
                 textStyle = textStyle.copy(color = MaterialTheme.colors.onBackground),
                 cursorBrush = SolidColor(MaterialTheme.colors.onBackground),
+                onTextLayout = { textLayout = it },
                 modifier = Modifier.padding(start = 16.dp, end = 16.dp),
             )
         }

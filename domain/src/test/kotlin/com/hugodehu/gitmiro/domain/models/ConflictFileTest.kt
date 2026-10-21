@@ -58,6 +58,19 @@ class ConflictFileTest {
     }
 
     @Test
+    fun `changed lines are the kept conflict lines and the lines edited by hand`() {
+        // Common lines are "a" and "b"
+        val choices = mapOf(0 to ConflictChoice(keepCurrent = true), 1 to ConflictChoice(keepIncoming = true))
+        val text = file.resolvedText(choices) // a, current 1, b, incoming 2
+
+        assertEquals(setOf(1, 3), file.changedLines(text))
+        assertEquals(setOf(1, 3), file.changedLines("$text\n"))
+
+        // Editing a common line and inserting a line move the highlight with them
+        assertEquals(setOf(0, 1, 2, 4), file.changedLines("a edited\nnew line\ncurrent 1\nb\nincoming 2"))
+    }
+
+    @Test
     fun `conflict markers typed by hand are detected`() {
         assertTrue(ConflictFile.hasConflictMarkers("a\n<<<<<<< HEAD\nb\n=======\nc\n>>>>>>> other\n"))
         assertFalse(ConflictFile.hasConflictMarkers("title\n=======\nb"))
