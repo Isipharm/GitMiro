@@ -8,7 +8,7 @@ went *miro* (French slang for short-sighted), hence the name. On top of Gitnuro,
 - The "Dark Blue" theme from Gitnuro 1.x.
 - Its own settings, logs and temporary files (`gitmiro` folders), so it runs next to the official Gitnuro.
 
-Source code: [github.com/Hugodehu/GitMiro](https://github.com/Hugodehu/GitMiro) (GPL-3.0, like Gitnuro).
+Source code: [github.com/Isipharm/GitMiro](https://github.com/Isipharm/GitMiro) (GPL-3.0, like Gitnuro).
 
 The rest of this README comes from Gitnuro.
 
