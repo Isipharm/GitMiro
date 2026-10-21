@@ -19,6 +19,10 @@ AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
 DefaultDirName={autopf}\{#MyAppName}
+; Installs for the current user only (%LOCALAPPDATA%\Programs), so no administrator rights are needed.
+; The setup still offers an all users install to administrators.
+PrivilegesRequired=lowest
+PrivilegesRequiredOverridesAllowed=dialog
 DisableProgramGroupPage=yes
 Compression=lzma
 OutputBaseFilename={#MyAppName}_Windows_Installer_{#MyAppVersion}

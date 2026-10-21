@@ -25,6 +25,8 @@ The Gradle daemon itself must run on a HotSpot JDK 25: OpenJ9 builds (e.g. IBM S
 ./gradlew createDistributable     # native distribution (Windows/macOS)
 ```
 
+`createDistributable` embeds a Java runtime with `includeAllModules = true`, so it must run on a JDK that ships `jmods` (e.g. the JetBrains Runtime SDK `jbrsdk`, as in CI). Temurin 25 doesn't ship them and `jlink` fails with "This JDK does not contain packaged modules". The Windows installer is then built from the distributable with Inno Setup: `iscc /DMyAppVersion=1.0.0 gitnuro.iss` writes `Output/GitMiro_Windows_Installer_1.0.0.exe` (per-user install, no admin rights needed). When releasing, bump `projectVersion`/`projectVersionSimplified` in `app/build.gradle.kts` and `APP_VERSION`/`APP_VERSION_CODE` in `AppConstants` together. Update checks are disabled while `AppConstants.VERSION_CHECK_URL` is null.
+
 Tests live in `domain/src/test/kotlin` (pure model logic) and `data/src/test/kotlin` (Git actions). Git action tests run against real temporary repositories (`@TempDir` + `Git.init()`), build `JGit { WindowsFs(ShellManager()) }` directly instead of going through Dagger, and set `core.autocrlf=false` on the test repo so results don't depend on the machine's global Git config. Only `:app:compileKotlin` triggers the Rust build, so `:domain:test` and `:data:test` run without `cargo` (they still need the generated bindings from a previous `rustTasks` run).
 
 `compileKotlin` in `:app` depends on `rustTasks`, so every app compile runs `cargo build`. That task:

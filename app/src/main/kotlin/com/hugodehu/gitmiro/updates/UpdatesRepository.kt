@@ -25,11 +25,13 @@ class UpdatesRepository @Inject constructor(
     private val httpClient: HttpClient,
 ) {
     val hasUpdatesFlow = flow {
+        val versionCheckUrl = AppConstants.VERSION_CHECK_URL ?: return@flow
+
         while (currentCoroutineContext().isActive) {
-            printLog(TAG, "Checking for new updates in ${AppConstants.VERSION_CHECK_URL}")
+            printLog(TAG, "Checking for new updates in $versionCheckUrl")
 
             val latestReleaseJson = httpClient
-                .get(AppConstants.VERSION_CHECK_URL)
+                .get(versionCheckUrl)
                 .body<String>()
 
             val update = updateJson.decodeFromString<Update?>(latestReleaseJson)
