@@ -65,4 +65,6 @@ Adding a new Git action means: interface in `domain/interfaces`, implementation 
 
 ## CI
 
-`.github/workflows/build_with_tests.yml` runs `./gradlew build` and `./gradlew test` on Ubuntu with JDK 25 for pushes/PRs to `main`. Release builds (`release.yml`) run on tags; fonts in `app/src/main/composeResources/font` are stored in Git LFS.
+`.github/workflows/build_with_tests.yml` runs `./gradlew build` and `./gradlew test` on Ubuntu with JDK 25 for pushes/PRs to `main`.
+
+`.github/workflows/release.yml` is started by hand (Actions tab → Release → Run workflow) with the version to release. On `windows-latest` with the JetBrains Runtime, it checks that the version matches `projectVersion`, `projectVersionSimplified` and `APP_VERSION`, builds the app, the Inno Setup installer and a portable ZIP, and publishes them with SHA-256 checksums as the GitHub release `v<version>`. `rs/target` is cached so OpenSSL is only rebuilt when the Rust sources change. Fonts in `app/src/main/composeResources/font` are stored in Git LFS, so checkouts need `lfs: true`.
