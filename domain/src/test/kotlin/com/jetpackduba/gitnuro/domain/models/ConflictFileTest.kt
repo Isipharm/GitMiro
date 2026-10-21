@@ -48,4 +48,36 @@ class ConflictFileTest {
         assertFalse(file.isFullyDecided(mapOf(0 to ConflictChoice(keepCurrent = true))))
         assertFalse(file.isFullyDecided(mapOf(0 to ConflictChoice(keepCurrent = true), 1 to ConflictChoice())))
     }
+
+    @Test
+    fun `text for manual edition matches the resolved content`() {
+        val choices = mapOf(0 to ConflictChoice(keepCurrent = true), 1 to ConflictChoice(keepIncoming = true))
+
+        assertEquals("a\ncurrent 1\nb\nincoming 2", file.resolvedText(choices))
+        assertEquals(String(file.resolve(choices)), file.resolvedText(choices))
+    }
+
+    @Test
+    fun `conflict markers typed by hand are detected`() {
+        assertTrue(ConflictFile.hasConflictMarkers("a\n<<<<<<< HEAD\nb\n=======\nc\n>>>>>>> other\n"))
+        assertFalse(ConflictFile.hasConflictMarkers("title\n=======\nb"))
+    }
+
+    @Test
+    fun `edited text is encoded with the line endings and charset of the original file`() {
+        fun latin1Line(text: String) = ConflictLine(text.trimEnd(), text.toByteArray(Charsets.ISO_8859_1))
+
+        val crlfLatin1File = ConflictFile(
+            listOf(
+                ConflictChunk.Common(listOf(latin1Line("café\r\n"))),
+                ConflictChunk.Conflict(0, current = listOf(latin1Line("x\r\n")), incoming = listOf(latin1Line("y\r\n"))),
+            )
+        )
+
+        assertArrayEquals(
+            "café\r\nedited\r\n".toByteArray(Charsets.ISO_8859_1),
+            crlfLatin1File.encode("café\nedited\n"),
+        )
+        assertArrayEquals("a\nb\n".toByteArray(), file.encode("a\r\nb\n"))
+    }
 }

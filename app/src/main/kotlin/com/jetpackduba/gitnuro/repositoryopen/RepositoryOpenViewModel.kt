@@ -1019,8 +1019,8 @@ class RepositoryOpenViewModel @Inject constructor(
 
     suspend fun getConflictFile(filePath: String) = getConflictFileUseCase(filePath)
 
-    fun applyConflictResolution(filePath: String, conflictFile: ConflictFile, choices: Map<Int, ConflictChoice>) =
-        applyConflictResolutionUseCase(filePath, conflictFile, choices)
+    fun applyConflictResolution(filePath: String, content: ByteArray) =
+        applyConflictResolutionUseCase(filePath, content)
 
     fun cancelRunningJobs() {
         diffJob?.cancel()
