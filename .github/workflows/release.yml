@@ -63,9 +63,12 @@ jobs:
           distribution: 'jetbrains'
           architecture: x64
 
-      # Building OpenSSL from source takes most of the build time, keep the Rust build between releases
-      - name: Cache Rust build
-        uses: actions/cache@v6
+      # Building OpenSSL from source takes most of the build time, keep the Rust build between releases.
+      # Restored and saved in separate steps: actions/cache only saves when the whole job succeeds, so a failure
+      # in a later step would throw away a 40 minutes Rust build.
+      - name: Restore Rust build
+        id: rust-cache
+        uses: actions/cache/restore@v6
         with:
           path: |
             ~/.cargo/registry
@@ -78,11 +81,23 @@ jobs:
       - name: Build the application
         run: cmd /C gradlew.bat createDistributable --console=plain
 
-      - name: Build the installer
-        uses: Minionguyjpro/Inno-Setup-Action@v1.2.9
+      - name: Save Rust build
+        if: steps.rust-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
         with:
-          path: gitnuro.iss
-          options: /O+ /DMyAppVersion="${{ env.VERSION }}"
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rs/target
+          key: ${{ steps.rust-cache.outputs.cache-primary-key }}
+
+      # Inno Setup is preinstalled on windows-latest. Called directly because Inno-Setup-Action didn't pass the
+      # /DMyAppVersion define to iscc ("Undeclared identifier: MyAppVersion")
+      - name: Build the installer
+        shell: pwsh
+        run: |
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /O+ "/DMyAppVersion=$env:VERSION" gitnuro.iss
+          if ($LASTEXITCODE -ne 0) { throw "iscc failed with exit code $LASTEXITCODE" }
 
       - name: Build the portable ZIP
         shell: pwsh
