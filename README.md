@@ -1,4 +1,14 @@
-# Gitnuro - Multiplatform Git Client
+# GitMiro - Multiplatform Git Client
+
+GitMiro is a modified [Gitnuro](https://github.com/JetpackDuba/Gitnuro). It looked at so many Git repositories that it
+went *miro* (French slang for short-sighted), hence the name. On top of Gitnuro, it adds:
+
+- Conflict resolution inside the app: keep a whole side, or pick blocks with checkboxes, preview and edit the result.
+- "Show in file explorer" that selects the file, also available on directories.
+- The "Dark Blue" theme from Gitnuro 1.x.
+- Its own settings, logs and temporary files (`gitmiro` folders), so it runs next to the official Gitnuro.
+
+The rest of this README comes from Gitnuro.
 
 [![Latest release](https://img.shields.io/github/v/release/JetpackDuba/Gitnuro?color=blue&label=latest%20release)](https://github.com/JetpackDuba/Gitnuro/releases/latest)
 
