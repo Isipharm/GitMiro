@@ -124,3 +124,29 @@ jobs:
             Output/GitMiro_Windows_Installer_*.exe
             Output/GitMiro_Windows_Portable_*.zip
             Output/*.sha256
+
+      # Announces the release to the installed apps (AppConstants.VERSION_CHECK_URL). The secret is a SAS URL of the
+      # latest.json blob with write permission. Skipped for drafts, and when the secret isn't set.
+      - name: Update latest.json for update checks
+        if: ${{ !inputs.draft }}
+        shell: pwsh
+        env:
+          LATEST_JSON_SAS_URL: ${{ secrets.GITMIRO_LATEST_JSON_SAS_URL }}
+        run: |
+          if (-not $env:LATEST_JSON_SAS_URL) {
+            Write-Output "::warning::GITMIRO_LATEST_JSON_SAS_URL is not set, latest.json must be uploaded by hand"
+            exit 0
+          }
+
+          $constants = Get-Content app/src/main/kotlin/com/hugodehu/gitmiro/AppConstants.kt -Raw
+          if ($constants -notmatch 'APP_VERSION_CODE = (\d+)') { throw "APP_VERSION_CODE not found in AppConstants.kt" }
+
+          $latest = [ordered]@{
+            appVersion = $env:VERSION
+            appCode = [int]$Matches[1]
+            downloadUrl = "https://github.com/${{ github.repository }}/releases/tag/v$env:VERSION"
+          } | ConvertTo-Json
+          Write-Output $latest
+
+          Invoke-RestMethod -Method Put -Uri $env:LATEST_JSON_SAS_URL -Body $latest -ContentType "application/json" `
+            -Headers @{ "x-ms-blob-type" = "BlockBlob" }
