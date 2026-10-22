@@ -24,10 +24,11 @@ object AppConstants {
     const val APP_VERSION = "1.0.0"
     const val APP_VERSION_CODE = 1
     /**
-     * URL of a latest.json (see the one at the root of the repository) that every user can read. Null disables the
-     * update checks, as GitMiro has no public release channel yet and Gitnuro's one would announce Gitnuro releases.
+     * latest.json (same format as the one at the root of the repository) checked for updates. It must be readable
+     * without authentication, so it lives in a public Azure blob instead of this private repository. The release
+     * workflow uploads it when the GITMIRO_LATEST_JSON_SAS_URL secret is set. Null disables the update checks.
      */
-    val VERSION_CHECK_URL: String? = null
+    val VERSION_CHECK_URL: String? = "https://leodevresources.blob.core.windows.net/public-ressources/GitMiro/latest.json"
 }
 
 
