@@ -20,12 +20,12 @@ val linuxArmTarget = "aarch64-unknown-linux-gnu"
 val linuxX64Target = "x86_64-unknown-linux-gnu"
 
 // Remember to update Constants.APP_VERSION when changing this version
-val projectVersion = "1.0.2"
+val projectVersion = "1.0.3"
 
 val projectName = "GitMiro"
 
 // Required for JPackage, as it doesn't accept additional suffixes after the version.
-val projectVersionSimplified = "1.0.2"
+val projectVersionSimplified = "1.0.3"
 
 val rustGeneratedSource = "${layout.buildDirectory.get()}/generated/source/uniffi/main/com/hugodehu/gitmiro/java"
 
