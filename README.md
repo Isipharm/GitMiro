@@ -144,11 +144,13 @@ For the latest stable version, you can use this JSON as an example:
     "diffKeyword": "FF000000", 
     "diffAnnotation": "FF000000",
     "diffComment": "FF000000",
-    "isLight": true
+    "isLight": true,
+    "graphColors": ["FF42A5F5", "FFEF5350", "FF78909C", "FFFF7043", "FF66BB6A", "FFEC407A"]
 }
 ```
 
-Colors are in ARGB Hex format.
+Colors are in ARGB Hex format. `graphColors` is optional: it lists the colors of the log graph, one per column, repeated
+after the last one (the default is the list above).
 
 > Why isn't the Mac version signed?
 

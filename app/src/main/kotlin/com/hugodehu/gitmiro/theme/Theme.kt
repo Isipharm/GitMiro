@@ -156,6 +156,11 @@ val Colors.diffComment: Color
     @Composable
     get() = theme.diffComment
 
+// An empty list in a custom theme would leave the graph without colors
+val Colors.graphColors: List<Color>
+    @Composable
+    get() = theme.graphColors.ifEmpty { defaultGraphColors }
+
 val Colors.isDark: Boolean
     get() = !this.isLight
 

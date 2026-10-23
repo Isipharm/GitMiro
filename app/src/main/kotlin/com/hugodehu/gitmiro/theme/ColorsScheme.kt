@@ -45,6 +45,11 @@ data class ColorsScheme(
     val diffAnnotation: Color,
     val diffComment: Color,
     val isLight: Boolean,
+    /**
+     * Colors of the log graph, picked by the column (lane) of each commit and repeated after the last one. Optional
+     * in custom themes.
+     */
+    val graphColors: List<Color> = defaultGraphColors,
 ) {
     fun toComposeColors(): Colors {
         return Colors(

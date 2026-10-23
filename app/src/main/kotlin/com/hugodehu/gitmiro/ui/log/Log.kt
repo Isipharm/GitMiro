@@ -75,15 +75,6 @@ import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
 import java.util.LinkedHashMap
 
-private val colors = listOf(
-    Color(0xFF42a5f5),
-    Color(0xFFef5350),
-    Color(0xFFe78909c),
-    Color(0xFFff7043),
-    Color(0xFF66bb6a),
-    Color(0xFFec407a),
-)
-
 private const val CANVAS_MIN_WIDTH = 100
 private const val CANVAS_DEFAULT_WIDTH = 120
 private const val MIN_GRAPH_LANES = 2
@@ -902,6 +893,7 @@ private fun CommitLine(
                 .height(MaterialTheme.linesHeight.logCommitHeight)
                 .handMouseClickable { onRevCommitSelected() }
         ) {
+            val colors = MaterialTheme.colors.graphColors
             val nodeColor = colors[graphNode.lane % colors.size]
 
             Box {
@@ -1137,6 +1129,7 @@ fun CommitsGraph(
     val passingLanes = plotCommit.passingLanes
     val forkingOffLanes = plotCommit.forkingOffLanes
     val mergingLanes = plotCommit.mergingLanes
+    val colors = MaterialTheme.colors.graphColors
     val density = LocalDensity.current.density
     val laneWidthWithDensity = remember(density) {
         LANE_WIDTH * density
@@ -1186,7 +1179,7 @@ fun CommitsGraph(
 
                     val arcRect = Rect(x2, y2, x3, y1)
 
-                    graphArc(x1, y1, x2, arcRect, startAngle, sweepAngleDegrees, x3, y3, plotLane, density)
+                    graphArc(x1, y1, x2, arcRect, startAngle, sweepAngleDegrees, x3, y3, colors[plotLane % colors.size], density)
                 }
 
                 mergingLanes.forEach { plotLane ->
@@ -1212,7 +1205,7 @@ fun CommitsGraph(
                         Rect(x2, y1, x3, y2)
                     }
 
-                    graphArc(x1, y1, x2, arcRect, startAngle, sweepAngleDegrees, x3, y3, plotLane, density)
+                    graphArc(x1, y1, x2, arcRect, startAngle, sweepAngleDegrees, x3, y3, colors[plotLane % colors.size], density)
                 }
 
                 if (plotCommit.commit.parentCount > 0) {
@@ -1256,7 +1249,7 @@ private fun DrawScope.graphArc(
     sweepAngleDegrees: Float,
     x3: Float,
     y3: Float,
-    plotLane: Int,
+    color: Color,
     density: Float
 ) {
     val path = Path().apply {
@@ -1273,7 +1266,7 @@ private fun DrawScope.graphArc(
 
     drawPath(
         path = path,
-        color = colors[plotLane % colors.size],
+        color = color,
         style = Stroke(width = 2f * density)
     )
 }
@@ -1336,6 +1329,7 @@ fun UncommittedChangesGraphNode(
     hasPreviousCommits: Boolean,
     isSelected: Boolean,
 ) {
+    val colors = MaterialTheme.colors.graphColors
     val density = LocalDensity.current.density
 
     val laneWidthWithDensity = remember(density) {
