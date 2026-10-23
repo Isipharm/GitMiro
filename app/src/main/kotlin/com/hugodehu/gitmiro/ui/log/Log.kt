@@ -1379,7 +1379,6 @@ fun BranchChip(
     onRenameBranch: (Branch) -> Unit,
     color: Color,
 ) {
-    val remoteBranchIconColor = Color(0xFFbd9b46)
     val contextMenuItemsList = {
         branchContextMenuItems(
             branch = branch,
@@ -1459,7 +1458,7 @@ fun BranchChip(
                 ContextMenu(
                     items = remoteContextMenuItemsList,
                 ) {
-                    Box(modifier = Modifier.background(color = remoteBranchIconColor)) {
+                    Box(modifier = Modifier.background(color = color)) {
                         Icon(
                             modifier = Modifier
                                 .padding((6 * sizeMultiplierTrackingRemoteBranch).dp)
@@ -1482,7 +1481,6 @@ fun BranchChip(
             orientation = Orientation.Vertical,
         ),
         color = color,
-        iconBackgroundColor = if (branch.isLocal) color else remoteBranchIconColor,
         text = branch.logName,
         icon = if (branch.isLocal) Res.drawable.branch else Res.drawable.cloud,
         onCheckoutRef = { onCheckoutBranch(branch) },
@@ -1540,7 +1538,6 @@ fun Chip(
     text: String,
     icon: DrawableResource,
     color: Color,
-    iconBackgroundColor: Color = color,
     onCheckoutRef: () -> Unit,
     contextMenuItemsList: () -> List<ContextMenuElement>,
     endingContent: @Composable RowScope.() -> Unit = {},
@@ -1560,7 +1557,7 @@ fun Chip(
                 modifier = modifier,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Box(modifier = Modifier.background(color = iconBackgroundColor)) {
+                Box(modifier = Modifier.background(color = color)) {
                     Icon(
                         modifier = Modifier
                             .padding(6.dp)
