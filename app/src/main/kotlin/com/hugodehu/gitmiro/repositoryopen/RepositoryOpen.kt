@@ -167,6 +167,10 @@ fun RepositoryOpenPage(
     LaunchedEffect(repositoryOpenViewModel) {
         focusRequester.requestFocus()
     }
+
+    LaunchedEffect(repositoryOpenViewModel) {
+        repositoryOpenViewModel.branchesToPrune.collect { onNavigate(Screen.PruneBranches(it)) }
+    }
 }
 
 @Composable

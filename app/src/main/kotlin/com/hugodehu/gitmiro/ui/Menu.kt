@@ -82,6 +82,20 @@ fun Menu(
 
         Spacer(modifier = Modifier.weight(1f))
 
+        MenuButton(
+            modifier = Modifier.padding(end = 4.dp),
+            title = stringResource(Res.string.menu_prune),
+            icon = painterResource(Res.drawable.cut),
+            keybinding = null,
+            tooltip = if (hasRemotes) {
+                stringResource(Res.string.menu_prune_tooltip)
+            } else {
+                stringResource(Res.string.menu_prune_tooltip_disabled)
+            },
+            enabled = hasRemotes,
+            onClick = { viewModel.prune() },
+        )
+
         val pullTooltip = if (!hasRemotes) {
             stringResource(Res.string.menu_pull_tooltip_disabled)
         } else if (isPullWithRebaseDefault) {

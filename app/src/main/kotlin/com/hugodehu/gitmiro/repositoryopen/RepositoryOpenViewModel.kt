@@ -140,6 +140,7 @@ class RepositoryOpenViewModel @Inject constructor(
     private val commitChangesViewModelExtenderFactory: CommitChangesViewModelExtender.Factory,
     private val getCommitFromHashUseCase: GetCommitFromHashUseCase,
     private val fetchAllUseCase: FetchAllBranchUseCase,
+    private val getBranchesToPruneUseCase: GetBranchesToPruneUseCase,
     private val stashChangesUseCase: StashChangesUseCase,
     private val openRepositoryInTerminalGitAction: OpenRepositoryInTerminalGitAction,
 ) : IVerticalSplitPaneConfig by verticalSplitPaneConfig,
@@ -195,6 +196,12 @@ class RepositoryOpenViewModel @Inject constructor(
 
     val freeSearchFocusFlow: SharedFlow<Unit>
         field = MutableSharedFlow<Unit>()
+
+    /**
+     * Local branches to offer for deletion after a prune, empty when there's nothing to clean
+     */
+    val branchesToPrune: SharedFlow<List<Branch>>
+        field = MutableSharedFlow<List<Branch>>()
 
     val diffSelected: StateFlow<DiffSelected?>
         field = MutableStateFlow<DiffSelected?>(null)
@@ -567,6 +574,14 @@ class RepositoryOpenViewModel @Inject constructor(
     fun push(force: Boolean, pushTags: Boolean) = pushBranchUseCase(force, pushTags)
 
     fun fetchAll() = fetchAllUseCase()
+
+    fun prune() = viewModelScope.launch {
+        val branches = getBranchesToPruneUseCase().await()
+
+        if (branches is Either.Ok) {
+            branchesToPrune.emit(branches.value)
+        }
+    }
 
     fun stash() = stashChangesUseCase(null)
 

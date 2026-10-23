@@ -19,7 +19,9 @@ import com.hugodehu.gitmiro.domain.repositories.CompletedTask
 import com.hugodehu.gitmiro.domain.repositories.FailureSeverity
 import com.hugodehu.gitmiro.domain.repositories.RepositoryDataRepository
 import com.hugodehu.gitmiro.domain.repositories.RepositoryStateRepository
+import com.hugodehu.gitmiro.domain.models.Branch
 import com.hugodehu.gitmiro.domain.models.ConflictSide
+import com.hugodehu.gitmiro.domain.usecases.DeleteBranchesUseCase
 import com.hugodehu.gitmiro.domain.usecases.OpenRepositoryUseCase
 import com.hugodehu.gitmiro.domain.usecases.ResolveConflictWithSideUseCase
 import com.hugodehu.gitmiro.domain.usecases.SetRepositorySelectionStateToNoneUseCase
@@ -65,6 +67,7 @@ class RepositoryTabViewModel @AssistedInject constructor(
     private val repositoryStateRepository: RepositoryStateRepository,
     private val setRepositorySelectionStateToNoneUseCase: SetRepositorySelectionStateToNoneUseCase,
     private val resolveConflictWithSideUseCase: ResolveConflictWithSideUseCase,
+    private val deleteBranchesUseCase: DeleteBranchesUseCase,
     private val tabComponent: TabComponent,
     @Assisted private val initialPath: String?,
     updatesRepository: UpdatesRepository,
@@ -234,6 +237,8 @@ class RepositoryTabViewModel @AssistedInject constructor(
     }
 
     fun resolveConflict(filePath: String, side: ConflictSide) = resolveConflictWithSideUseCase(filePath, side)
+
+    fun deleteBranches(branches: List<Branch>) = deleteBranchesUseCase(branches)
 
     fun openUrlInBrowser(url: String) {
         openUrlInBrowserUseCase(url)
