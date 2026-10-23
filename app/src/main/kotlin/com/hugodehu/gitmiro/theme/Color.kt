@@ -2,6 +2,15 @@ package com.hugodehu.gitmiro.theme
 
 import androidx.compose.ui.graphics.Color
 
+val defaultGraphColors = listOf(
+    Color(0xFF42a5f5),
+    Color(0xFFef5350),
+    Color(0xFF78909c),
+    Color(0xFFff7043),
+    Color(0xFF66bb6a),
+    Color(0xFFec407a),
+)
+
 val lightTheme = ColorsScheme(
     primary = Color(0xFF0070D8),
     primaryVariant = Color(0xFF0070D8),
