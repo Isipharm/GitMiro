@@ -298,6 +298,18 @@ fun AppTab(
                                 }
                             )
                         }
+                        entry<Screen.PruneBranches>(
+                            metadata = dialogsMetadata
+                        ) { entry ->
+                            PruneBranchesDialog(
+                                branches = entry.branches,
+                                onDelete = { branches ->
+                                    repositoryTabViewModel.deleteBranches(branches)
+                                    backStack.removeLastOrNull()
+                                },
+                                onDismiss = { backStack.removeLastOrNull() },
+                            )
+                        }
                         entry<Screen.DeletedFileConflict>(
                             metadata = dialogsMetadata
                         ) { entry ->

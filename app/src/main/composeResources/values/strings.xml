@@ -25,6 +25,9 @@
     <string name="menu_open">Open</string>
     <string name="menu_open_dialog_title">Open a repository</string>
     <string name="menu_open_tooltip">Open a different repository</string>
+    <string name="menu_prune">Prune</string>
+    <string name="menu_prune_tooltip">Fetch, then delete the local branches whose remote branch was deleted</string>
+    <string name="menu_prune_tooltip_disabled">Prune not available without a remote repository</string>
     <string name="menu_pull">Pull</string>
     <string name="menu_pull_default">Pull current branch</string>
     <string name="menu_pull_rebase">Pull current branch with rebase</string>

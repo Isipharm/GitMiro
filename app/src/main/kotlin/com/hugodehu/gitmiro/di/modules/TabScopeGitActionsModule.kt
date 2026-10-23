@@ -110,6 +110,10 @@ interface TabScopeGitActionsModule {
 
     @Binds
     @TabScope
+    fun bindsGetGoneBranchesGitAction(action: GetGoneBranchesGitAction): IGetGoneBranchesGitAction
+
+    @Binds
+    @TabScope
     fun bindsDeleteFileGitAction(action: DeleteFileGitAction): IDeleteFileGitAction
 
     @Binds

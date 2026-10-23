@@ -73,6 +73,7 @@ sealed interface Screen : NavKey {
     data object GlobalSettings : Screen
     data object CloneRepository : Screen
     data class BranchRename(val ref: Branch) : Screen
+    data class PruneBranches(val branches: List<Branch>) : Screen
     data class BranchChangeUpstream(val ref: Branch) : Screen
     data class BranchCreate(val targetCommit: Commit?) : Screen
     data class TagCreate(val targetCommit: Commit) : Screen
