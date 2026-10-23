@@ -31,6 +31,7 @@ class AppSettingsService @Inject constructor(
     val showChangesAsTree: Flow<Boolean> get() = appSettingsRepository.showChangesAsTree.defaultIfNull { DEFAULT_SHOW_CHANGES_AS_TREE }
     val diffDisplayFullFile: Flow<Boolean> get() = appSettingsRepository.diffDisplayFullFile.defaultIfNull { DEFAULT_DIFF_DISPLAY_FULL_FILE }
     val diffTextViewType: Flow<DiffTextViewType> get() = appSettingsRepository.diffTextViewType.defaultIfNull { DEFAULT_DIFF_TEXT_VIEW_TYPE }
+    val mergeTrackedBranchesInLog: Flow<Boolean> get() = appSettingsRepository.mergeTrackedBranchesInLog.defaultIfNull { DEFAULT_MERGE_TRACKED_BRANCHES_IN_LOG }
     val pullWithRebase: Flow<Boolean> get() = appSettingsRepository.pullWithRebase.defaultIfNull { DEFAULT_PULL_WITH_REBASE }
     val pushWithLease: Flow<Boolean> get() = appSettingsRepository.pushWithLease.defaultIfNull { DEFAULT_PUSH_WITH_LEASE }
     val fastForwardMerge: Flow<Boolean> get() = appSettingsRepository.fastForwardMerge.defaultIfNull { DEFAULT_FAST_FORWARD_MERGE }
@@ -59,6 +60,7 @@ class AppSettingsService @Inject constructor(
         const val DEFAULT_SHOW_CHANGES_AS_TREE = false
         const val DEFAULT_DIFF_DISPLAY_FULL_FILE = false
         val DEFAULT_DIFF_TEXT_VIEW_TYPE = DiffTextViewType.Unified
+        const val DEFAULT_MERGE_TRACKED_BRANCHES_IN_LOG = true
         const val DEFAULT_PULL_WITH_REBASE = false
         const val DEFAULT_PUSH_WITH_LEASE = true
         const val DEFAULT_FAST_FORWARD_MERGE = true

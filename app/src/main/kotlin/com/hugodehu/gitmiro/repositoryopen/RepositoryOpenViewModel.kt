@@ -149,6 +149,9 @@ class RepositoryOpenViewModel @Inject constructor(
     val showAsTree = appSettings.showChangesAsTree
         .stateIn(false)
 
+    val mergeTrackedBranchesInLog = appSettings.mergeTrackedBranchesInLog
+        .stateIn(AppSettingsService.DEFAULT_MERGE_TRACKED_BRANCHES_IN_LOG)
+
     val isPullWithRebaseDefault = settings.pullWithRebase
 
     val lastLoadedTabs = appStateManager.latestOpenedRepositoriesPaths

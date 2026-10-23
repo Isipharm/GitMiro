@@ -39,6 +39,7 @@ private val swapStatusPanesPreference get() = booleanPreferencesKey("swap_status
 private val diffDisplayFullFilePreference get() = booleanPreferencesKey("diff_display_full_file")
 private val diffTextViewTypePreference get() = stringPreferencesKey("diff_text_view")
 private val showChangesAsTreePreference get() = booleanPreferencesKey("show_changes_as_tree")
+private val mergeTrackedBranchesInLogPreference get() = booleanPreferencesKey("merge_tracked_branches_in_log")
 
 private val dateFormatUseDefaultPreference get() = booleanPreferencesKey("date_format_use_default")
 private val dateFormatCustomFormatPreference get() = stringPreferencesKey("date_format_custom_format")
@@ -109,6 +110,7 @@ class DataStoreAppSettingsRepository @Inject constructor(
     override val showChangesAsTree get() = preferences.data[showChangesAsTreePreference]
     override val diffDisplayFullFile get() = preferences.data[diffDisplayFullFilePreference]
     override val diffTextViewType get() = preferences.data[diffTextViewTypePreference].map { textDiffViewTypeMapper.toDomain(it) }
+    override val mergeTrackedBranchesInLog get() = preferences.data[mergeTrackedBranchesInLogPreference]
 
     // Git
     override val pullWithRebase get() = preferences.data[pullWithRebasePreference]
@@ -166,6 +168,7 @@ class DataStoreAppSettingsRepository @Inject constructor(
                 is AppConfig.DiffDisplayFullFile -> setValue(diffDisplayFullFilePreference, appConfig.value)
                 is AppConfig.DiffTextViewType -> setValue(diffTextViewTypePreference, textDiffViewTypeMapper.toData(appConfig.value))
                 is AppConfig.ShowChangesAsTree -> setValue(showChangesAsTreePreference, appConfig.value)
+                is AppConfig.MergeTrackedBranchesInLog -> setValue(mergeTrackedBranchesInLogPreference, appConfig.value)
                 is AppConfig.TerminalPath -> setValue(terminalPathPreference, appConfig.value)
             }
         }
