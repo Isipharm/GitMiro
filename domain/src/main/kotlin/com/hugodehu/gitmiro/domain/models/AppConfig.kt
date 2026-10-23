@@ -29,5 +29,6 @@ sealed interface AppConfig {
     data class DiffDisplayFullFile(val value: Boolean) : AppConfig
     data class DiffTextViewType(val value: com.hugodehu.gitmiro.domain.models.DiffTextViewType) : AppConfig
     data class ShowChangesAsTree(val value: Boolean) : AppConfig
+    data class MergeTrackedBranchesInLog(val value: Boolean) : AppConfig
     data class TerminalPath(val value: String) : AppConfig
 }

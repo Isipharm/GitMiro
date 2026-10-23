@@ -487,6 +487,15 @@ private fun Layout(settingsViewState: SettingsViewState, onAction: (SettingsActi
             onAction(SettingsAction.SetConfig(AppConfig.SwapStatusPanes(value)))
         }
     )
+
+    SettingToggle(
+        title = "Merge local and remote branches in the log",
+        subtitle = "Show a branch and its remote tracking branch as a single label when they point to the same commit",
+        value = settingsViewState.mergeTrackedBranchesInLog,
+        onValueChanged = { value ->
+            onAction(SettingsAction.SetConfig(AppConfig.MergeTrackedBranchesInLog(value)))
+        }
+    )
 }
 
 @Composable

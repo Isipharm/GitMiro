@@ -23,6 +23,7 @@ interface AppSettingsRepository {
     val showChangesAsTree: Flow<Boolean?>
     val diffDisplayFullFile: Flow<Boolean?>
     val diffTextViewType: Flow<DiffTextViewType?>
+    val mergeTrackedBranchesInLog: Flow<Boolean?>
 
     // Git
     val pullWithRebase: Flow<Boolean?>

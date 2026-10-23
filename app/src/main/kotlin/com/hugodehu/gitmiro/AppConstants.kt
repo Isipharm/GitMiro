@@ -29,6 +29,10 @@ object AppConstants {
      * workflow uploads it when the GITMIRO_LATEST_JSON_SAS_URL secret is set. Null disables the update checks.
      */
     val VERSION_CHECK_URL: String? = "https://leodevresources.blob.core.windows.net/public-ressources/GitMiro/latest.json"
+    /**
+     * Private repository whose releases hold the release notes and the installer that updates download
+     */
+    const val GITHUB_REPOSITORY = "Isipharm/GitMiro"
 }
 
 

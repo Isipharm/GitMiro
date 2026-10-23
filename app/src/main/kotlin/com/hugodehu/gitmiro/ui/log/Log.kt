@@ -121,6 +121,7 @@ fun Log(
 ) {
     val logStatusState = viewModel.logState.collectAsState()
     val logStatus = logStatusState.value
+    val mergeTrackedBranches by viewModel.mergeTrackedBranchesInLog.collectAsState()
     var graphPadding by remember(viewModel) { mutableStateOf(viewModel.graphPadding) }
 
     LaunchedEffect(logStatus.verticalScrollState, logStatus.commitList) {
@@ -151,6 +152,7 @@ fun Log(
             selectedItem = selectedItem,
             repositoryState = repositoryState,
             graphPadding = graphPadding,
+            mergeTrackedBranches = mergeTrackedBranches,
             onRequestMoreLogItems = { firstVisibleItemIndex -> viewModel.loadMoreLogItems(firstVisibleItemIndex) },
             onCreateBranch = onCreateBranch,
             onResetBranch = onResetBranch,
@@ -183,6 +185,7 @@ private fun LogView(
     selectedItem: SelectedItem,
     repositoryState: RepositoryState,
     graphPadding: Float,
+    mergeTrackedBranches: Boolean,
     onRequestMoreLogItems: (Int) -> Unit,
     onCreateBranch: (Commit) -> Unit,
     onResetBranch: (Commit) -> Unit,
@@ -291,6 +294,7 @@ private fun LogView(
                 branches = logState.branches,
                 tags = logState.tags,
                 stashes = logState.stashes,
+                mergeTrackedBranches = mergeTrackedBranches,
                 graphWidth = graphWidth,
                 onCreateBranch = onCreateBranch,
                 onResetBranch = onResetBranch,
@@ -499,6 +503,7 @@ fun CommitsList(
     searchFilter: List<GraphCommit>?,
     selectedCommit: Commit?,
     logState: LogState,
+    mergeTrackedBranches: Boolean,
     repositoryState: RepositoryState,
     selectedItem: SelectedItem,
     commitList: GraphCommits,
@@ -581,6 +586,7 @@ fun CommitsList(
                 isSelected = selectedCommit?.hash == graphNode.hash,
                 showInAmend = logState.currentBranch?.hash == graphNode.hash && !hasUncommittedChanges,
                 isStash = isStash,
+                mergeTrackedBranches = mergeTrackedBranches,
                 branches = branches[graphNode.hash].orEmpty(),
                 tags = tags[graphNode.hash].orEmpty(),
                 currentBranch = logState.currentBranch,
@@ -833,6 +839,7 @@ private fun CommitLine(
     isSelected: Boolean,
     currentBranch: Branch?,
     isStash: Boolean,
+    mergeTrackedBranches: Boolean,
     showInAmend: Boolean,
     matchesSearchFilter: Boolean?,
     showCreateNewBranch: () -> Unit,
@@ -945,6 +952,7 @@ private fun CommitLine(
                         matchesSearchFilter = matchesSearchFilter,
                         currentBranch = currentBranch,
                         isStash = isStash,
+                        mergeTrackedBranches = mergeTrackedBranches,
                         branches = branches,
                         tags = tags,
                         onCheckoutBranch = { ref ->
@@ -977,6 +985,7 @@ fun CommitMessage(
     graphCommit: GraphCommit,
     currentBranch: Branch?,
     isStash: Boolean,
+    mergeTrackedBranches: Boolean,
     tags: List<Tag>,
     branches: List<Branch>,
     nodeColor: Color,
@@ -1024,7 +1033,7 @@ fun CommitMessage(
                     }
 
                     val trackingBranch = branch.trackingBranch
-                    val trackingRemoteBranch = if (branch.matchesTrackingBranchName && trackingBranch != null) {
+                    val trackingRemoteBranch = if (mergeTrackedBranches && branch.matchesTrackingBranchName && trackingBranch != null) {
                         val remoteBranchInSameCommit = branches.firstOrNull {
                             it.isRemote && it.remoteName == trackingBranch.remote &&
                                     it.simpleName == trackingBranch.branch
