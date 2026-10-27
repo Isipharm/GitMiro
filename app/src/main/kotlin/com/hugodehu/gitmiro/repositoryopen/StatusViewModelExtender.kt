@@ -35,6 +35,7 @@ class StatusViewModelExtender @AssistedInject constructor(
     private val stageAllUseCase: StatusStageAllUseCase,
     private val unstageAllUseCase: StatusUnstageAllUseCase,
     private val discardEntriesUseCase: DiscardEntriesUseCase,
+    private val discardChangesUseCase: DiscardChangesUseCase,
     private val deleteFileUseCase: DeleteFileUseCase,
     private val resolveConflictWithSideUseCase: ResolveConflictWithSideUseCase,
     private val resetRepositoryStateUseCase: ResetRepositoryStateUseCase,
@@ -298,6 +299,7 @@ class StatusViewModelExtender @AssistedInject constructor(
 
         StatusAction.ToggleShowAsTree -> onAlternateShowAsTree()
         is StatusAction.TreeDirectoryToggle -> toggleTreeDirectoryVisibility(action.path)
+        is StatusAction.DiscardChanges -> discardChangesUseCase(action.scope)
         is StatusAction.DiscardSelected -> when (action.entryType) {
             EntryType.STAGED -> discardSelectedStaged()
             EntryType.UNSTAGED -> discardSelectedUnstaged()

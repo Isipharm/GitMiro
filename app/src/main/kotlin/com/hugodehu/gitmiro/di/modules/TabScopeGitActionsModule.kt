@@ -158,6 +158,10 @@ interface TabScopeGitActionsModule {
 
     @Binds
     @TabScope
+    fun bindsDiscardChangesGitAction(action: DiscardChangesGitAction): IDiscardChangesGitAction
+
+    @Binds
+    @TabScope
     fun bindsDiscardUnstagedHunkLineGitAction(action: DiscardUnstagedHunkLineGitAction): IDiscardUnstagedHunkLineGitAction
 
     @Binds

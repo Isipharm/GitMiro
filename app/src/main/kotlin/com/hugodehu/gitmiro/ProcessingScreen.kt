@@ -88,6 +88,7 @@ fun getTitle(taskType: TaskType): String {
         TaskType.DeleteSubmodule -> "Deleting submodule"
         TaskType.DeleteTag -> "Deleting tag"
         TaskType.DiscardFile -> "Discarding file"
+        TaskType.DiscardChanges -> "Discarding changes"
         TaskType.DoCommit -> "Committing"
         TaskType.Fetch -> "Fetching"
         TaskType.GetCommitDiffEntries -> "Getting commit diff entries"

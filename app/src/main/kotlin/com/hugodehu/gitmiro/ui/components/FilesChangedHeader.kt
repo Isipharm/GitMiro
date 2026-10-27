@@ -20,6 +20,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.hugodehu.gitmiro.extensions.handOnHover
 import com.hugodehu.gitmiro.app.generated.resources.Res
+import com.hugodehu.gitmiro.app.generated.resources.delete
 import com.hugodehu.gitmiro.app.generated.resources.list
 import com.hugodehu.gitmiro.app.generated.resources.search
 import com.hugodehu.gitmiro.app.generated.resources.tree
@@ -45,6 +46,7 @@ fun FilesChangedHeader(
     showActionForSelected: Boolean,
     actionInfo: ActionInfo? = null,
     onAllAction: (() -> Unit)? = null,
+    onDiscardAll: (() -> Unit)? = null,
     onAlternateShowAsTree: () -> Unit,
     onSearchFilterToggled: (Boolean) -> Unit,
     onSearchFocused: () -> Unit,
@@ -110,6 +112,20 @@ fun FilesChangedHeader(
                     modifier = Modifier.size(18.dp),
                     tint = MaterialTheme.colors.onBackground,
                 )
+            }
+
+            if (onDiscardAll != null) {
+                IconButton(
+                    onClick = onDiscardAll,
+                    modifier = Modifier.handOnHover()
+                ) {
+                    Icon(
+                        painter = painterResource(Res.drawable.delete),
+                        contentDescription = "Discard all the changes of this list",
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colors.error,
+                    )
+                }
             }
 
             if (actionInfo != null && onAllAction != null) {
