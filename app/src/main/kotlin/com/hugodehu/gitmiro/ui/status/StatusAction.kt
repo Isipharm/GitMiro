@@ -4,6 +4,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import com.hugodehu.gitmiro.domain.models.AuthorInfo
 import com.hugodehu.gitmiro.domain.models.ConflictSide
 import com.hugodehu.gitmiro.domain.models.DiffType
+import com.hugodehu.gitmiro.domain.models.DiscardScope
 import com.hugodehu.gitmiro.domain.models.EntryType
 import com.hugodehu.gitmiro.domain.models.StatusEntry
 import com.hugodehu.gitmiro.ui.tree_files.TreeItem
@@ -23,6 +24,7 @@ sealed interface StatusAction {
         val selectedEntries: List<DiffType.UncommittedDiff>,
     ) : StatusAction
     data class DiscardSelected(val entryType: EntryType) : StatusAction
+    data class DiscardChanges(val scope: DiscardScope) : StatusAction
     data class SelectedEntriesAction(val entryType: EntryType) : StatusAction
     data class OpenInFolder(val path: String) : StatusAction
     data class TreeDirectoryToggle(val path: String) : StatusAction

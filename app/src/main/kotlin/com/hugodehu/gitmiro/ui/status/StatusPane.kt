@@ -53,11 +53,14 @@ import com.hugodehu.gitmiro.ui.context_menu.ContextMenuElement
 import com.hugodehu.gitmiro.ui.context_menu.statusDirEntriesContextMenuItems
 import com.hugodehu.gitmiro.ui.context_menu.statusEntriesContextMenuItems
 import com.hugodehu.gitmiro.ui.context_menu.statusEntryContextMenuItems
+import com.hugodehu.gitmiro.ui.components.tooltip.InstantTooltip
 import com.hugodehu.gitmiro.ui.dialogs.CommitAuthorDialog
+import com.hugodehu.gitmiro.ui.dialogs.DiscardChangesDialog
 import com.hugodehu.gitmiro.ui.tree_files.TreeItem
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.DrawableResource
+import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 
 @Composable
@@ -102,6 +105,10 @@ fun StatusPane(
     val canCommit = commitMessage.text.isNotEmpty() && statusState.hasStagedFiles
     val canAmend = commitMessage.text.isNotEmpty() && statusState.hasPreviousCommits
     val tabFocusRequester = LocalTabFocusRequester.current
+
+    // Discarding is offered outside of merges, rebases and the like, which have their own abort
+    val canDiscard = statusState.repositoryState == RepositoryState.SAFE
+    var discardScope by remember { mutableStateOf<DiscardScope?>(null) }
 
     LaunchedEffect(statusState) {
         launch {
@@ -149,6 +156,11 @@ fun StatusPane(
                     selectedEntries = selectedStagedDiffEntries,
                     onSearchFilterToggled = { onAction(StatusAction.SearchFilterToggledStaged(it)) },
                     onSearchFocused = { onAction(StatusAction.AddStagedSearchToCloseableView) },
+                    onDiscardAll = if (canDiscard && statusState.hasStagedFiles) {
+                        { discardScope = DiscardScope.STAGED }
+                    } else {
+                        null
+                    },
                     onBlameFile = onBlameFile,
                     onHistoryFile = onHistoryFile,
                     onAction = { onAction(it) },
@@ -167,6 +179,11 @@ fun StatusPane(
                     selectedEntries = selectedUnstagedDiffEntries,
                     onSearchFilterToggled = { onAction(StatusAction.SearchFilterToggledUnstaged(it)) },
                     onSearchFocused = { onAction(StatusAction.AddUnstagedSearchToCloseableView) },
+                    onDiscardAll = if (canDiscard && statusState.hasUnstagedFiles) {
+                        { discardScope = DiscardScope.UNSTAGED }
+                    } else {
+                        null
+                    },
                     onBlameFile = onBlameFile,
                     onHistoryFile = onHistoryFile,
                     onAction = { onAction(it) },
@@ -221,7 +238,25 @@ fun StatusPane(
                 }
 
                 onAction(StatusAction.ToggleAmendRebaseInteractive(amend))
-            }
+            },
+            onDiscardAll = if (canDiscard && (statusState.hasStagedFiles || statusState.hasUnstagedFiles)) {
+                { discardScope = DiscardScope.ALL }
+            } else {
+                null
+            },
+        )
+    }
+
+    discardScope?.let { scope ->
+        DiscardChangesDialog(
+            scope = scope,
+            staged = statusState.getEntriesByEntryType(EntryType.STAGED),
+            unstaged = statusState.getEntriesByEntryType(EntryType.UNSTAGED),
+            onDiscard = {
+                onAction(StatusAction.DiscardChanges(scope))
+                discardScope = null
+            },
+            onDismiss = { discardScope = null },
         )
     }
 }
@@ -237,6 +272,7 @@ fun ColumnScope.StatusChangesList(
     selectedEntries: List<DiffType.UncommittedDiff>,
     onSearchFilterToggled: (Boolean) -> Unit,
     onSearchFocused: () -> Unit,
+    onDiscardAll: (() -> Unit)?,
     onBlameFile: (String) -> Unit,
     onHistoryFile: (String) -> Unit,
     onAction: (StatusAction) -> Unit,
@@ -274,6 +310,7 @@ fun ColumnScope.StatusChangesList(
         selectedEntries = selectedEntries,
         onSearchFilterToggled = onSearchFilterToggled,
         onSearchFocused = onSearchFocused,
+        onDiscardAll = onDiscardAll,
         onBlameFile = onBlameFile,
         onHistoryFile = onHistoryFile,
         onAction = onAction,
@@ -298,6 +335,7 @@ fun ColumnScope.ChangesList(
     entries: List<TreeItem<StatusEntry>>,
     onSearchFilterToggled: (Boolean) -> Unit,
     onSearchFocused: () -> Unit,
+    onDiscardAll: (() -> Unit)?,
     onBlameFile: (String) -> Unit,
     onHistoryFile: (String) -> Unit,
     onAction: (StatusAction) -> Unit,
@@ -353,6 +391,7 @@ fun ColumnScope.ChangesList(
         onSearchFilterChanged = { onAction(StatusAction.SearchFilterChanged(it, entryType)) },
         listState = listState,
         onAllAction = { onAction(StatusAction.AllEntriesAction(entryType)) },
+        onDiscardAll = onDiscardAll,
         onAlternateShowAsTree = { onAction(StatusAction.ToggleShowAsTree) },
     ) {
         items(entries, key = { it.fullPath }) { treeEntry ->
@@ -423,6 +462,7 @@ fun ColumnScope.ChangesList(
     onSearchFocused: () -> Unit,
     onSearchFilterChanged: (TextFieldValue) -> Unit,
     onAllAction: () -> Unit,
+    onDiscardAll: (() -> Unit)?,
     onAlternateShowAsTree: () -> Unit,
     content: LazyListScope.() -> Unit,
 ) {
@@ -437,6 +477,7 @@ fun ColumnScope.ChangesList(
             title = title,
             actionInfo = actionInfo,
             onAllAction = onAllAction,
+            onDiscardAll = onDiscardAll,
             onAlternateShowAsTree = onAlternateShowAsTree,
             searchFilter = searchFilter,
             onSearchFilterChanged = onSearchFilterChanged,
@@ -481,6 +522,7 @@ private fun CommitField(
     onSkipRebase: () -> Unit,
     onAmendChecked: (Boolean) -> Unit,
     onAmendRebaseInteractiveChecked: (Boolean) -> Unit,
+    onDiscardAll: (() -> Unit)?,
 ) {
     val isReadOnlyRebase = repositoryState.isRebasing && !isAmenableRebaseInteractive
     Column(
@@ -564,6 +606,7 @@ private fun CommitField(
                 isAmend = isAmend,
                 onAmendChecked = onAmendChecked,
                 onCommit = doCommit,
+                onDiscardAll = onDiscardAll,
             )
         }
     }
@@ -576,6 +619,7 @@ fun UncommittedChangesButtons(
     isAmend: Boolean,
     onAmendChecked: (Boolean) -> Unit,
     onCommit: () -> Unit,
+    onDiscardAll: (() -> Unit)?,
 ) {
     val buttonText = if (isAmend)
         stringResource(Res.string.uncommited_changes_primary_button_amend)
@@ -583,11 +627,29 @@ fun UncommittedChangesButtons(
         stringResource(Res.string.uncommited_changes_primary_button_commit)
 
     Column {
-        CheckboxText(
-            value = isAmend,
-            onCheckedChange = { onAmendChecked(!isAmend) },
-            text = stringResource(Res.string.uncommited_changes_amend_check)
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            CheckboxText(
+                value = isAmend,
+                onCheckedChange = { onAmendChecked(!isAmend) },
+                text = stringResource(Res.string.uncommited_changes_amend_check)
+            )
+
+            Spacer(Modifier.weight(1f))
+
+            if (onDiscardAll != null) {
+                InstantTooltip(text = "Discard all the changes, staged and unstaged") {
+                    Icon(
+                        painter = painterResource(Res.drawable.delete),
+                        contentDescription = "Discard all the changes",
+                        tint = MaterialTheme.colors.error,
+                        modifier = Modifier
+                            .padding(4.dp)
+                            .size(20.dp)
+                            .handMouseClickable { onDiscardAll() },
+                    )
+                }
+            }
+        }
         Row(
             modifier = Modifier
                 .padding(top = 2.dp)

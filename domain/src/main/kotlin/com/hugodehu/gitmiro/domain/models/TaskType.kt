@@ -13,6 +13,7 @@ sealed interface TaskType {
     data object UnstageHunk : TaskType
     data object UnstageLine : TaskType
     data object DiscardFile : TaskType
+    data object DiscardChanges : TaskType
     data object DeleteFile : TaskType
     data object ResolveConflict : TaskType
     data object BlameFile : TaskType
