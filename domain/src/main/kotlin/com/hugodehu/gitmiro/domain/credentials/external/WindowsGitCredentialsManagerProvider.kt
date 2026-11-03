@@ -20,50 +20,31 @@ class WindowsGitCredentialsManagerProvider @Inject constructor() : IGitCredentia
             return credentialManagerBinary
         }
 
-        val git = searchForBinariesInPath(listOf("git.exe"))
+        val git = searchForBinariesInPath(listOf("git.exe")) ?: return null
 
-        if (git != null) {
-            val gitFile = File(git)
-            val baseDir = gitFile.parentFile?.parentFile
+        return findInGitInstallation(File(git))
+    }
 
-            if (baseDir != null) {
-                if (baseDir.name.startsWith("mingw")) {
-                    val mingwBinaries = File(baseDir, "bin")
-                    val gitCredentialsBinary = File(mingwBinaries, "git-credential-manager.exe")
+    /**
+     * git.exe is either in `<git>/cmd` or in `<git>/<environment>/bin`, and GCM is in `<git>/<environment>/bin`, where
+     * the environment is `mingw64` in older Git for Windows versions and `ucrt64` since 2.56.
+     */
+    fun findInGitInstallation(gitExe: File): String? {
+        val baseDir = gitExe.parentFile?.parentFile ?: return null
+        val gitDir = if (isEnvironmentDir(baseDir)) baseDir.parentFile else baseDir
 
-                    return if (gitCredentialsBinary.exists()) {
-                        println("Git Credentials binary 1: ${gitCredentialsBinary.absolutePath}")
-                        gitCredentialsBinary.absolutePath
-                    } else {
-                        println("Git Credentials binary 1 not found")
-                        null
-                    }
-                } else {
-                    val mingwDirs = baseDir.listFiles()
-                        .orEmpty()
-                        .filter { it.name.startsWith("mingw") }
+        return gitDir.listFiles()
+            .orEmpty()
+            .filter { isEnvironmentDir(it) }
+            .map { File(it, "bin/git-credential-manager.exe") }
+            .firstOrNull { it.isFile }
+            ?.absolutePath
+    }
 
-                    for (mingwDir in mingwDirs) {
-                        val mingwBinaries = File(mingwDir, "bin")
-                        val gitCredentialsBinary = File(mingwBinaries, "git-credential-manager.exe")
+    private fun isEnvironmentDir(dir: File) = ENVIRONMENT_PREFIXES.any { dir.name.startsWith(it) }
 
-                        if (gitCredentialsBinary.exists()) {
-                            println("Git Credentials binary 2: ${gitCredentialsBinary.absolutePath}")
-                            return gitCredentialsBinary.absolutePath
-                        } else {
-                            println("Git Credentials binary 2 not found")
-                            return null
-                        }
-                    }
-
-                    return null
-                }
-            } else {
-                return null
-            }
-        } else {
-            return null
-        }
+    private companion object {
+        val ENVIRONMENT_PREFIXES = listOf("mingw", "ucrt", "clang")
     }
 
     fun searchForBinariesInPath(binariesNames: List<String>): String? {
