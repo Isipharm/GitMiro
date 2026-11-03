@@ -51,10 +51,25 @@ fun Menu(
     val hasRemotes = remotes.remotes.isNotEmpty()
 
     Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = modifier
+            .clip(MaterialTheme.shapes.medium)
+            .background(MaterialTheme.colors.background)
+            .border(1.dp, MaterialTheme.colors.onBackground.copy(alpha = 0.1f), MaterialTheme.shapes.medium)
+            .padding(3.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        MenuButton(
+            title = stringResource(Res.string.menu_fetch),
+            tooltip = stringResource(
+                if (hasRemotes) Res.string.menu_fetch_tooltip else Res.string.menu_fetch_tooltip_disabled
+            ),
+            enabled = hasRemotes,
+            icon = painterResource(Res.drawable.sync),
+            keybinding = null,
+            onClick = { viewModel.fetchAll() },
+        )
+
         val pullTooltip = if (!hasRemotes) {
             stringResource(Res.string.menu_pull_tooltip_disabled)
         } else if (isPullWithRebaseDefault) {
@@ -82,12 +97,6 @@ fun Menu(
 
                     viewModel.pull(pullType = pullType)
                 },
-                onFetchAll = {
-                    viewModel.fetchAll()
-                },
-                onPrune = {
-                    viewModel.prune()
-                },
             )
         )
 
@@ -112,6 +121,25 @@ fun Menu(
                     viewModel.push(force = true, pushTags = false)
                 }
             )
+        )
+
+        MenuButton(
+            title = stringResource(Res.string.menu_prune),
+            tooltip = stringResource(
+                if (hasRemotes) Res.string.menu_prune_tooltip else Res.string.menu_prune_tooltip_disabled
+            ),
+            enabled = hasRemotes,
+            icon = painterResource(Res.drawable.cut),
+            keybinding = null,
+            onClick = { viewModel.prune() },
+        )
+
+        // Separates the actions on the remote from the one on the working directory
+        Box(
+            modifier = Modifier
+                .padding(horizontal = 4.dp)
+                .size(width = 1.dp, height = 18.dp)
+                .background(MaterialTheme.colors.onBackground.copy(alpha = 0.12f))
         )
 
         val enableStash = hasUncommittedChanges

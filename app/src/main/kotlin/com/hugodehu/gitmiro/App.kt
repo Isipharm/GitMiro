@@ -26,6 +26,7 @@ import androidx.compose.ui.window.rememberWindowState
 import androidx.navigation3.runtime.NavKey
 import com.hugodehu.gitmiro.app.generated.resources.Res
 import com.hugodehu.gitmiro.app.generated.resources.logo
+import com.hugodehu.gitmiro.app.generated.resources.logo_branch
 import com.hugodehu.gitmiro.avatarproviders.GravatarAvatarProvider
 import com.hugodehu.gitmiro.avatarproviders.NoneAvatarProvider
 import com.hugodehu.gitmiro.common.OS
@@ -47,7 +48,7 @@ import com.hugodehu.gitmiro.theme.ColorsScheme
 import com.hugodehu.gitmiro.theme.onBackgroundSecondary
 import com.hugodehu.gitmiro.ui.AppTab
 import com.hugodehu.gitmiro.ui.AppViewModel
-import com.hugodehu.gitmiro.ui.components.RepositorySwitcher
+import com.hugodehu.gitmiro.ui.components.TabsRow
 import com.hugodehu.gitmiro.ui.components.WindowTitleBar
 import androidx.compose.foundation.Image
 import com.hugodehu.gitmiro.ui.context_menu.AppPopupMenu
@@ -290,10 +291,6 @@ class App @Inject constructor(
     fun AppTabs(window: ComposeWindow) {
         val tabs by appViewModel.tabs.collectAsState()
         val currentTab = appViewModel.currentTab.collectAsState().value
-        val titleBarActions = remember { mutableStateOf<(@Composable () -> Unit)?>(null) }
-        val recentRepositories by appStateManager.latestOpenedRepositoriesPaths.collectAsState()
-        var isSwitcherOpen by remember { mutableStateOf(false) }
-        val scope = rememberCoroutineScope()
 
         if (currentTab != null) {
             Column(
@@ -301,11 +298,6 @@ class App @Inject constructor(
                     .background(MaterialTheme.colors.surface)
                     .onPreviewKeyEvent {
                         when {
-                            it.matchesBinding(KeybindingOption.OPEN_REPOSITORY) -> {
-                                isSwitcherOpen = true
-                                true
-                            }
-
                             it.matchesBinding(KeybindingOption.OPEN_NEW_TAB) -> {
                                 appViewModel.addNewEmptyTab()
                                 true
@@ -341,48 +333,28 @@ class App @Inject constructor(
                     isDark = !MaterialTheme.colors.isLight,
                 ) {
                     Image(
-                        painter = painterResource(Res.drawable.logo),
+                        painter = painterResource(Res.drawable.logo_branch),
                         contentDescription = null,
                         modifier = Modifier
                             .padding(start = 16.dp, end = 12.dp)
                             .size(22.dp),
                     )
 
-                    RepositorySwitcher(
+                    TabsRow(
                         tabs = tabs,
-                        currentTab = currentTab,
-                        recentRepositories = recentRepositories,
                         defaultTabName = NEW_TAB_DEFAULT_NAME,
-                        isOpen = isSwitcherOpen,
-                        onOpenChange = { isSwitcherOpen = it },
+                        currentTab = currentTab,
                         onTabSelected = { appViewModel.selectTab(it) },
                         onTabClosed = { appViewModel.closeTab(it) },
-                        onOpenRecent = { path ->
-                            val openTab = tabs.firstOrNull { it.data.repositoryPath.value == path }
-
-                            when {
-                                openTab != null -> appViewModel.selectTab(openTab)
-                                // An empty tab (welcome page) is reused rather than left behind
-                                currentTab.data.repositoryPath.value == null -> currentTab.data.openRepository(path)
-                                else -> scope.launch { appViewModel.addNewTabFromPath(path, true) }
-                            }
-                        },
-                        onOpenNew = { appViewModel.addNewEmptyTab() },
-                        modifier = Modifier.clientArea(),
+                        onMoveTab = { fromIndex, toIndex -> appViewModel.onMoveTab(fromIndex, toIndex) },
+                        onAddNewTab = { appViewModel.addNewEmptyTab() },
+                        clientArea = { it.clientArea() },
+                        modifier = Modifier.weight(1f, false),
                     )
-
-                    Spacer(modifier = Modifier.weight(1f))
-
-                    Box(modifier = Modifier.clientArea()) {
-                        titleBarActions.value?.invoke()
-                    }
                 }
 
                 Box(modifier = Modifier.weight(1f)) {
-                    CompositionLocalProvider(
-                        LocalTab provides currentTab.data,
-                        LocalTitleBarActions provides titleBarActions,
-                    ) {
+                    CompositionLocalProvider(LocalTab provides currentTab.data) {
                         TabContent(currentTab.data)
                     }
                 }

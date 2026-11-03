@@ -11,7 +11,8 @@ import com.hugodehu.gitmiro.theme.monoTypography
 import com.hugodehu.gitmiro.theme.onBackgroundSecondary
 import com.hugodehu.gitmiro.ui.components.tooltip.InstantTooltip
 import androidx.compose.material.icons.Icons
-import com.hugodehu.gitmiro.LocalTitleBarActions
+import androidx.compose.foundation.border
+import com.hugodehu.gitmiro.theme.secondarySurface
 import org.jetbrains.compose.resources.painterResource
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
@@ -117,24 +118,11 @@ fun RepositoryOpenPage(
         CompositionLocalProvider(
             LocalTabFocusRequester provides focusRequester
         ) {
-            val titleBarActions = LocalTitleBarActions.current
-
-            val menu: @Composable () -> Unit = {
-                Menu(
-                    viewModel = repositoryOpenViewModel,
-                    modifier = Modifier.padding(end = 8.dp),
-                    onStashWithMessage = { onNavigate(Screen.StashWithMessage) },
-                )
-            }
-
-            SideEffect {
-                titleBarActions.value = menu
-            }
-            DisposableEffect(titleBarActions) {
-                onDispose {
-                    titleBarActions.value = null
-                }
-            }
+            RepositoryToolbar(
+                viewModel = repositoryOpenViewModel,
+                onStashWithMessage = { onNavigate(Screen.StashWithMessage) },
+                onShowSettings = { onNavigate(Screen.GlobalSettings) },
+            )
 
             Column(modifier = Modifier.weight(1f)) {
                 RepoContent(
@@ -159,9 +147,7 @@ fun RepositoryOpenPage(
             newUpdate,
             onOpenUrlInBrowser = { repositoryOpenViewModel.openUrlInBrowser(it) },
             onShowAuthorInfoDialog = { onNavigate(Screen.Author) },
-            onOpenTerminal = { repositoryOpenViewModel.openTerminal() },
             onQuickActions = { onNavigate(Screen.QuickActions) },
-            onShowSettings = { onNavigate(Screen.GlobalSettings) },
         )
     }
 
@@ -180,32 +166,17 @@ private fun RepositoryOpenBottomInfoBar(
     newUpdate: Update?,
     onOpenUrlInBrowser: (String) -> Unit,
     onShowAuthorInfoDialog: () -> Unit,
-    onOpenTerminal: () -> Unit,
     onQuickActions: () -> Unit,
-    onShowSettings: () -> Unit,
 ) {
     BottomInfoBar(
         newUpdate,
         onOpenUrlInBrowser,
         actions = {
             BottomBarAction(
-                title = stringResource(Res.string.menu_terminal),
-                icon = painterResource(Res.drawable.terminal),
-                tooltip = stringResource(Res.string.menu_terminal_tooltip),
-                onClick = onOpenTerminal,
-            )
-            BottomBarAction(
                 title = stringResource(Res.string.menu_actions),
                 icon = painterResource(Res.drawable.bolt),
                 tooltip = stringResource(Res.string.menu_actions_tooltip),
                 onClick = onQuickActions,
-            )
-            BottomBarAction(
-                title = stringResource(Res.string.menu_settings),
-                icon = painterResource(Res.drawable.settings),
-                tooltip = stringResource(Res.string.menu_settings_tooltip),
-                keybinding = KeybindingOption.SETTINGS.keyBinding,
-                onClick = onShowSettings,
             )
         },
         leadingContent = {
@@ -230,6 +201,50 @@ private fun RepositoryOpenBottomInfoBar(
             }
         }
     )
+}
+
+@Composable
+private fun RepositoryToolbar(
+    viewModel: RepositoryOpenViewModel,
+    onStashWithMessage: () -> Unit,
+    onShowSettings: () -> Unit,
+) {
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
+                .background(MaterialTheme.colors.secondarySurface)
+                .padding(horizontal = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Menu(
+                modifier = Modifier,
+                viewModel = viewModel,
+                onStashWithMessage = onStashWithMessage,
+            )
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            MenuButton(
+                modifier = Modifier
+                    .clip(MaterialTheme.shapes.medium)
+                    .border(1.dp, MaterialTheme.colors.onBackground.copy(alpha = 0.1f), MaterialTheme.shapes.medium),
+                title = stringResource(Res.string.menu_settings),
+                icon = painterResource(Res.drawable.settings),
+                keybinding = KeybindingOption.SETTINGS.keyBinding,
+                tooltip = stringResource(Res.string.menu_settings_tooltip),
+                onClick = onShowSettings,
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(MaterialTheme.colors.onBackground.copy(alpha = 0.08f))
+        )
+    }
 }
 
 @Composable

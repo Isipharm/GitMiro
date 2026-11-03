@@ -22,6 +22,12 @@
     <string name="home_recent_repositories_remove_repository">Remove repository from recent</string>
 
     <!-- Top menu -->
+    <string name="menu_fetch">Fetch</string>
+    <string name="menu_fetch_tooltip">Fetch all the remotes</string>
+    <string name="menu_fetch_tooltip_disabled">Fetch not available without a remote repository</string>
+    <string name="menu_prune">Prune</string>
+    <string name="menu_prune_tooltip">Fetch, then delete the local branches whose remote branch was deleted</string>
+    <string name="menu_prune_tooltip_disabled">Prune not available without a remote repository</string>
     <string name="menu_pull">Pull</string>
     <string name="menu_pull_default">Pull current branch</string>
     <string name="menu_pull_rebase">Pull current branch with rebase</string>
@@ -131,8 +137,6 @@
     <!-- Pull context menu -->
     <string name="pull_context_menu_pull_with_merge">Pull with merge</string>
     <string name="pull_context_menu_pull_with_rebase">Pull with rebase</string>
-    <string name="pull_context_menu_fetch_all">Fetch all</string>
-    <string name="pull_context_menu_prune">Prune deleted branches…</string>
 
     <!-- Push context menu -->
     <string name="push_context_menu_push_including_tags">Push including tags</string>
