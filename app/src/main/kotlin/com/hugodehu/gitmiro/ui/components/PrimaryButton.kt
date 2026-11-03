@@ -39,7 +39,7 @@ fun PrimaryButton(
 ) {
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(4.dp))
+            .clip(MaterialTheme.shapes.small)
             .backgroundIf(enabled, backgroundColor, backgroundDisabled)
             .focusable(focusable)
             .run {

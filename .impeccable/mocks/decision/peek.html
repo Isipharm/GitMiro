@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><title>Aperçu flottant</title>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--frame:#EEF0F6;--card:#fff;--ink:#1C1B22;--ink2:#4B4E5E;--ink3:#61647A;--acc:#4462F5;--accT:#3049D9;--accS:#E8ECFF;--hov:#F4F5FA;--line:#ECEDF3;
+--coral:#E2553F;--teal:#0F8F80;--gray:#8B8EA3}
+*{box-sizing:border-box;margin:0;padding:0}
+body{width:1440px;height:900px;overflow:hidden;font:13px/1.4 Geist,sans-serif;color:var(--ink);background:var(--frame);display:grid;grid-template-columns:240px 1fr;grid-template-rows:48px 1fr;padding:0 8px 8px 0;position:relative}
+.mono{font-family:"Geist Mono",monospace;font-variant-numeric:tabular-nums}
+svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex:none}
+header{grid-column:1/3;display:grid;grid-template-columns:1fr 520px 1fr;align-items:center;padding-left:12px}
+.tabs{display:flex;align-items:center;gap:4px}
+.logo{width:28px;height:28px;border-radius:8px;background:var(--acc);color:#fff;display:grid;place-items:center;font-weight:700;margin-right:8px}
+.tab{height:30px;border-radius:9px;padding:0 12px;display:flex;align-items:center;color:var(--ink2);font-weight:500}
+.tab.on{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(20,30,80,.08)}
+.cmd{height:34px;border-radius:11px;background:#fff;display:flex;align-items:center;gap:9px;padding:0 12px;color:var(--ink3);box-shadow:0 1px 2px rgba(20,30,80,.06)}
+.cmd kbd{margin-left:auto;font:500 11px "Geist Mono";background:var(--hov);border-radius:5px;padding:2px 6px;color:var(--ink2)}
+.acts{display:flex;align-items:center;justify-content:flex-end;gap:2px}
+.ib{height:32px;padding:0 9px;border-radius:9px;display:flex;align-items:center;gap:6px;color:var(--ink);font-weight:500}
+.ib .n{height:18px;border-radius:9px;background:var(--acc);color:#fff;font-size:11px;padding:0 6px;display:grid;place-items:center}
+.wc{display:flex;margin-left:8px;margin-right:-8px}.wc span{width:46px;height:48px;display:grid;place-items:center}
+.side{padding:6px 12px}
+.sec{display:flex;justify-content:space-between;padding:12px 8px 4px;font-size:12px;font-weight:500;color:var(--ink2)}
+.it{height:32px;border-radius:9px;display:flex;align-items:center;gap:9px;padding:0 8px;white-space:nowrap}
+.it.on{background:#fff;font-weight:600;box-shadow:0 1px 2px rgba(20,30,80,.06)}
+.it .c{margin-left:auto;font-size:11px;color:var(--ink3)}
+.dot{width:8px;height:8px;border-radius:50%}
+.card{background:var(--card);border-radius:14px;box-shadow:0 1px 2px rgba(20,30,80,.05),0 10px 30px rgba(20,30,80,.06);position:relative;overflow:hidden}
+.lt{height:56px;display:flex;align-items:center;gap:10px;padding:0 20px}
+.lt h1{font-size:16px;font-weight:600}
+.chip{height:28px;border-radius:8px;background:var(--hov);display:flex;align-items:center;padding:0 10px;font-size:12px;font-weight:500;color:var(--ink2)}
+.row{height:36px;display:grid;grid-template-columns:86px 1fr 96px;align-items:center;margin:0 12px;padding:0 8px;border-radius:10px}
+.row.on{background:var(--accS)}
+.msg{min-width:0;white-space:nowrap;overflow:hidden;display:flex;gap:8px;align-items:center}
+.br{height:22px;border-radius:11px;padding:0 9px;font-size:12px;font-weight:600;display:flex;align-items:center;flex:none}
+.d{color:var(--ink3);font-size:12px;text-align:right}
+svg.g{position:absolute;left:20px;top:56px}
+.peek{position:absolute;right:20px;top:70px;width:470px;height:560px;background:#fff;border-radius:16px;box-shadow:0 2px 6px rgba(20,30,80,.08),0 24px 60px rgba(20,30,80,.18);display:flex;flex-direction:column;overflow:hidden}
+.ph{display:flex;align-items:center;gap:8px;padding:14px 16px 0}
+.ph .x{margin-left:auto;width:28px;height:28px;border-radius:8px;background:var(--hov);display:grid;place-items:center}
+.peek h2{font-size:18px;font-weight:600;letter-spacing:-.01em;line-height:1.3;padding:10px 18px 6px}
+.meta{padding:0 18px 12px;color:var(--ink2);font-size:12px}
+.f{height:36px;display:flex;align-items:center;gap:10px;margin:0 10px;padding:0 8px;border-radius:9px}
+.f.on{background:var(--hov)}
+.st{width:20px;height:20px;border-radius:6px;display:grid;place-items:center;font:600 11px "Geist Mono"}
+.M{background:var(--accS);color:var(--accT)}.A{background:#DDF5F1;color:#0A6B61}
+.n2{margin-left:auto;font:12px "Geist Mono"}.plus{color:#0A7A4E}.minus{color:#B4231F}
+.diff{margin:8px 12px 12px;border-radius:12px;background:var(--hov);font:12px/24px "Geist Mono",monospace;overflow:hidden;white-space:pre;padding:6px 0}
+.dl{padding:0 14px}.add{background:#E3F7EC}.rem{background:#FCE8E6}
+.composer{position:absolute;left:calc(240px + (100% - 248px)/2 - 340px);bottom:28px;width:680px;height:60px;border-radius:18px;background:#fff;box-shadow:0 2px 6px rgba(20,30,80,.08),0 18px 40px rgba(20,30,80,.16);display:flex;align-items:center;gap:10px;padding:0 10px 0 12px}
+.fchip{height:34px;border-radius:10px;background:var(--hov);display:flex;align-items:center;gap:7px;padding:0 10px;font-weight:500;font-size:12px}
+.ph2{color:var(--ink3);flex:1}
+.go{height:40px;border-radius:12px;background:var(--acc);color:#fff;font-weight:600;padding:0 18px;display:flex;align-items:center;gap:8px}
+</style></head><body>
+<header>
+<div class="tabs"><span class="logo">G</span><span class="tab on">promethee-platform</span><span class="tab">GitMiro</span><span class="tab">officine-back</span><span class="tab" style="padding:0 8px"><svg class="i" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></svg></span></div>
+<div class="cmd"><svg class="i" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg>Rechercher un commit, une branche ou une action<kbd>Ctrl K</kbd></div>
+<div class="acts">
+<span class="ib"><svg class="i" viewBox="0 0 16 16"><path d="M8 2.5v9M4.5 8 8 11.5 11.5 8M3 14h10"/></svg>Pull</span>
+<span class="ib"><svg class="i" viewBox="0 0 16 16"><path d="M8 13.5v-9M4.5 8 8 4.5 11.5 8M3 2h10"/></svg>Push<span class="n">1</span></span>
+<span class="ib"><svg class="i" viewBox="0 0 16 16"><circle cx="4.5" cy="3.5" r="1.5"/><circle cx="4.5" cy="12.5" r="1.5"/><circle cx="11.5" cy="5" r="1.5"/><path d="M4.5 5v6M11.5 6.5c0 3-7 2-7 4.5"/></svg></span>
+<span class="ib"><svg class="i" viewBox="0 0 16 16"><path d="M2.5 6h11v7h-11zM4.5 3.5h7"/></svg></span>
+<span class="wc"><span><svg class="i" viewBox="0 0 16 16" style="stroke-width:1"><path d="M3 8h10"/></svg></span><span><svg class="i" viewBox="0 0 16 16" style="stroke-width:1"><rect x="3.5" y="3.5" width="9" height="9" rx="1.5"/></svg></span><span><svg class="i" viewBox="0 0 16 16" style="stroke-width:1"><path d="m4 4 8 8M12 4l-8 8"/></svg></span></span>
+</div>
+</header>
+<aside class="side">
+<div class="sec">Branches locales<span>4</span></div>
+<div class="it on"><i class="dot" style="background:var(--acc)"></i>feat/allowlist-ports-hote<span class="c">HEAD</span></div>
+<div class="it"><i class="dot" style="background:var(--gray)"></i>main</div>
+<div class="it"><i class="dot" style="background:var(--coral)"></i>renovate/front</div>
+<div class="it"><i class="dot" style="background:var(--teal)"></i>renovate/pocket-id-pocket</div>
+<div class="sec">Remotes<span>1</span></div><div class="it">origin</div>
+<div class="sec">Tags<span>0</span></div><div class="sec">Stashes<span>0</span></div><div class="sec">Sous-modules<span>0</span></div>
+</aside>
+<main class="card">
+<div class="lt"><h1>Historique</h1><span class="chip">Toutes les branches</span><span class="chip">Masquer les remotes</span></div>
+<svg class="g" width="60" height="600" fill="none" stroke-width="2" stroke-linecap="round">
+<path d="M14 18V600" stroke="#4F6BFF"/><path d="M14 54C14 70 32 70 32 86V126" stroke="#8B8EA3"/><path d="M14 270C14 286 32 286 32 302V378C32 394 14 394 14 410" stroke="#E2553F"/><path d="M14 446C14 462 50 462 50 478V600" stroke="#0F8F80"/>
+<circle cx="14" cy="18" r="5" fill="#fff" stroke="#4F6BFF" stroke-width="2" stroke-dasharray="2.5 2"/>
+<g fill="#4F6BFF"><circle cx="14" cy="54" r="4.5"/><circle cx="14" cy="162" r="4.5"/><circle cx="14" cy="198" r="4.5"/><circle cx="14" cy="234" r="4.5"/><circle cx="14" cy="270" r="4.5"/><circle cx="14" cy="306" r="4.5"/><circle cx="14" cy="342" r="4.5"/><circle cx="14" cy="410" r="4.5"/><circle cx="14" cy="446" r="4.5"/><circle cx="14" cy="518" r="4.5"/></g>
+<circle cx="32" cy="90" r="4.5" fill="#8B8EA3"/><circle cx="32" cy="126" r="4.5" fill="#8B8EA3"/><circle cx="32" cy="374" r="4.5" fill="#E2553F"/><circle cx="50" cy="482" r="4.5" fill="#0F8F80"/>
+</svg>
+<div class="row"><span></span><span class="msg" style="color:var(--ink2);font-style:italic">Modifications non commitées · 1 fichier</span><span class="d"></span></div>
+<div class="row on"><span></span><span class="msg"><b class="br" style="background:var(--accS);color:var(--accT)">feat/allowlist-ports-hote</b>feat(hardening): la règle LAN ouvre l'hôte sur SQL, 1557</span><span class="d">Aujourd'hui</span></div>
+<div class="row"><span></span><span class="msg"><b class="br" style="background:#F0F1F5;color:var(--ink2)">main</b>Merged PR 3408: docs(adr-027): l'hôte sur une liste fermée de ports</span><span class="d">Aujourd'hui</span></div>
+<div class="row"><span></span><span class="msg"><b class="br" style="box-shadow:inset 0 0 0 1.5px #A7AABB;color:var(--ink2)">origin/docs/allowlist-ports-hote</b>docs(adr-027): l'hôte sur une liste fermée de ports</span><span class="d">Aujourd'hui</span></div>
+<div class="row"><span></span><span class="msg">Merged PR 3396: feat(installer): utilisateur et rôle promethee_app dans datasemp</span><span class="d">Hier</span></div>
+<div class="row"><span></span><span class="msg">Merged PR 3394: feat(agent): chaîne de connexion SQL des applications en secret</span><span class="d">Hier</span></div>
+<div class="row"><span></span><span class="msg">Merged PR 3354: chore(deps): update terraform scaleway to v2.89.0</span><span class="d">Hier</span></div>
+<div class="row"><span></span><span class="msg">Merged PR 3353: chore(deps): update service</span><span class="d">Hier</span></div>
+<div class="row"><span></span><span class="msg">Merged PR 3352: chore(deps): update renovate/renovate docker tag to v44.201.0</span><span class="d">Hier</span></div>
+<div class="row"><span></span><span class="msg">Merged PR 3355: fix(deps): update front</span><span class="d">Hier</span></div>
+<div class="row"><span></span><span class="msg"><b class="br" style="background:#FDE8E4;color:#AE3520">renovate/front</b>chore(deps): fusion de main, lock du front gardé avec vite 8.3.5</span><span class="d">Hier</span></div>
+<div class="row"><span></span><span class="msg">Merged PR 3351: chore(deps): update dependency pocket-id/pocket-id to v2.19.1</span><span class="d">Hier</span></div>
+<div class="row"><span></span><span class="msg">Merged PR 3350: chore(deps): update dependency openbao/openbao to v2.7.2</span><span class="d">Hier</span></div>
+<div class="row"><span></span><span class="msg"><b class="br" style="background:#DDF5F1;color:#0A6B61">origin/renovate/scaleway-2.x-lockfile</b>chore(deps): update terraform scaleway</span><span class="d">Hier</span></div>
+<div class="row"><span></span><span class="msg">Merged PR 3346: chore(deps): update dependency vite to v8.3.3 [security]</span><span class="d">Hier</span></div>
+<div class="row"><span></span><span class="msg">Merged PR 3341: chore(deps): update renovate/renovate docker tag</span><span class="d">Hier</span></div>
+<div class="row"><span></span><span class="msg">Merged PR 3339: fix(agent): relance du service après mise à jour</span><span class="d">Lundi</span></div>
+<div class="row"><span></span><span class="msg">Merged PR 3335: feat(front): page d'état des postes</span><span class="d">Lundi</span></div>
+<div class="peek">
+<div class="ph"><b class="br" style="background:var(--accS);color:var(--accT)">feat/allowlist-ports-hote</b><span class="mono" style="color:var(--ink3);font-size:12px">a41c9e2</span><span class="x"><svg class="i" viewBox="0 0 16 16"><path d="m4.5 4.5 7 7M11.5 4.5l-7 7"/></svg></span></div>
+<h2>feat(hardening): la règle LAN ouvre l'hôte sur SQL, 1557 et le port de l'agent</h2>
+<div class="meta">Baptiste Boquain · aujourd'hui 10:42 · pas encore poussé</div>
+<div class="f on"><b class="st M">M</b>infra/nftables.conf<span class="n2"><span class="plus">+6</span> <span class="minus">−2</span></span></div>
+<div class="f"><b class="st M">M</b>infra/allowlist.yml<span class="n2"><span class="plus">+3</span></span></div>
+<div class="f"><b class="st A">A</b>docs/adr-027.md<span class="n2"><span class="plus">+41</span></span></div>
+<div class="diff"><div class="dl">  chain lan_in {</div><div class="dl rem">-   ip saddr @lan tcp dport { 22 } accept</div><div class="dl rem">-   ip saddr @lan drop</div><div class="dl add">+   ip saddr @lan tcp dport { 22, 1433, 1557 } accept</div><div class="dl add">+   ip saddr @lan tcp dport $agent_port accept</div><div class="dl add">+   ip saddr @lan counter drop</div><div class="dl">  }</div></div>
+</div>
+</main>
+<div class="composer"><span class="fchip"><b class="st A">A</b>1 fichier non indexé</span><span class="ph2">Décris ton commit…</span><span class="go">Commit<svg class="i" viewBox="0 0 16 16"><path d="M3 8h10M9 4l4 4-4 4"/></svg></span></div>
+</body></html>

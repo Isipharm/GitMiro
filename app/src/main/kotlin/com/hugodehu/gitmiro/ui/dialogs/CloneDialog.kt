@@ -246,7 +246,7 @@ private fun CloneDialogView(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 4.dp)
-                    .clip(RoundedCornerShape(4.dp))
+                    .clip(MaterialTheme.shapes.small)
                     .background(MaterialTheme.colors.error)
             ) {
                 Text(
@@ -393,7 +393,7 @@ private fun TextInput(
     focusRequester: FocusRequester,
     focusProperties: FocusProperties.() -> Unit,
     onValueChange: (TextFieldValue) -> Unit,
-    textFieldShape: Shape = RoundedCornerShape(4.dp),
+    textFieldShape: Shape = MaterialTheme.shapes.small,
     trailingIcon: @Composable (() -> Unit)? = null,
 ) {
     Column(

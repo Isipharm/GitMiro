@@ -51,8 +51,8 @@ fun MaterialDialog(
                 } else
                     false
             }
-            .border(1.dp, MaterialTheme.colors.onBackground.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
-            .clip(RoundedCornerShape(8.dp))
+            .border(1.dp, MaterialTheme.colors.onBackground.copy(alpha = 0.1f), MaterialTheme.shapes.medium)
+            .clip(MaterialTheme.shapes.medium)
             .background(background)
             .padding(
                 horizontal = paddingHorizontal,

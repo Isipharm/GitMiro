@@ -1019,7 +1019,7 @@ fun StateIcon(
     DelayedTooltip(tooltip) {
         Box(
             modifier = Modifier
-                .clip(RoundedCornerShape(4.dp))
+                .clip(MaterialTheme.shapes.small)
                 .run {
                     if (isToggled)
                         this.background(MaterialTheme.colors.onSurface.copy(alpha = 0.2f))

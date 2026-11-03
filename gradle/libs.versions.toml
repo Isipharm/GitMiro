@@ -19,6 +19,7 @@ coroutines = "1.10.2"
 datastore = "1.2.1"
 jna = "5.19.1"
 androidx-viewmodel = "2.10.0"
+jbr-api = "1.12.0"
 
 [libraries]
 compose-desktop-linux-arm64 = { group = "org.jetbrains.compose.desktop", name = "desktop-jvm-linux-arm64", version.ref = "compose" }
@@ -28,6 +29,8 @@ compose-components-resources = { group = "org.jetbrains.compose.components", nam
 compose-material-icons-extended = { group = "org.jetbrains.compose.material", name = "material-icons-extended", version.ref = "materialExtended" }
 
 compose-navigation3 = { group = "org.jetbrains.androidx.navigation3", name = "navigation3-ui", version.ref = "composeNav" }
+
+jbr-api = { group = "org.jetbrains.runtime", name = "jbr-api", version.ref = "jbr-api" }
 
 jgit-core = { group = "org.eclipse.jgit", name = "org.eclipse.jgit", version.ref = "jgit" }
 jgit-gpg = { group = "org.eclipse.jgit", name = "org.eclipse.jgit.gpg.bc", version.ref = "jgit" }

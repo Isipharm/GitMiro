@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.awt.ComposeWindow
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.application
@@ -46,12 +47,14 @@ import com.hugodehu.gitmiro.theme.ColorsScheme
 import com.hugodehu.gitmiro.theme.onBackgroundSecondary
 import com.hugodehu.gitmiro.ui.AppTab
 import com.hugodehu.gitmiro.ui.AppViewModel
-import com.hugodehu.gitmiro.ui.components.TabsRow
-import com.hugodehu.gitmiro.ui.components.TabInformation
+import com.hugodehu.gitmiro.ui.components.RepositorySwitcher
+import com.hugodehu.gitmiro.ui.components.WindowTitleBar
+import androidx.compose.foundation.Image
 import com.hugodehu.gitmiro.ui.context_menu.AppPopupMenu
 import com.hugodehu.gitmiro.viewmodels.RepositoryTabViewModel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import org.eclipse.jgit.lib.GpgConfig
 import org.eclipse.jgit.lib.Signers
@@ -227,7 +230,7 @@ class App @Inject constructor(
                         linesHeightType = linesHeightType,
                     ) {
                         Box(modifier = Modifier.background(MaterialTheme.colors.background)) {
-                            AppTabs()
+                            AppTabs(window)
                         }
                     }
                 }
@@ -284,16 +287,25 @@ class App @Inject constructor(
 
 
     @Composable
-    fun AppTabs() {
+    fun AppTabs(window: ComposeWindow) {
         val tabs by appViewModel.tabs.collectAsState()
         val currentTab = appViewModel.currentTab.collectAsState().value
+        val titleBarActions = remember { mutableStateOf<(@Composable () -> Unit)?>(null) }
+        val recentRepositories by appStateManager.latestOpenedRepositoriesPaths.collectAsState()
+        var isSwitcherOpen by remember { mutableStateOf(false) }
+        val scope = rememberCoroutineScope()
 
         if (currentTab != null) {
             Column(
                 modifier = Modifier
-                    .background(MaterialTheme.colors.background)
+                    .background(MaterialTheme.colors.surface)
                     .onPreviewKeyEvent {
                         when {
+                            it.matchesBinding(KeybindingOption.OPEN_REPOSITORY) -> {
+                                isSwitcherOpen = true
+                                true
+                            }
+
                             it.matchesBinding(KeybindingOption.OPEN_NEW_TAB) -> {
                                 appViewModel.addNewEmptyTab()
                                 true
@@ -324,49 +336,57 @@ class App @Inject constructor(
                         }
                     }
             ) {
-                Tabs(
-                    tabsInformationList = tabs,
-                    currentTab = currentTab,
-                    onAddedTab = {
-                        appViewModel.addNewEmptyTab()
-                    },
-                    onCloseTab = { tab ->
-                        appViewModel.closeTab(tab)
-                    }
-                )
+                WindowTitleBar(
+                    window = window,
+                    isDark = !MaterialTheme.colors.isLight,
+                ) {
+                    Image(
+                        painter = painterResource(Res.drawable.logo),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .padding(start = 16.dp, end = 12.dp)
+                            .size(22.dp),
+                    )
 
-                CompositionLocalProvider(LocalTab provides currentTab.data) {
-                    TabContent(currentTab.data)
+                    RepositorySwitcher(
+                        tabs = tabs,
+                        currentTab = currentTab,
+                        recentRepositories = recentRepositories,
+                        defaultTabName = NEW_TAB_DEFAULT_NAME,
+                        isOpen = isSwitcherOpen,
+                        onOpenChange = { isSwitcherOpen = it },
+                        onTabSelected = { appViewModel.selectTab(it) },
+                        onTabClosed = { appViewModel.closeTab(it) },
+                        onOpenRecent = { path ->
+                            val openTab = tabs.firstOrNull { it.data.repositoryPath.value == path }
+
+                            when {
+                                openTab != null -> appViewModel.selectTab(openTab)
+                                // An empty tab (welcome page) is reused rather than left behind
+                                currentTab.data.repositoryPath.value == null -> currentTab.data.openRepository(path)
+                                else -> scope.launch { appViewModel.addNewTabFromPath(path, true) }
+                            }
+                        },
+                        onOpenNew = { appViewModel.addNewEmptyTab() },
+                        modifier = Modifier.clientArea(),
+                    )
+
+                    Spacer(modifier = Modifier.weight(1f))
+
+                    Box(modifier = Modifier.clientArea()) {
+                        titleBarActions.value?.invoke()
+                    }
+                }
+
+                Box(modifier = Modifier.weight(1f)) {
+                    CompositionLocalProvider(
+                        LocalTab provides currentTab.data,
+                        LocalTitleBarActions provides titleBarActions,
+                    ) {
+                        TabContent(currentTab.data)
+                    }
                 }
             }
-        }
-    }
-
-    @Composable
-    fun Tabs(
-        tabsInformationList: List<TabInformation<RepositoryTabViewModel>>,
-        currentTab: TabInformation<RepositoryTabViewModel>?,
-        onAddedTab: () -> Unit,
-        onCloseTab: (TabInformation<RepositoryTabViewModel>) -> Unit,
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            TabsRow(
-                tabs = tabsInformationList,
-                defaultTabName = NEW_TAB_DEFAULT_NAME,
-                currentTab = currentTab,
-                onTabSelected = { selectedTab ->
-                    appViewModel.selectTab(selectedTab)
-                },
-                onTabClosed = onCloseTab,
-                onAddNewTab = onAddedTab,
-                onMoveTab = { fromIndex, toIndex ->
-                    appViewModel.onMoveTab(fromIndex, toIndex)
-                },
-            )
         }
     }
 

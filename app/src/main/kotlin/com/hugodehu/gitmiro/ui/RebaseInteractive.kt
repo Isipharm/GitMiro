@@ -92,7 +92,7 @@ fun RebaseStateLoaded(
 ) {
     Column(
         modifier = Modifier.fillMaxSize()
-            .clip(RoundedCornerShape(4.dp))
+            .clip(MaterialTheme.shapes.small)
             .background(MaterialTheme.colors.background)
     ) {
         Text(
@@ -246,7 +246,7 @@ fun ActionDropdown(
             .border(
                 width = 2.dp,
                 color = MaterialTheme.colors.onBackgroundSecondary.copy(alpha = 0.2f),
-                shape = RoundedCornerShape(4.dp),
+                shape = MaterialTheme.shapes.small,
             )
     ) {
         TextButton(

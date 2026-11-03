@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><title>Officine</title>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&family=Atkinson+Hyperlegible+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--carton:#fff;--carton2:#F3F4F1;--carton3:#E9EBE6;--ink:#14181F;--ink2:#4B525C;--ink3:#5F666F;
+--teal:#00857C;--amber:#C98F00;--red:#C8102E;--blue:#3B5BDB;--violet:#7A4FBF;--sel:#E3F1EF}
+*{box-sizing:border-box;margin:0;padding:0}
+body{width:1440px;height:900px;overflow:hidden;font:13px/1.35 "Atkinson Hyperlegible Next",sans-serif;color:var(--ink);background:var(--carton2)}
+.mono{font-family:"Atkinson Hyperlegible Mono",monospace;font-variant-numeric:tabular-nums}
+.tabs{height:36px;display:flex;align-items:flex-end;padding:0 12px;gap:2px;background:var(--carton3)}
+.tab{height:30px;padding:0 16px;display:flex;align-items:center;gap:8px;color:var(--ink2);font-weight:500}
+.tab.on{background:var(--carton);color:var(--ink);box-shadow:inset 0 3px 0 var(--teal)}
+.bar{height:52px;display:flex;align-items:center;gap:6px;padding:0 16px;background:var(--carton)}
+.repo{font-size:17px;font-weight:700;margin-right:20px}
+.repo small{display:block;font-size:11px;font-weight:500;color:var(--ink3)}
+.btn{height:32px;padding:0 12px;display:flex;align-items:center;gap:6px;border:1px solid #D5D8D2;border-radius:6px;background:var(--carton);font:500 13px inherit;font-family:inherit;color:var(--ink)}
+.btn svg{width:16px;height:16px;stroke:var(--ink);fill:none;stroke-width:1.6}
+.btn .n{font-size:11px;color:var(--ink3)}
+.btn.pri{background:var(--ink);color:#fff;border-color:var(--ink)}.btn.pri svg{stroke:#fff}
+.sp{flex:1}
+.search{width:280px;height:32px;border-radius:6px;background:var(--carton2);display:flex;align-items:center;padding:0 10px;color:var(--ink3);gap:8px}
+.main{display:grid;grid-template-columns:248px 1fr 420px;height:812px}
+.side{padding:14px 0;overflow:hidden}
+.sec{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);padding:14px 18px 6px;display:flex;justify-content:space-between}
+.it{height:28px;display:flex;align-items:center;gap:8px;padding:0 18px;font-size:13px}
+.it.on{background:var(--carton);font-weight:700}
+.sw{width:4px;height:16px}
+.it .c{margin-left:auto;color:var(--ink3);font-size:11px}
+.log{background:var(--carton);position:relative}
+.lh{height:32px;display:grid;grid-template-columns:84px 1fr 120px 92px 84px;align-items:center;padding:0 16px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);background:var(--carton)}
+.row{height:30px;display:grid;grid-template-columns:84px 1fr 120px 92px 84px;align-items:center;padding:0 16px}
+.row.on{background:var(--sel)}
+.row .msg{display:flex;gap:8px;align-items:center;white-space:nowrap;overflow:hidden}
+.band{font:700 11px/18px inherit;font-family:inherit;color:#fff;padding:0 7px;letter-spacing:.02em}
+.band.out{background:none;color:var(--ink);box-shadow:inset 0 0 0 1.5px currentColor}
+.tag{font:500 11px/18px "Atkinson Hyperlegible Mono",monospace;padding:0 6px;background:var(--carton3);color:var(--ink2)}
+.row .a,.row .d{color:var(--ink2);font-size:12px}.row .h{color:var(--ink3);font-size:12px}
+.wip{color:var(--ink2);font-style:italic}
+svg.g{position:absolute;left:16px;top:32px}
+.det{background:var(--carton2);display:flex;flex-direction:column}
+.stripe{height:40px;background:var(--teal);color:#fff;display:flex;align-items:center;padding:0 20px;gap:10px;font-weight:700}
+.stripe .mono{font-weight:400;opacity:.9}
+.dh{padding:18px 20px 14px;background:var(--carton)}
+.dh h1{font-size:20px;line-height:1.25;font-weight:700;letter-spacing:-.01em;margin-bottom:12px}
+.facts{display:grid;grid-template-columns:64px 1fr;row-gap:5px;font-size:12px}
+.facts dt{color:var(--ink3);font-weight:700;letter-spacing:.06em;font-size:11px;text-transform:uppercase}
+.files{padding:8px 0}
+.f{height:30px;display:flex;align-items:center;gap:10px;padding:0 20px;font-size:13px}
+.st{width:18px;height:18px;display:grid;place-items:center;font:700 11px "Atkinson Hyperlegible Mono",monospace;color:#fff}
+.st.M{background:var(--blue)}.st.A{background:var(--teal)}.st.D{background:var(--red)}
+.f .p{color:var(--ink3)}.f .del{text-decoration:line-through;text-decoration-thickness:1.5px}
+.f .ln{margin-left:auto;font-size:12px}.plus{color:#006E66}.minus{color:var(--red)}
+.commit{margin-top:auto;background:var(--carton);padding:14px 20px 16px}
+.field{position:relative;height:38px;background:var(--carton2);display:flex;align-items:center;padding:0 10px;font-size:13px;color:var(--ink3)}
+.rule{position:absolute;top:0;bottom:0;width:1px;background:#C9CDC5}
+.rule span{position:absolute;top:-16px;left:-8px;background:var(--carton);font:500 11px "Atkinson Hyperlegible Mono",monospace;color:var(--ink3)}
+.crow{display:flex;gap:8px;margin-top:10px}
+</style></head><body>
+<div class="tabs"><div class="tab on">GitMiro</div><div class="tab">Officine-Back</div><div class="tab">LGO-Client</div></div>
+<div class="bar">
+<div class="repo">GitMiro<small>D:\WS\Tools\GitMiro</small></div>
+<div class="btn"><svg viewBox="0 0 16 16"><path d="M8 2v10M4 8l4 4 4-4M3 14h10"/></svg>Pull</div>
+<div class="btn"><svg viewBox="0 0 16 16"><path d="M8 13V3M4 7l4-4 4 4M3 14h10"/></svg>Push <span class="n">2</span></div>
+<div class="btn"><svg viewBox="0 0 16 16"><circle cx="4" cy="3.5" r="1.5"/><circle cx="4" cy="12.5" r="1.5"/><circle cx="12" cy="5" r="1.5"/><path d="M4 5v6M12 6.5c0 3-8 2-8 4.5"/></svg>Branche</div>
+<div class="btn"><svg viewBox="0 0 16 16"><path d="M2 5h12v8H2zM4 3h8"/></svg>Stash</div>
+<div class="btn"><svg viewBox="0 0 16 16"><path d="M2 7h12v6H2zM8 2v7M5 5l3-3 3 3"/></svg>Pop</div>
+<div class="sp"></div>
+<div class="search"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#5F666F" stroke-width="1.6"><circle cx="7" cy="7" r="5"/><path d="M11 11l3.5 3.5"/></svg>Rechercher un commit, auteur, hash</div>
+</div>
+<div class="main">
+<aside class="side">
+<div class="sec">Branches locales <span>3</span></div>
+<div class="it on"><i class="sw" style="background:var(--teal)"></i>main<span class="c mono">↑2</span></div>
+<div class="it"><i class="sw" style="background:var(--amber)"></i>feat/conflict-preview</div>
+<div class="it"><i class="sw" style="background:var(--violet)"></i>fix/stash-new-files</div>
+<div class="sec">Remotes <span>1</span></div>
+<div class="it">origin</div>
+<div class="it" style="padding-left:34px"><i class="sw" style="background:var(--teal)"></i>main</div>
+<div class="sec">Tags <span>7</span></div>
+<div class="it mono">v1.0.7</div><div class="it mono">v1.0.6</div><div class="it mono">v1.0.5</div>
+<div class="sec">Stashes <span>1</span></div>
+<div class="it">WIP sur main : theme tokens</div>
+<div class="sec">Sous-modules <span>0</span></div>
+</aside>
+<section class="log">
+<div class="lh"><span>Graphe</span><span>Message</span><span>Auteur</span><span>Date</span><span>Hash</span></div>
+<svg class="g" width="70" height="560" fill="none" stroke-width="2.5">
+<path d="M14 15V560" stroke="#00857C"/>
+<path d="M14 105C14 120 34 120 34 135V255C34 270 14 270 14 285" stroke="#C98F00"/>
+<path d="M14 315C14 330 54 330 54 345V405C54 420 14 420 14 435" stroke="#7A4FBF"/>
+<circle cx="14" cy="15" r="5.5" fill="#fff" stroke="#00857C" stroke-dasharray="3 2"/>
+<circle cx="14" cy="45" r="5.5" fill="#00857C" stroke="#00857C" stroke-dasharray="3 2"/>
+<circle cx="14" cy="75" r="5.5" fill="#00857C" stroke="#00857C"/>
+<circle cx="34" cy="165" r="5.5" fill="#fff" stroke="#C98F00"/>
+<circle cx="34" cy="195" r="5.5" fill="#C98F00" stroke="#C98F00"/>
+<circle cx="14" cy="105" r="5.5" fill="#00857C" stroke="#00857C"/>
+<circle cx="14" cy="135" r="5.5" fill="#00857C" stroke="#00857C"/>
+<circle cx="14" cy="225" r="5.5" fill="#00857C" stroke="#00857C"/>
+<circle cx="14" cy="285" r="5.5" fill="#00857C" stroke="#00857C"/>
+<circle cx="54" cy="375" r="5.5" fill="#7A4FBF" stroke="#7A4FBF"/>
+<g fill="#00857C" stroke="#00857C"><circle cx="14" cy="315" r="5.5"/><circle cx="14" cy="345" r="5.5"/><circle cx="14" cy="435" r="5.5"/><circle cx="14" cy="465" r="5.5"/><circle cx="14" cy="495" r="5.5"/><circle cx="14" cy="525" r="5.5"/><circle cx="14" cy="555" r="5.5"/></g>
+</svg>
+<div class="row"><span></span><span class="msg wip">Modifications non commitées · 3 fichiers</span><span></span><span></span><span></span></div>
+<div class="row on"><span></span><span class="msg"><b class="band" style="background:var(--teal)">main</b><span class="tag">v1.0.7</span>Bump the version to 1.0.7 (#31)</span><span class="a">B. Boquain</span><span class="d mono">03/11 14:12</span><span class="h mono">ee75b937</span></div>
+<div class="row"><span></span><span class="msg">Add buttons to discard all uncommitted changes (#30)</span><span class="a">B. Boquain</span><span class="d mono">31/10 17:40</span><span class="h mono">5041afbc</span></div>
+<div class="row"><span></span><span class="msg"><b class="band out" style="color:var(--teal)">origin/main</b><span class="tag">v1.0.6</span>Bump the version to 1.0.6 (#29)</span><span class="a">B. Boquain</span><span class="d mono">30/10 09:05</span><span class="h mono">f87a2181</span></div>
+<div class="row"><span></span><span class="msg">Merge feat/conflict-preview</span><span class="a">B. Boquain</span><span class="d mono">29/10 16:22</span><span class="h mono">c3d1e0a4</span></div>
+<div class="row"><span></span><span class="msg"><b class="band" style="background:var(--amber);color:var(--ink)">feat/conflict-preview</b>Preview the merged result before resolving</span><span class="a">B. Boquain</span><span class="d mono">29/10 11:48</span><span class="h mono">9b2f7c10</span></div>
+<div class="row"><span></span><span class="msg">Pick conflict blocks with checkboxes</span><span class="a">B. Boquain</span><span class="d mono">28/10 15:31</span><span class="h mono">7e41a9d2</span></div>
+<div class="row"><span></span><span class="msg">Color the cloud icons of the log with their label's color (#28)</span><span class="a">B. Boquain</span><span class="d mono">27/10 10:02</span><span class="h mono">1a03b690</span></div>
+<div class="row"><span></span><span class="msg"><span class="tag">v1.0.5</span>Bump the version to 1.0.5 (#27)</span><span class="a">B. Boquain</span><span class="d mono">24/10 18:14</span><span class="h mono">afe15e7e</span></div>
+<div class="row"><span></span><span class="msg">Add a button to check for updates on demand (#26)</span><span class="a">B. Boquain</span><span class="d mono">24/10 12:50</span><span class="h mono">96fac1d2</span></div>
+<div class="row"><span></span><span class="msg">Merge fix/stash-new-files</span><span class="a">B. Boquain</span><span class="d mono">23/10 17:20</span><span class="h mono">0f5e88b3</span></div>
+<div class="row"><span></span><span class="msg"><b class="band" style="background:var(--violet)">fix/stash-new-files</b>Keep the new files of a stash when applying it conflicts (#17)</span><span class="a">B. Boquain</span><span class="d mono">22/10 09:41</span><span class="h mono">647d8d82</span></div>
+<div class="row"><span></span><span class="msg">Add a Prune button that deletes branches whose remote branch is gone (#25)</span><span class="a">B. Boquain</span><span class="d mono">21/10 16:03</span><span class="h mono">abbee5e8</span></div>
+<div class="row"><span></span><span class="msg"><span class="tag">v1.0.4</span>Bump the version to 1.0.4 (#24)</span><span class="a">B. Boquain</span><span class="d mono">20/10 11:27</span><span class="h mono">bad28d00</span></div>
+<div class="row"><span></span><span class="msg">Replace the logo with the blue branches icon (#23)</span><span class="a">B. Boquain</span><span class="d mono">17/10 14:55</span><span class="h mono">ac091c66</span></div>
+<div class="row"><span></span><span class="msg">Move the log graph colors into the theme (#22)</span><span class="a">B. Boquain</span><span class="d mono">16/10 10:19</span><span class="h mono">34dc23fe</span></div>
+<div class="row"><span></span><span class="msg"><span class="tag">v1.0.3</span>Bump the version to 1.0.3 (#21)</span><span class="a">B. Boquain</span><span class="d mono">15/10 18:00</span><span class="h mono">242240f5</span></div>
+<div class="row"><span></span><span class="msg">Add a setting for merged branch labels and in-app updates (#20)</span><span class="a">B. Boquain</span><span class="d mono">14/10 15:12</span><span class="h mono">61bbb5a2</span></div>
+<div class="row"><span></span><span class="msg">Pin the Rust nightly toolchain (#18)</span><span class="a">B. Boquain</span><span class="d mono">13/10 09:30</span><span class="h mono">4327ae33</span></div>
+</section>
+<aside class="det">
+<div class="stripe">main<span class="mono">LOT ee75b937</span></div>
+<div class="dh"><h1>Bump the version to 1.0.7 (#31)</h1>
+<dl class="facts"><dt>Auteur</dt><dd>Baptiste Boquain</dd><dt>Date</dt><dd class="mono">03/11/2026 14:12</dd><dt>Parent</dt><dd class="mono">5041afbc</dd><dt>État</dt><dd>Non poussé (2 commits devant origin)</dd></dl></div>
+<div class="files">
+<div class="sec" style="padding:8px 20px">Fichiers modifiés <span>3</span></div>
+<div class="f"><b class="st M">M</b>build.gradle.kts <span class="p">app/</span><span class="ln mono"><span class="plus">+2</span> <span class="minus">−2</span></span></div>
+<div class="f"><b class="st M">M</b>AppConstants.kt <span class="p">app/…/gitmiro/</span><span class="ln mono"><span class="plus">+2</span> <span class="minus">−2</span></span></div>
+<div class="f"><b class="st A">A</b>latest.json <span class="p">release/</span><span class="ln mono"><span class="plus">+6</span></span></div>
+<div class="f"><b class="st D">D</b><span class="del">old-latest.json</span> <span class="p">release/</span><span class="ln mono"><span class="minus">−6</span></span></div>
+</div>
+<div class="commit">
+<div class="sec" style="padding:0 0 18px">Nouveau commit</div>
+<div class="field">Résumé du commit<i class="rule" style="left:58%"><span>50</span></i><i class="rule" style="left:84%"><span>72</span></i></div>
+<div class="crow"><div class="btn pri" style="flex:1;justify-content:center">Commit 3 fichiers</div><div class="btn">Amender</div></div>
+</div>
+</aside>
+</div>
+</body></html>

@@ -3,6 +3,9 @@ package com.hugodehu.gitmiro.ui
 import androidx.compose.desktop.ui.tooling.preview.Preview
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Icon
@@ -12,18 +15,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.layout.LayoutCoordinates
-import androidx.compose.ui.layout.boundsInRoot
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.*
-import androidx.compose.ui.window.Popup
-import androidx.compose.ui.window.PopupPositionProvider
-import androidx.compose.ui.window.PopupProperties
 import com.hugodehu.gitmiro.app.generated.resources.*
 import com.hugodehu.gitmiro.domain.models.PullType
 import com.hugodehu.gitmiro.extensions.handMouseClickable
@@ -34,7 +31,6 @@ import com.hugodehu.gitmiro.keybindings.keyBinding
 import com.hugodehu.gitmiro.repositoryopen.RepositoryOpenViewModel
 import com.hugodehu.gitmiro.theme.monoTypography
 import com.hugodehu.gitmiro.theme.onBackgroundSecondary
-import com.hugodehu.gitmiro.ui.components.PrimaryButton
 import com.hugodehu.gitmiro.ui.components.tooltip.InstantTooltip
 import com.hugodehu.gitmiro.ui.context_menu.*
 import org.jetbrains.compose.resources.painterResource
@@ -46,56 +42,19 @@ private const val DISABLED_BUTTON_ALPHA = 0.5F
 fun Menu(
     modifier: Modifier,
     viewModel: RepositoryOpenViewModel,
-    onCreateBranch: () -> Unit,
-    onOpenAnotherRepository: (String) -> Unit,
-    onOpenAnotherRepositoryFromPicker: () -> Unit,
     onStashWithMessage: () -> Unit,
-    onQuickActions: () -> Unit,
-    onShowSettingsDialog: () -> Unit,
-    showOpenPopup: Boolean,
-    onShowOpenPopupChange: (Boolean) -> Unit,
 ) {
     val isPullWithRebaseDefault by viewModel.isPullWithRebaseDefault.collectAsState(false)
-    val lastLoadedTabs by viewModel.lastLoadedTabs.collectAsState()
     val hasUncommittedChanges by viewModel.hasUncommittedChanges.collectAsState()
     val stashesState by viewModel.stashesState.collectAsState()
     val remotes by viewModel.remoteState.collectAsState()
     val hasRemotes = remotes.remotes.isNotEmpty()
-    val (position, setPosition) = remember { mutableStateOf<LayoutCoordinates?>(null) }
 
     Row(
         modifier = modifier,
-        horizontalArrangement = Arrangement.Center,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        MenuButton(
-            modifier = Modifier
-                .padding(start = 16.dp)
-                .onGloballyPositioned { setPosition(it) },
-            title = stringResource(Res.string.menu_open),
-            icon = painterResource(Res.drawable.open),
-            keybinding = KeybindingOption.OPEN_REPOSITORY.keyBinding,
-            tooltip = stringResource(Res.string.menu_open_tooltip),
-            tooltipEnabled = !showOpenPopup,
-            onClick = { onShowOpenPopupChange(true) },
-        )
-
-        Spacer(modifier = Modifier.weight(1f))
-
-        MenuButton(
-            modifier = Modifier.padding(end = 4.dp),
-            title = stringResource(Res.string.menu_prune),
-            icon = painterResource(Res.drawable.cut),
-            keybinding = null,
-            tooltip = if (hasRemotes) {
-                stringResource(Res.string.menu_prune_tooltip)
-            } else {
-                stringResource(Res.string.menu_prune_tooltip_disabled)
-            },
-            enabled = hasRemotes,
-            onClick = { viewModel.prune() },
-        )
-
         val pullTooltip = if (!hasRemotes) {
             stringResource(Res.string.menu_pull_tooltip_disabled)
         } else if (isPullWithRebaseDefault) {
@@ -105,7 +64,6 @@ fun Menu(
         }
 
         ExtendedMenuButton(
-            modifier = Modifier.padding(end = 4.dp),
             title = stringResource(Res.string.menu_pull),
             tooltipText = pullTooltip,
             enabled = hasRemotes,
@@ -126,7 +84,10 @@ fun Menu(
                 },
                 onFetchAll = {
                     viewModel.fetchAll()
-                }
+                },
+                onPrune = {
+                    viewModel.prune()
+                },
             )
         )
 
@@ -153,22 +114,8 @@ fun Menu(
             )
         )
 
-        Spacer(modifier = Modifier.width(32.dp))
-
-        MenuButton(
-            title = stringResource(Res.string.menu_branch),
-            icon = painterResource(Res.drawable.branch),
-            onClick = {
-                onCreateBranch()
-            },
-            tooltip = stringResource(Res.string.menu_branch_tooltip),
-            keybinding = KeybindingOption.BRANCH_CREATE.keyBinding,
-        )
-
-
-        Spacer(modifier = Modifier.width(32.dp))
-
         val enableStash = hasUncommittedChanges
+        val enablePopStash = stashesState.stashes.isNotEmpty()
 
         val stashTooltipText = if (enableStash) {
             stringResource(Res.string.menu_stash_tooltip)
@@ -177,126 +124,21 @@ fun Menu(
         }
 
         ExtendedMenuButton(
-            modifier = Modifier.padding(end = 4.dp),
             title = stringResource(Res.string.menu_stash),
             tooltipText = stashTooltipText,
             enabled = enableStash,
+            // Pop stash stays reachable while there is nothing to stash
+            isDropdownEnabled = enableStash || enablePopStash,
             icon = painterResource(Res.drawable.stash),
             keybinding = if (enableStash) KeybindingOption.STASH.keyBinding else null,
             onClick = { viewModel.stash() },
             extendedListItems = stashContextMenuItems(
-                onStashWithMessage = onStashWithMessage
+                canStash = enableStash,
+                canPopStash = enablePopStash,
+                onStashWithMessage = onStashWithMessage,
+                onPopStash = { viewModel.popStash() },
             )
         )
-
-        val enablePopStash = stashesState.stashes.isNotEmpty()
-
-        val popStashTooltipText = if (enablePopStash) {
-            stringResource(Res.string.menu_pop_stash_tooltip)
-        } else {
-            stringResource(Res.string.menu_pop_stash_tooltip_disabled)
-        }
-
-        MenuButton(
-            title = stringResource(Res.string.menu_pop_stash),
-            icon = painterResource(Res.drawable.apply_stash),
-            keybinding = KeybindingOption.STASH_POP.keyBinding,
-            tooltip = popStashTooltipText,
-            enabled = enablePopStash,
-        ) { viewModel.popStash() }
-
-        Spacer(modifier = Modifier.weight(1f))
-
-        MenuButton(
-            modifier = Modifier.padding(end = 4.dp),
-            title = stringResource(Res.string.menu_terminal),
-            icon = painterResource(Res.drawable.terminal),
-            onClick = { viewModel.openTerminal() },
-            tooltip = stringResource(Res.string.menu_terminal_tooltip),
-            keybinding = null,
-        )
-
-        MenuButton(
-            modifier = Modifier.padding(end = 4.dp),
-            title = stringResource(Res.string.menu_actions),
-            icon = painterResource(Res.drawable.bolt),
-            onClick = onQuickActions,
-            tooltip = stringResource(Res.string.menu_actions_tooltip),
-            keybinding = null,
-        )
-
-        Box(
-            modifier = Modifier.padding(end = 16.dp)
-        ) {
-            MenuButton(
-                title = stringResource(Res.string.menu_settings),
-                icon = painterResource(Res.drawable.settings),
-                onClick = onShowSettingsDialog,
-                tooltip = stringResource(Res.string.menu_settings_tooltip),
-                keybinding = KeybindingOption.SETTINGS.keyBinding,
-            )
-        }
-    }
-
-    if (showOpenPopup && position != null) {
-        val boundsInRoot = position.boundsInRoot()
-
-        Popup(
-            popupPositionProvider =
-                object : PopupPositionProvider {
-                    override fun calculatePosition(
-                        anchorBounds: IntRect,
-                        windowSize: IntSize,
-                        layoutDirection: LayoutDirection,
-                        popupContentSize: IntSize,
-                    ): IntOffset {
-                        return IntOffset(boundsInRoot.left.toInt(), boundsInRoot.bottom.toInt())
-                    }
-                },
-            onDismissRequest = { onShowOpenPopupChange(false) },
-            properties = PopupProperties(focusable = true),
-        ) {
-            val searchFocusRequester = remember { FocusRequester() }
-
-            Column(
-                modifier = Modifier
-                    .width(600.dp)
-                    .heightIn(max = 600.dp)
-                    .background(MaterialTheme.colors.surface)
-                    .border(2.dp, MaterialTheme.colors.onBackground.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
-                    .padding(16.dp)
-            ) {
-                PrimaryButton(
-                    text = stringResource(Res.string.menu_open_dialog_title),
-                    onClick = {
-                        onShowOpenPopupChange(false)
-                        onOpenAnotherRepositoryFromPicker()
-                    },
-                    modifier = Modifier
-                        .padding(bottom = 16.dp)
-                )
-
-                Box(modifier = Modifier.weight(1f)) {
-                    RecentRepositoriesList(
-                        recentlyOpenedRepositories = lastLoadedTabs,
-                        canRepositoriesBeRemoved = false,
-                        searchFieldFocusRequester = searchFocusRequester,
-                        onRemoveRepositoryFromRecent = {},
-                        onOpenKnownRepository = {
-                            onShowOpenPopupChange(false)
-                            onOpenAnotherRepository(it)
-                        },
-                        onExitClicked = {
-                            onShowOpenPopupChange(false)
-                        }
-                    )
-                }
-            }
-
-            LaunchedEffect(Unit) {
-                searchFocusRequester.requestFocus()
-            }
-        }
     }
 }
 
@@ -309,12 +151,13 @@ fun MenuButton(
     keybinding: Keybinding?,
     tooltip: String,
     tooltipEnabled: Boolean = true,
+    showTitle: Boolean = true,
     onClick: () -> Unit,
 ) {
     val keybinding = if (enabled) keybinding else null
 
     InstantTooltip(
-        text = tooltip,
+        text = if (showTitle) tooltip else "$title: $tooltip",
         enabled = tooltipEnabled,
         trailingContent = if (keybinding != null) {
             { KeybindingHint(keybinding) }
@@ -324,32 +167,49 @@ fun MenuButton(
     ) {
         val color = MaterialTheme.colors.onBackground.copy(alpha = if (enabled) 1F else DISABLED_BUTTON_ALPHA)
 
-        Column(
+        Row(
             modifier = modifier
                 .ignoreKeyEvents()
-                .clip(RoundedCornerShape(4.dp))
-                .background(MaterialTheme.colors.surface)
+                .height(MENU_BUTTON_HEIGHT)
+                .clip(MaterialTheme.shapes.small)
+                .menuButtonHover(enabled)
                 .handMouseClickable(enabled) { onClick() }
-                .size(56.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
+                .padding(horizontal = if (showTitle) 10.dp else 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
                 painter = icon,
                 contentDescription = title,
-                modifier = Modifier
-                    .size(24.dp),
+                modifier = Modifier.size(18.dp),
                 tint = color,
             )
-            Text(
-                text = title,
-                style = MaterialTheme.typography.caption,
-                maxLines = 1,
-                textAlign = TextAlign.Center,
-                color = color,
-            )
+
+            if (showTitle) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.body2,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    color = color,
+                    modifier = Modifier.padding(start = 6.dp),
+                )
+            }
         }
     }
+}
+
+private val MENU_BUTTON_HEIGHT = 32.dp
+
+@Composable
+private fun Modifier.menuButtonHover(enabled: Boolean): Modifier {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isHovered by interactionSource.collectIsHoveredAsState()
+
+    return this
+        .hoverable(interactionSource, enabled)
+        .background(
+            if (isHovered && enabled) MaterialTheme.colors.onBackground.copy(alpha = 0.07f) else Color.Transparent
+        )
 }
 
 @Composable
@@ -378,8 +238,8 @@ fun KeybindingHintPart(part: String) {
         fontWeight = FontWeight.Medium,
         color = MaterialTheme.colors.primary,
         modifier = Modifier
-            .clip(RoundedCornerShape(4.dp))
-            .border(2.dp, MaterialTheme.colors.primary, RoundedCornerShape(4.dp))
+            .clip(MaterialTheme.shapes.small)
+            .border(2.dp, MaterialTheme.colors.primary, MaterialTheme.shapes.small)
             .background(MaterialTheme.colors.primary.copy(alpha = 0.05f))
             .padding(horizontal = 4.dp, vertical = 4.dp)
 
@@ -445,6 +305,7 @@ fun getParts(keybinding: Keybinding): List<String> {
 fun ExtendedMenuButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    isDropdownEnabled: Boolean = enabled,
     title: String,
     tooltipText: String,
     icon: Painter,
@@ -453,56 +314,57 @@ fun ExtendedMenuButton(
     extendedListItems: List<ContextMenuElement>,
 ) {
     val color = MaterialTheme.colors.onBackground.copy(alpha = if (enabled) 1F else DISABLED_BUTTON_ALPHA)
+    val dropdownColor = MaterialTheme.colors.onBackground.copy(alpha = if (isDropdownEnabled) 1F else DISABLED_BUTTON_ALPHA)
     val keybinding = if (enabled) keybinding else null
 
     Row(
         modifier = modifier
-            .size(width = 64.dp, height = 56.dp)
+            .height(MENU_BUTTON_HEIGHT)
             .ignoreKeyEvents()
-            .clip(RoundedCornerShape(4.dp))
-            .background(MaterialTheme.colors.surface)
-            .handMouseClickable(enabled) { onClick() }
+            .clip(MaterialTheme.shapes.small)
+            .menuButtonHover(enabled || isDropdownEnabled)
     ) {
         InstantTooltip(
             text = tooltipText,
-            modifier = Modifier
-                .fillMaxHeight()
-                .weight(1f),
+            modifier = Modifier.fillMaxHeight(),
             trailingContent = if (keybinding != null) {
                 { KeybindingHint(keybinding) }
             } else {
                 null
             }
         ) {
-            Column(
+            Row(
                 modifier = Modifier
-                    .fillMaxSize(),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally,
+                    .fillMaxHeight()
+                    .handMouseClickable(enabled) { onClick() }
+                    .padding(start = 10.dp, end = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(
                     painter = icon,
                     contentDescription = title,
-                    modifier = Modifier
-                        .size(24.dp),
+                    modifier = Modifier.size(18.dp),
                     tint = color,
                 )
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.caption,
+                    style = MaterialTheme.typography.body2,
+                    fontWeight = FontWeight.Medium,
                     color = color,
                     maxLines = 1,
+                    modifier = Modifier.padding(start = 6.dp),
                 )
             }
         }
 
         DropDownMenu(
-            enabled = enabled,
+            enabled = isDropdownEnabled,
             items = { extendedListItems }
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxHeight()
+                    .padding(end = 6.dp)
                     .ignoreKeyEvents(),
                 contentAlignment = Alignment.Center,
             ) {
@@ -510,8 +372,8 @@ fun ExtendedMenuButton(
                 Icon(
                     painterResource(Res.drawable.expand_more),
                     contentDescription = null,
-                    tint = color,
-                    modifier = Modifier.size(16.dp)
+                    tint = dropdownColor,
+                    modifier = Modifier.size(14.dp)
                 )
 
             }

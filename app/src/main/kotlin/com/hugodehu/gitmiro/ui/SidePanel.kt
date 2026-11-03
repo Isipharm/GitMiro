@@ -25,6 +25,8 @@ import com.hugodehu.gitmiro.domain.models.*
 import com.hugodehu.gitmiro.domain.models.ui.SelectedItem
 import com.hugodehu.gitmiro.extensions.handOnHover
 import com.hugodehu.gitmiro.extensions.setClipboardText
+import com.hugodehu.gitmiro.keybindings.KeybindingOption
+import com.hugodehu.gitmiro.keybindings.keyBinding
 import com.hugodehu.gitmiro.repositoryopen.RepositoryOpenViewModel
 import com.hugodehu.gitmiro.theme.onBackgroundSecondary
 import com.hugodehu.gitmiro.ui.components.AdjustableOutlinedTextField
@@ -32,6 +34,7 @@ import com.hugodehu.gitmiro.ui.components.ScrollableLazyColumn
 import com.hugodehu.gitmiro.ui.components.SideMenuHeader
 import com.hugodehu.gitmiro.ui.components.SideMenuSubentry
 import com.hugodehu.gitmiro.ui.components.tooltip.DelayedTooltip
+import com.hugodehu.gitmiro.ui.components.tooltip.InstantTooltip
 import com.hugodehu.gitmiro.ui.context_menu.*
 import com.hugodehu.gitmiro.viewmodels.sidepanel.*
 import kotlinx.coroutines.flow.collectLatest
@@ -91,6 +94,7 @@ fun SidePanel(
                 viewModel = viewModel,
                 onChangeDefaultUpstreamBranch = { onNavigate(Screen.BranchChangeUpstream(it)) },
                 onRenameBranch = { onNavigate(Screen.BranchRename(it)) },
+                onCreateBranch = { onNavigate(Screen.BranchCreate(null)) },
             )
 
             remotes(
@@ -174,6 +178,7 @@ fun LazyListScope.localBranches(
     viewModel: RepositoryOpenViewModel,
     onChangeDefaultUpstreamBranch: (Branch) -> Unit,
     onRenameBranch: (Branch) -> Unit,
+    onCreateBranch: () -> Unit,
 ) {
     val isExpanded = branchesState.isExpanded
     val branches = branchesState.branches
@@ -187,7 +192,29 @@ fun LazyListScope.localBranches(
                 text = stringResource(Res.string.side_pane_local_branches_title),
                 icon = painterResource(Res.drawable.branch),
                 itemsCount = branches.count(),
-                hoverIcon = null,
+                hoverIcon = {
+                    val keybinding = KeybindingOption.BRANCH_CREATE.keyBinding
+
+                    InstantTooltip(
+                        text = stringResource(Res.string.menu_branch_tooltip),
+                        trailingContent = keybinding?.let { { KeybindingHint(it) } },
+                    ) {
+                        IconButton(
+                            onClick = onCreateBranch,
+                            modifier = Modifier
+                                .padding(end = 16.dp)
+                                .size(16.dp)
+                                .handOnHover(),
+                        ) {
+                            Icon(
+                                painter = painterResource(Res.drawable.add),
+                                contentDescription = stringResource(Res.string.menu_branch_tooltip),
+                                modifier = Modifier.fillMaxSize(),
+                                tint = MaterialTheme.colors.onBackground,
+                            )
+                        }
+                    }
+                },
                 isExpanded = isExpanded,
                 onExpand = { viewModel.onExpandBranches() }
             )

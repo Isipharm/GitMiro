@@ -204,7 +204,7 @@ private fun MessageAuthorFooter(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(4.dp))
+            .clip(MaterialTheme.shapes.small)
             .background(MaterialTheme.colors.background),
     ) {
         SelectionContainer {

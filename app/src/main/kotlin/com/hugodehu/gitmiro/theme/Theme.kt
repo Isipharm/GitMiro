@@ -2,8 +2,10 @@
 
 package com.hugodehu.gitmiro.theme
 
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Colors
 import androidx.compose.material.MaterialTheme
+import androidx.compose.material.Shapes
 import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
@@ -35,6 +37,13 @@ val compactLineHeight = LinesHeight(
     sidePanelItemHeight = 34.dp
 )
 
+// small: controls and fields, medium: dialogs, menus and notifications, large: the main panes
+private val appShapes = Shapes(
+    small = RoundedCornerShape(8.dp),
+    medium = RoundedCornerShape(12.dp),
+    large = RoundedCornerShape(16.dp),
+)
+
 @Composable
 fun AppTheme(
     selectedTheme: Theme = Theme.Dark,
@@ -64,6 +73,7 @@ fun AppTheme(
             colors = composeColors,
             content = content,
             typography = typography(composeColors),
+            shapes = appShapes,
         )
     }
 

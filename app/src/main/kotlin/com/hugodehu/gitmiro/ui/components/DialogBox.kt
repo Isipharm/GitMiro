@@ -17,7 +17,7 @@ fun DialogBox(
 ) {
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(5))
+            .clip(MaterialTheme.shapes.medium)
             .background(MaterialTheme.colors.background)
             .padding(16.dp)
     ) {

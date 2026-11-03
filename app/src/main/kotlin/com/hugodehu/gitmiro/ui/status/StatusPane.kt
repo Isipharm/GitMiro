@@ -663,7 +663,7 @@ fun UncommittedChangesButtons(
                     onCommit()
                 },
                 enabled = canCommit || (canAmend && isAmend),
-                shape = RoundedCornerShape(4.dp)
+                shape = MaterialTheme.shapes.small
             )
         }
     }

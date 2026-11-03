@@ -86,7 +86,7 @@ fun PasswordDialog(
             Box(
                 modifier = Modifier
                     .padding(top = 8.dp)
-                    .clip(RoundedCornerShape(4.dp))
+                    .clip(MaterialTheme.shapes.small)
                     .background(MaterialTheme.colors.error)
                     .align(Alignment.CenterHorizontally)
                     .padding(vertical = 4.dp, horizontal = 8.dp)

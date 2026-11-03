@@ -89,9 +89,9 @@ fun DropDownMenuText(
                 .border(
                     width = 2.dp,
                     color = MaterialTheme.colors.onBackground.copy(alpha = 0.1F),
-                    shape = RoundedCornerShape(4.dp),
+                    shape = MaterialTheme.shapes.small,
                 )
-                .clip(shape = RoundedCornerShape(4.dp))
+                .clip(shape = MaterialTheme.shapes.small)
                 .background(MaterialTheme.colors.background)
                 .padding(vertical = 8.dp, horizontal = 12.dp)
                 .handOnHover(),
@@ -255,7 +255,7 @@ fun showPopup(
         Box(
             modifier = Modifier
                 .dropShadow(
-                    shape = RoundedCornerShape(4.dp),
+                    shape = MaterialTheme.shapes.small,
                     shadow = Shadow(
                         radius = 5.dp,
                         spread = 6.dp,

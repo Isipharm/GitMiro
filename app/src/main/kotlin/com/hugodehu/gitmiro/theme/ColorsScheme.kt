@@ -4,6 +4,7 @@ package com.hugodehu.gitmiro.theme
 
 import androidx.compose.material.Colors
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.UseSerializers
@@ -74,7 +75,7 @@ object ColorAsStringSerializer : KSerializer<Color> {
     override val descriptor: SerialDescriptor = PrimitiveSerialDescriptor("Color", PrimitiveKind.STRING)
 
     override fun serialize(encoder: Encoder, value: Color) {
-        encoder.encodeString("")
+        encoder.encodeString("%08X".format(value.toArgb()))
     }
 
     override fun deserialize(decoder: Decoder): Color {

@@ -47,7 +47,7 @@ fun SecondaryButton(
 ) {
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(4.dp))
+            .clip(MaterialTheme.shapes.small)
             .background(backgroundButton)
             .handMouseClickable { onClick() },
     ) {
@@ -104,7 +104,7 @@ fun SecondaryButtonCompactable(
 
     Row(
         modifier = modifier
-            .clip(RoundedCornerShape(4.dp))
+            .clip(MaterialTheme.shapes.small)
             .background(backgroundColorState)
             .hoverable(hoverInteraction)
             .handMouseClickable { onClick() }

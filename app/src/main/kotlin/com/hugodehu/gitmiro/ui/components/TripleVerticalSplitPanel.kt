@@ -7,8 +7,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.width
+import androidx.compose.material.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -81,34 +83,38 @@ fun TripleVerticalSplitPanel(
         Box(
             Modifier
                 .weight(1f, true)
+                .clip(MaterialTheme.shapes.large)
         ) {
             second()
         }
 
-        Box(
-            modifier = Modifier
-                .fillMaxHeight()
-                .width(8.dp)
-                .draggable(
-                    state = rememberDraggableState {
-                        onThirdSizeChange(it)
-                    },
-                    orientation = Orientation.Horizontal,
-                    onDragStarted = {
-                        onThirdSizeDragStarted(thirdWidthLimited)
-                    },
-                    onDragStopped = {
-                        onThirdSizeDragStopped()
-                    },
-                )
-                .pointerHoverIcon(resizePointerIconEast)
-        )
+        if (thirdWidth > 0) {
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .width(8.dp)
+                    .draggable(
+                        state = rememberDraggableState {
+                            onThirdSizeChange(it)
+                        },
+                        orientation = Orientation.Horizontal,
+                        onDragStarted = {
+                            onThirdSizeDragStarted(thirdWidthLimited)
+                        },
+                        onDragStopped = {
+                            onThirdSizeDragStopped()
+                        },
+                    )
+                    .pointerHoverIcon(resizePointerIconEast)
+            )
 
-        Box(
-            modifier = Modifier
-                .width(thirdWidth.dp)
-        ) {
-            third()
+            Box(
+                modifier = Modifier
+                    .width(thirdWidth.dp)
+                    .clip(MaterialTheme.shapes.large)
+            ) {
+                third()
+            }
         }
     }
 }

@@ -450,7 +450,7 @@ fun RecentRepositoriesList(
 
                     Row(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
+                            .clip(MaterialTheme.shapes.small)
                             .fillMaxWidth()
                             .hoverable(hoverInteraction)
                             .handMouseClickable { onOpenKnownRepository(repo) }

@@ -10,6 +10,7 @@ import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
@@ -32,6 +33,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
@@ -75,8 +77,8 @@ import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
 import java.util.LinkedHashMap
 
-private const val CANVAS_MIN_WIDTH = 100
-private const val CANVAS_DEFAULT_WIDTH = 120
+private const val CANVAS_MIN_WIDTH = 60
+private const val CANVAS_DEFAULT_WIDTH = 80
 private const val MIN_GRAPH_LANES = 2
 
 private const val HORIZONTAL_SCROLL_PIXELS_MULTIPLIER = 10
@@ -88,8 +90,10 @@ private const val ARC_DIRECTION_RIGHT = 1
  * Additional number of lanes to simulate to create a margin at the end of the graph.
  */
 private const val MARGIN_GRAPH_LANES = 2
-private const val LANE_WIDTH = 30f
+private const val LANE_WIDTH = 18f
+private const val NODE_SIZE = 10
 private const val DIVIDER_WIDTH = 8
+private const val ROW_INSET = 6
 
 private const val LOG_BOTTOM_PADDING = 80
 
@@ -246,10 +250,6 @@ private fun LogView(
         }
 
         GraphHeader(
-            graphWidth = graphWidth,
-            onPaddingChange = {
-                onGraphPaddingChange(it)
-            },
             onShowSearch = {
                 onAction(LogAction.SearchValueChange(""))
             }
@@ -539,7 +539,8 @@ fun CommitsList(
             item {
                 Box(
                     modifier = Modifier.height(MaterialTheme.linesHeight.logCommitHeight)
-                        .clipToBounds()
+                        .padding(horizontal = ROW_INSET.dp)
+                        .clip(MaterialTheme.shapes.small)
                         .fillMaxWidth()
                         .handMouseClickable { onAction(LogAction.UncommittedChangesSelected) }
                 ) {
@@ -662,8 +663,6 @@ private fun scrollOnNewCommitAdded(
 
 @Composable
 fun GraphHeader(
-    graphWidth: Dp,
-    onPaddingChange: (Float) -> Unit,
     onShowSearch: () -> Unit,
 ) {
     Box(
@@ -672,37 +671,16 @@ fun GraphHeader(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(34.dp)
-                .background(MaterialTheme.colors.tertiarySurface),
+                .height(48.dp)
+                .padding(start = 20.dp, end = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                modifier = Modifier
-                    .width(graphWidth)
-                    .padding(start = 16.dp),
-                text = "Graph",
+                modifier = Modifier.weight(1f),
+                text = "History",
                 color = MaterialTheme.colors.onBackground,
-                style = MaterialTheme.typography.body2,
-                maxLines = 1,
-            )
-
-            val density = LocalDensity.current.density
-
-            SimpleDividerLog(
-                modifier = Modifier.draggable(
-                    rememberDraggableState {
-                        onPaddingChange(it / density) // Divide by density for screens with scaling > 1
-                    }, Orientation.Horizontal
-                ),
-            )
-
-            Text(
-                modifier = Modifier
-                    .padding(start = 16.dp)
-                    .weight(1f),
-                text = "Message",
-                color = MaterialTheme.colors.onBackground,
-                style = MaterialTheme.typography.body2,
+                style = MaterialTheme.typography.h4,
+                fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
             )
 
@@ -752,7 +730,7 @@ fun UncommittedChangesLine(
             modifier = Modifier.padding(start = 16.dp),
             style = MaterialTheme.typography.body2,
             maxLines = 1,
-            color = MaterialTheme.colors.onBackground,
+            color = MaterialTheme.colors.onBackgroundSecondary,
         )
 
         Spacer(modifier = Modifier.weight(1f))
@@ -891,6 +869,8 @@ private fun CommitLine(
         Box(
             modifier = Modifier
                 .height(MaterialTheme.linesHeight.logCommitHeight)
+                .padding(horizontal = ROW_INSET.dp)
+                .clip(MaterialTheme.shapes.small)
                 .handMouseClickable { onRevCommitSelected() }
         ) {
             val colors = MaterialTheme.colors.graphColors
@@ -1095,26 +1075,28 @@ fun CommitMessage(
 
 @Composable
 fun DividerLog(modifier: Modifier, graphWidth: Dp) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isHovered by interactionSource.collectIsHoveredAsState()
+
+    // Only shown while hovered, to tell the graph width can be dragged
     Box(
         modifier = Modifier
             .padding(start = graphWidth)
             .width(DIVIDER_WIDTH.dp)
             .then(modifier)
+            .hoverable(interactionSource)
             .pointerHoverIcon(resizePointerIconEast)
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxHeight()
-                .width(2.dp)
-                .background(color = MaterialTheme.colors.onBackground.copy(alpha = 0.2F))
-                .align(Alignment.Center)
-        )
+        if (isHovered) {
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .width(2.dp)
+                    .background(color = MaterialTheme.colors.onBackground.copy(alpha = 0.2F))
+                    .align(Alignment.Center)
+            )
+        }
     }
-}
-
-@Composable
-fun SimpleDividerLog(modifier: Modifier) {
-    DividerLog(modifier, graphWidth = 0.dp)
 }
 
 
@@ -1231,7 +1213,7 @@ fun CommitsGraph(
         CommitNode(
             modifier = Modifier
                 .align(Alignment.CenterStart)
-                .padding(start = ((itemPosition + 1) * 30 - 15).dp),
+                .padding(start = ((itemPosition + 1) * LANE_WIDTH - NODE_SIZE / 2f).dp),
             author = plotCommit.author,
             isMerge = plotCommit.commit.parentCount > 1,
             isStash = isStash,
@@ -1280,24 +1262,17 @@ fun CommitNode(
     color: Color,
 ) {
     if (isStash) {
+        // Hollow node, so a stash stands apart from the commits of its lane
         Box(
             modifier = modifier
-                .size(30.dp)
+                .size(NODE_SIZE.dp)
                 .border(2.dp, color, shape = CircleShape)
                 .clip(CircleShape)
                 .background(MaterialTheme.colors.background),
-            contentAlignment = Alignment.Center,
-        ) {
-            Image(
-                painterResource(Res.drawable.stash),
-                modifier = Modifier.size(20.dp),
-                contentDescription = null,
-                colorFilter = ColorFilter.tint(color),
-            )
-        }
+        )
     } else {
         val shape = if (isMerge) {
-            RoundedCornerShape(4.dp)
+            RoundedCornerShape(3.dp)
         } else {
             CircleShape
         }
@@ -1308,17 +1283,10 @@ fun CommitNode(
         ) {
             Box(
                 modifier = modifier
-                    .size(30.dp)
-                    .border(2.dp, color, shape = shape)
+                    .size(NODE_SIZE.dp)
                     .clip(shape)
-            ) {
-                AvatarImage(
-                    modifier = Modifier.fillMaxSize(),
-                    personIdent = author,
-                    shape = shape,
-                    color = color,
-                )
-            }
+                    .background(color)
+            )
         }
     }
 }
@@ -1343,17 +1311,24 @@ fun UncommittedChangesGraphNode(
             modifier = Modifier.fillMaxSize()
         ) {
             clipRect {
+                val radius = NODE_SIZE / 2f * density
+
                 if (hasPreviousCommits) drawLine(
                     color = colors[0],
-                    start = Offset(laneWidthWithDensity, this.center.y),
+                    start = Offset(laneWidthWithDensity, this.center.y + radius),
                     end = Offset(laneWidthWithDensity, this.size.height),
                     strokeWidth = 2f * density,
                 )
 
+                // Dashed ring: these changes are not a commit yet
                 drawCircle(
                     color = colors[0],
-                    radius = 15f * density,
+                    radius = radius,
                     center = Offset(laneWidthWithDensity, this.center.y),
+                    style = Stroke(
+                        width = 2f * density,
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(3f * density, 2f * density)),
+                    ),
                 )
             }
         }
@@ -1428,8 +1403,8 @@ fun BranchChip(
             painter = painterResource(Res.drawable.location),
             contentDescription = null,
             modifier = Modifier
-                .size((18 * sizeMultiplierCurrentBranch).dp)
-                .padding(end = (6 * sizeMultiplierCurrentBranch).dp),
+                .padding(start = (4 * sizeMultiplierCurrentBranch).dp)
+                .size((14 * sizeMultiplierCurrentBranch).dp),
             tint = MaterialTheme.colors.primaryVariant,
         )
 
@@ -1458,16 +1433,14 @@ fun BranchChip(
                 ContextMenu(
                     items = remoteContextMenuItemsList,
                 ) {
-                    Box(modifier = Modifier.background(color = color)) {
-                        Icon(
-                            modifier = Modifier
-                                .padding((6 * sizeMultiplierTrackingRemoteBranch).dp)
-                                .size((14 * sizeMultiplierTrackingRemoteBranch).dp),
-                            painter = painterResource(Res.drawable.cloud),
-                            contentDescription = null,
-                            tint = MaterialTheme.colors.background,
-                        )
-                    }
+                    Icon(
+                        modifier = Modifier
+                            .padding(start = (5 * sizeMultiplierTrackingRemoteBranch).dp)
+                            .size((14 * sizeMultiplierTrackingRemoteBranch).dp),
+                        painter = painterResource(Res.drawable.cloud),
+                        contentDescription = null,
+                        tint = color,
+                    )
                 }
             }
         }
@@ -1481,6 +1454,7 @@ fun BranchChip(
             orientation = Orientation.Vertical,
         ),
         color = color,
+        isOutlined = branch.isRemote,
         text = branch.logName,
         icon = if (branch.isLocal) Res.drawable.branch else Res.drawable.cloud,
         onCheckoutRef = { onCheckoutBranch(branch) },
@@ -1538,15 +1512,20 @@ fun Chip(
     text: String,
     icon: DrawableResource,
     color: Color,
+    isOutlined: Boolean = false,
     onCheckoutRef: () -> Unit,
     contextMenuItemsList: () -> List<ContextMenuElement>,
     endingContent: @Composable RowScope.() -> Unit = {},
 ) {
+    val shape = RoundedCornerShape(50)
+
+    // Filled tint for local refs, outline for remote ones
     Box(
         modifier = Modifier
-            .padding(horizontal = 4.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .border(width = 2.dp, color = color, shape = RoundedCornerShape(16.dp))
+            .padding(horizontal = 3.dp)
+            .clip(shape)
+            .background(if (isOutlined) Color.Transparent else color.copy(alpha = 0.16f))
+            .border(width = 1.5.dp, color = if (isOutlined) color.copy(alpha = 0.7f) else Color.Transparent, shape = shape)
             .combinedClickable(onDoubleClick = onCheckoutRef, onClick = {})
             .handOnHover()
     ) {
@@ -1554,25 +1533,24 @@ fun Chip(
             items = contextMenuItemsList
         ) {
             Row(
-                modifier = modifier,
+                modifier = modifier
+                    .height(24.dp)
+                    .padding(horizontal = 9.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Box(modifier = Modifier.background(color = color)) {
-                    Icon(
-                        modifier = Modifier
-                            .padding(6.dp)
-                            .size(14.dp),
-                        painter = painterResource(icon),
-                        contentDescription = null,
-                        tint = MaterialTheme.colors.background,
-                    )
-                }
+                Icon(
+                    modifier = Modifier.size(13.dp),
+                    painter = painterResource(icon),
+                    contentDescription = null,
+                    tint = color,
+                )
                 Text(
                     text = text,
                     style = MaterialTheme.typography.body2,
+                    fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colors.onBackground,
                     maxLines = 1,
-                    modifier = Modifier.padding(horizontal = 6.dp)
+                    modifier = Modifier.padding(start = 5.dp)
                 )
 
                 endingContent()

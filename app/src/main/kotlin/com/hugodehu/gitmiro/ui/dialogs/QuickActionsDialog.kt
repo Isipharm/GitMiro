@@ -136,7 +136,7 @@ private fun QuickActionView(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(4.dp))
+                            .clip(MaterialTheme.shapes.small)
                             .backgroundIf(selectedIndex == index, MaterialTheme.colors.backgroundSelected)
                             .handMouseClickable { onAction(item.type) }
                     ) {

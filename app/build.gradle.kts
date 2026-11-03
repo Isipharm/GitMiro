@@ -62,6 +62,7 @@ dependencies {
     implementation(libs.compose.components.resources)
     implementation(libs.compose.material.icons.extended)
     implementation(libs.compose.navigation3)
+    implementation(libs.jbr.api)
 
     implementation(libs.jgit.core)
     implementation(libs.jgit.gpg)

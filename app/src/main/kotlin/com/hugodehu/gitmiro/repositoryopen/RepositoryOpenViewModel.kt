@@ -24,9 +24,7 @@ import com.hugodehu.gitmiro.domain.repositories.*
 import com.hugodehu.gitmiro.domain.services.AppSettingsService
 import com.hugodehu.gitmiro.domain.usecases.*
 import com.hugodehu.gitmiro.extensions.stateIn
-import com.hugodehu.gitmiro.system.OpenFilePickerUseCase
 import com.hugodehu.gitmiro.system.OpenUrlInBrowserUseCase
-import com.hugodehu.gitmiro.system.PickerType
 import com.hugodehu.gitmiro.terminal.OpenRepositoryInTerminalGitAction
 import com.hugodehu.gitmiro.ui.AppViewModel
 import com.hugodehu.gitmiro.ui.IVerticalSplitPaneConfig
@@ -83,7 +81,6 @@ class RepositoryOpenViewModel @Inject constructor(
     private val getWorktreeUseCase: GetWorktreeUseCase,
     private val historyViewModelProvider: Provider<HistoryViewModel>,
     val appStateManager: AppStateManager,
-    private val openFilePickerUseCase: OpenFilePickerUseCase,
     private val openUrlInBrowserUseCase: OpenUrlInBrowserUseCase,
     private val appViewModel: AppViewModel,
     private val tabScope: TabCoroutineScope,
@@ -155,7 +152,6 @@ class RepositoryOpenViewModel @Inject constructor(
 
     val isPullWithRebaseDefault = settings.pullWithRebase
 
-    val lastLoadedTabs = appStateManager.latestOpenedRepositoriesPaths
 
     val repositoryState: StateFlow<RepositoryState> =
         repositoryDataRepository.repositoryState.toUiDataState()
@@ -652,30 +648,8 @@ class RepositoryOpenViewModel @Inject constructor(
     override fun onClear() {
     }
 
-    /**
-     * To make sure the tab opens the new repository with a clean state,
-     * instead of opening the repo in the same ViewModel we simply create a new tab with a new TabViewModel
-     * replacing the current tab
-     */
-    fun openAnotherRepository(directory: String) {
-        viewModelScope.launch {
-            val worktree = getWorktreeUseCase()
-
-            if (worktree is Either.Ok) {
-                appViewModel.addNewTabFromPath(directory, true, worktree.value)
-            }
-        }
-    }
-
-
     private fun refreshRepositoryInfo() {
         refreshDataUseCase(DataToRefresh.ALL)
-    }
-
-    fun openDirectoryPicker(): String? {
-        val latestDirectoryOpened = appStateManager.latestOpenedRepositoryPath
-
-        return openFilePickerUseCase(PickerType.DIRECTORIES, latestDirectoryOpened)
     }
 
     val update: StateFlow<Update?> = updatesRepository.hasUpdatesFlow.stateIn(null)

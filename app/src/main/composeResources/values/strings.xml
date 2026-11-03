@@ -22,12 +22,6 @@
     <string name="home_recent_repositories_remove_repository">Remove repository from recent</string>
 
     <!-- Top menu -->
-    <string name="menu_open">Open</string>
-    <string name="menu_open_dialog_title">Open a repository</string>
-    <string name="menu_open_tooltip">Open a different repository</string>
-    <string name="menu_prune">Prune</string>
-    <string name="menu_prune_tooltip">Fetch, then delete the local branches whose remote branch was deleted</string>
-    <string name="menu_prune_tooltip_disabled">Prune not available without a remote repository</string>
     <string name="menu_pull">Pull</string>
     <string name="menu_pull_default">Pull current branch</string>
     <string name="menu_pull_rebase">Pull current branch with rebase</string>
@@ -35,14 +29,10 @@
     <string name="menu_push">Push</string>
     <string name="menu_push_tooltip">Push current branch changes</string>
     <string name="menu_push_tooltip_disabled">Push not available without a remote repository</string>
-    <string name="menu_branch">Branch</string>
     <string name="menu_branch_tooltip">Create a new branch</string>
     <string name="menu_stash">Stash</string>
     <string name="menu_stash_tooltip">Stash uncommitted changes</string>
     <string name="menu_stash_tooltip_disabled">Change some files to be able to stash them</string>
-    <string name="menu_pop_stash">Pop stash</string>
-    <string name="menu_pop_stash_tooltip">Pop the last stash</string>
-    <string name="menu_pop_stash_tooltip_disabled">No stashes to pop</string>
     <string name="menu_terminal">Terminal</string>
     <string name="menu_terminal_tooltip">Open a terminal in the repository's path</string>
     <string name="menu_actions">Actions</string>
@@ -142,6 +132,7 @@
     <string name="pull_context_menu_pull_with_merge">Pull with merge</string>
     <string name="pull_context_menu_pull_with_rebase">Pull with rebase</string>
     <string name="pull_context_menu_fetch_all">Fetch all</string>
+    <string name="pull_context_menu_prune">Prune deleted branches…</string>
 
     <!-- Push context menu -->
     <string name="push_context_menu_push_including_tags">Push including tags</string>
@@ -154,6 +145,7 @@
 
     <!-- Stash menu context menu -->
     <string name="stash_context_menu_stash_with_message">Stash with message</string>
+    <string name="stash_context_menu_pop_stash">Pop last stash</string>
 
     <!-- Stashes context menu -->
     <string name="stashes_context_menu_apply_stash">Apply stash</string>

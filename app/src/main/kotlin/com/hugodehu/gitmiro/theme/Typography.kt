@@ -8,39 +8,39 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
-import com.hugodehu.gitmiro.app.generated.resources.Inter_18pt_Bold
-import com.hugodehu.gitmiro.app.generated.resources.Inter_18pt_BoldItalic
-import com.hugodehu.gitmiro.app.generated.resources.Inter_18pt_Italic
-import com.hugodehu.gitmiro.app.generated.resources.Inter_18pt_Medium
-import com.hugodehu.gitmiro.app.generated.resources.Inter_18pt_MediumItalic
-import com.hugodehu.gitmiro.app.generated.resources.Inter_18pt_Regular
-import com.hugodehu.gitmiro.app.generated.resources.Inter_18pt_SemiBold
-import com.hugodehu.gitmiro.app.generated.resources.Inter_18pt_SemiBoldItalic
-import com.hugodehu.gitmiro.app.generated.resources.NotoSansMono_Bold
-import com.hugodehu.gitmiro.app.generated.resources.NotoSansMono_Medium
-import com.hugodehu.gitmiro.app.generated.resources.NotoSansMono_Regular
-import com.hugodehu.gitmiro.app.generated.resources.NotoSansMono_SemiBold
+import com.hugodehu.gitmiro.app.generated.resources.Geist_Bold
+import com.hugodehu.gitmiro.app.generated.resources.Geist_BoldItalic
+import com.hugodehu.gitmiro.app.generated.resources.Geist_Italic
+import com.hugodehu.gitmiro.app.generated.resources.Geist_Medium
+import com.hugodehu.gitmiro.app.generated.resources.Geist_MediumItalic
+import com.hugodehu.gitmiro.app.generated.resources.Geist_Regular
+import com.hugodehu.gitmiro.app.generated.resources.Geist_SemiBold
+import com.hugodehu.gitmiro.app.generated.resources.Geist_SemiBoldItalic
+import com.hugodehu.gitmiro.app.generated.resources.GeistMono_Bold
+import com.hugodehu.gitmiro.app.generated.resources.GeistMono_Medium
+import com.hugodehu.gitmiro.app.generated.resources.GeistMono_Regular
+import com.hugodehu.gitmiro.app.generated.resources.GeistMono_SemiBold
 import com.hugodehu.gitmiro.app.generated.resources.Res
 import org.jetbrains.compose.resources.Font
 
 
-const val LETTER_SPACING = 0.5
+const val LETTER_SPACING = 0.1
 
 @Composable
 fun typography(composeColors: Colors): Typography {
-    val interFontFamily = FontFamily(
-        Font(Res.font.Inter_18pt_Regular, FontWeight.Normal, FontStyle.Normal),
-        Font(Res.font.Inter_18pt_Italic, FontWeight.Normal, FontStyle.Italic),
-        Font(Res.font.Inter_18pt_Medium, FontWeight.Medium, FontStyle.Normal),
-        Font(Res.font.Inter_18pt_MediumItalic, FontWeight.Medium, FontStyle.Italic),
-        Font(Res.font.Inter_18pt_SemiBold, FontWeight.SemiBold, FontStyle.Normal),
-        Font(Res.font.Inter_18pt_SemiBoldItalic, FontWeight.SemiBold, FontStyle.Italic),
-        Font(Res.font.Inter_18pt_Bold, FontWeight.Bold, FontStyle.Normal),
-        Font(Res.font.Inter_18pt_BoldItalic, FontWeight.Bold, FontStyle.Italic),
+    val geistFontFamily = FontFamily(
+        Font(Res.font.Geist_Regular, FontWeight.Normal, FontStyle.Normal),
+        Font(Res.font.Geist_Italic, FontWeight.Normal, FontStyle.Italic),
+        Font(Res.font.Geist_Medium, FontWeight.Medium, FontStyle.Normal),
+        Font(Res.font.Geist_MediumItalic, FontWeight.Medium, FontStyle.Italic),
+        Font(Res.font.Geist_SemiBold, FontWeight.SemiBold, FontStyle.Normal),
+        Font(Res.font.Geist_SemiBoldItalic, FontWeight.SemiBold, FontStyle.Italic),
+        Font(Res.font.Geist_Bold, FontWeight.Bold, FontStyle.Normal),
+        Font(Res.font.Geist_BoldItalic, FontWeight.Bold, FontStyle.Italic),
     )
 
     return Typography(
-        defaultFontFamily = interFontFamily,
+        defaultFontFamily = geistFontFamily,
         h1 = TextStyle(
             fontSize = 32.sp,
             color = composeColors.onBackground,
@@ -82,12 +82,12 @@ fun typography(composeColors: Colors): Typography {
 
 @Composable
 fun monoTypography(): FontFamily {
-    val notoSansMonoFontFamily = FontFamily(
-        Font(Res.font.NotoSansMono_Regular, FontWeight.Normal, FontStyle.Normal),
-        Font(Res.font.NotoSansMono_Medium, FontWeight.Medium, FontStyle.Normal),
-        Font(Res.font.NotoSansMono_SemiBold, FontWeight.SemiBold, FontStyle.Normal),
-        Font(Res.font.NotoSansMono_Bold, FontWeight.Bold, FontStyle.Normal),
+    val geistMonoFontFamily = FontFamily(
+        Font(Res.font.GeistMono_Regular, FontWeight.Normal, FontStyle.Normal),
+        Font(Res.font.GeistMono_Medium, FontWeight.Medium, FontStyle.Normal),
+        Font(Res.font.GeistMono_SemiBold, FontWeight.SemiBold, FontStyle.Normal),
+        Font(Res.font.GeistMono_Bold, FontWeight.Bold, FontStyle.Normal),
     )
 
-    return notoSansMonoFontFamily
+    return geistMonoFontFamily
 }
