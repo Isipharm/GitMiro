@@ -1,7 +1,16 @@
 package com.hugodehu.gitmiro.ui.dialogs.settings
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.sp
+import com.hugodehu.gitmiro.theme.tertiarySurface
+import com.hugodehu.gitmiro.ui.components.tooltip.InstantTooltip
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.Icon
 import androidx.compose.material.LocalTextStyle
@@ -123,12 +132,6 @@ val settings = listOf(
     },
 
     SettingsEntry.Section(Res.string.settings_section_tools),
-    SettingsEntry.Entry(Res.drawable.terminal, Res.string.settings_entry_terminal) { state, onAction ->
-        Terminal(
-            state,
-            onAction
-        )
-    },
     SettingsEntry.Entry(Res.drawable.info, Res.string.settings_entry_logs) { state, onAction -> Logs(state, onAction) },
 )
 
@@ -165,16 +168,17 @@ fun GlobalSettingsDialog(
         ) {
             Column(
                 modifier = Modifier
-                    .width(200.dp)
+                    .width(240.dp)
                     .fillMaxHeight()
-                    .background(MaterialTheme.colors.background)
+                    .background(MaterialTheme.colors.tertiarySurface)
+                    .padding(horizontal = 12.dp)
             ) {
                 Text(
                     text = "Settings",
-                    style = MaterialTheme.typography.h3,
+                    style = MaterialTheme.typography.h4,
                     color = MaterialTheme.colors.onBackground,
-                    modifier = Modifier.padding(16.dp),
-                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(start = 8.dp, top = 24.dp, bottom = 18.dp),
+                    fontWeight = FontWeight.SemiBold,
                 )
 
                 Row(modifier = Modifier.weight(1f)) {
@@ -204,27 +208,47 @@ fun GlobalSettingsDialog(
                 }
             }
 
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 40.dp, end = 20.dp, top = 24.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = stringResource(selectedCategory.name),
+                        style = MaterialTheme.typography.h4,
+                        color = MaterialTheme.colors.onBackground,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.weight(1f),
+                    )
+
+                    // Changes apply as soon as they are made, so there is nothing to confirm: only a way to leave
+                    InstantTooltip(text = "Close") {
+                        Icon(
+                            painter = painterResource(Res.drawable.close),
+                            contentDescription = "Close settings",
+                            tint = MaterialTheme.colors.onBackgroundSecondary,
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(MaterialTheme.shapes.small)
+                                .border(1.dp, MaterialTheme.colors.onBackground.copy(alpha = 0.14f), MaterialTheme.shapes.small)
+                                .handMouseClickable { onDismiss() }
+                                .padding(9.dp),
+                        )
+                    }
+                }
+
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f, true)
-                        .padding(start = 16.dp, top = 64.dp, end = 16.dp)
+                        .padding(start = 40.dp, top = 12.dp, end = 40.dp)
                 ) {
                     selectedCategory.content(settingsViewState) { action ->
                         settingsViewModel.onAction(action)
                     }
                 }
-
-                PrimaryButton(
-                    text = "Accept",
-                    modifier = Modifier
-                        .padding(end = 16.dp, bottom = 16.dp)
-                        .align(Alignment.End),
-                    onClick = {
-                        onDismiss()
-                    },
-                )
             }
 
         }
@@ -318,28 +342,33 @@ private fun Entry(icon: DrawableResource, name: String, isSelected: Boolean, onC
     val backgroundColor = if (isSelected)
         MaterialTheme.colors.backgroundSelected
     else
-        MaterialTheme.colors.background
+        Color.Transparent
+    val contentColor = if (isSelected) MaterialTheme.colors.primaryVariant else MaterialTheme.colors.onBackground
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
+            .fillMaxWidth()
+            .height(34.dp)
+            .clip(MaterialTheme.shapes.small)
             .background(color = backgroundColor)
             .handMouseClickable(onClick = onClick)
-            .fillMaxWidth(),
+            .padding(horizontal = 10.dp),
     ) {
         Icon(
             painterResource(icon),
             contentDescription = name,
-            tint = MaterialTheme.colors.onBackgroundSecondary,
+            tint = contentColor,
             modifier = Modifier
-                .padding(start = 16.dp, top = 4.dp, bottom = 4.dp, end = 8.dp)
-                .size(24.dp)
+                .padding(end = 10.dp)
+                .size(16.dp)
         )
 
         Text(
             text = name,
-            style = MaterialTheme.typography.body1,
-            color = MaterialTheme.colors.onBackground,
+            style = MaterialTheme.typography.body2,
+            fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal,
+            color = contentColor,
         )
     }
 }
@@ -349,8 +378,9 @@ private fun Section(name: String) {
     Text(
         text = name.uppercase(),
         color = MaterialTheme.colors.onBackgroundSecondary,
-        style = MaterialTheme.typography.body2,
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+        fontSize = 11.sp,
+        letterSpacing = 0.06.em,
+        modifier = Modifier.padding(start = 10.dp, top = 6.dp, bottom = 6.dp),
         fontWeight = FontWeight.SemiBold,
     )
 }
@@ -704,22 +734,26 @@ fun <T> SettingDropDown(
     currentOption: T,
 ) {
     Row(
-        modifier = Modifier.padding(vertical = 8.dp),
+        modifier = Modifier.settingRow(),
         verticalAlignment = Alignment.CenterVertically
     ) {
         FieldTitles(title, subtitle)
 
         Spacer(modifier = Modifier.weight(1f))
 
-        DropDownMenuText(
-            showIcons = false,
-            currentValue = dropDownOptions.first { it.value == currentOption }.optionName,
-            items = {
-                dropDownOptions.map {
-                    ContextMenuElement.ContextTextEntry(it.optionName, onClick = { onOptionSelected(it) })
-                }
-            },
-        )
+        if (dropDownOptions.size <= 3) {
+            SegmentedOptions(dropDownOptions, currentOption, onOptionSelected)
+        } else {
+            DropDownMenuText(
+                showIcons = false,
+                currentValue = dropDownOptions.first { it.value == currentOption }.optionName,
+                items = {
+                    dropDownOptions.map {
+                        ContextMenuElement.ContextTextEntry(it.optionName, onClick = { onOptionSelected(it) })
+                    }
+                },
+            )
+        }
     }
 }
 
@@ -731,7 +765,7 @@ fun SettingButton(
     onClick: () -> Unit,
 ) {
     Row(
-        modifier = Modifier.padding(vertical = 8.dp),
+        modifier = Modifier.settingRow(),
         verticalAlignment = Alignment.CenterVertically
     ) {
         FieldTitles(title, subtitle)
@@ -754,7 +788,7 @@ fun SettingToggle(
     onValueChanged: (Boolean) -> Unit,
 ) {
     Row(
-        modifier = Modifier.padding(vertical = 8.dp),
+        modifier = Modifier.settingRow(),
         verticalAlignment = Alignment.CenterVertically
     ) {
         FieldTitles(title, subtitle, enabled)
@@ -778,7 +812,7 @@ fun SettingIntInput(
     onValueChanged: (Int) -> Unit,
 ) {
     Row(
-        modifier = Modifier.padding(vertical = 8.dp),
+        modifier = Modifier.settingRow(),
         verticalAlignment = Alignment.CenterVertically
     ) {
         FieldTitles(title, subtitle, enabled)
@@ -834,7 +868,7 @@ fun SettingTextInput(
     singleLine: Boolean = true,
 ) {
     Row(
-        modifier = Modifier.padding(vertical = 8.dp),
+        modifier = Modifier.settingRow(),
         verticalAlignment = if (singleLine) Alignment.CenterVertically else Alignment.Top,
     ) {
         FieldTitles(title, subtitle, enabled)
@@ -869,6 +903,21 @@ fun SettingTextInput(
     }
 }
 
+/**
+ * A setting line, separated from the previous one by a thin line.
+ */
+@Composable
+private fun Modifier.settingRow(): Modifier {
+    val lineColor = MaterialTheme.colors.onBackground.copy(alpha = 0.08f)
+
+    return this
+        .fillMaxWidth()
+        .drawBehind {
+            drawLine(lineColor, Offset(0f, 0f), Offset(size.width, 0f), strokeWidth = 1.dp.toPx())
+        }
+        .padding(vertical = 16.dp)
+}
+
 @Composable
 private fun FieldTitles(
     title: String,
@@ -882,15 +931,52 @@ private fun FieldTitles(
             text = title,
             color = MaterialTheme.colors.onBackground.copy(alpha = if (enabled) 1F else 0.6F),
             style = MaterialTheme.typography.body1,
-            fontWeight = FontWeight.Medium,
+            fontWeight = FontWeight.SemiBold,
         )
 
-        Text(
-            text = subtitle,
-            color = MaterialTheme.colors.onBackground.copy(alpha = if (enabled) 1F else 0.6F),
-            modifier = Modifier.padding(top = 4.dp),
-            style = MaterialTheme.typography.body2,
-        )
+        if (subtitle.isNotEmpty()) {
+            Text(
+                text = subtitle,
+                color = MaterialTheme.colors.onBackgroundSecondary.copy(alpha = if (enabled) 1F else 0.6F),
+                modifier = Modifier.padding(top = 3.dp),
+                style = MaterialTheme.typography.body2,
+            )
+        }
+    }
+}
+
+/**
+ * Segmented control, used instead of a dropdown when there are only a few options.
+ */
+@Composable
+private fun <T> SegmentedOptions(
+    options: List<DropDownOption<T>>,
+    current: T,
+    onSelected: (DropDownOption<T>) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .clip(MaterialTheme.shapes.medium)
+            .background(MaterialTheme.colors.surface)
+            .border(1.dp, MaterialTheme.colors.onBackground.copy(alpha = 0.1f), MaterialTheme.shapes.medium)
+            .padding(3.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        options.forEach { option ->
+            val isSelected = option.value == current
+
+            Text(
+                text = option.optionName,
+                style = MaterialTheme.typography.body2,
+                fontWeight = FontWeight.Medium,
+                color = if (isSelected) MaterialTheme.colors.onBackground else MaterialTheme.colors.onBackgroundSecondary,
+                modifier = Modifier
+                    .clip(MaterialTheme.shapes.small)
+                    .background(if (isSelected) MaterialTheme.colors.onBackground.copy(alpha = 0.14f) else Color.Transparent)
+                    .handMouseClickable { onSelected(option) }
+                    .padding(horizontal = 14.dp, vertical = 6.dp),
+            )
+        }
     }
 }
 

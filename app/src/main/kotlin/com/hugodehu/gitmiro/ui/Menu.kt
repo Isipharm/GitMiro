@@ -46,6 +46,7 @@ fun Menu(
     val isPullWithRebaseDefault by viewModel.isPullWithRebaseDefault.collectAsState(false)
     val remotes by viewModel.remoteState.collectAsState()
     val hasRemotes = remotes.remotes.isNotEmpty()
+    val aheadCount by viewModel.aheadCount.collectAsState()
 
     Row(
         modifier = modifier
@@ -107,6 +108,7 @@ fun Menu(
             title = stringResource(Res.string.menu_push),
             tooltipText = pushTooltip,
             enabled = hasRemotes,
+            badge = aheadCount,
             icon = painterResource(Res.drawable.upload),
             onClick = { viewModel.push(force = false, pushTags = false) },
             keybinding = KeybindingOption.PUSH.keyBinding,
@@ -297,6 +299,7 @@ fun ExtendedMenuButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     isDropdownEnabled: Boolean = enabled,
+    badge: Int = 0,
     title: String,
     tooltipText: String,
     icon: Painter,
@@ -345,6 +348,19 @@ fun ExtendedMenuButton(
                     maxLines = 1,
                     modifier = Modifier.padding(start = 6.dp),
                 )
+                if (badge > 0) {
+                    Text(
+                        text = badge.toString(),
+                        style = MaterialTheme.typography.caption,
+                        fontFamily = monoTypography(),
+                        color = MaterialTheme.colors.primaryVariant,
+                        modifier = Modifier
+                            .padding(start = 6.dp)
+                            .clip(RoundedCornerShape(50))
+                            .background(MaterialTheme.colors.primary.copy(alpha = 0.25f))
+                            .padding(horizontal = 6.dp, vertical = 1.dp),
+                    )
+                }
             }
         }
 

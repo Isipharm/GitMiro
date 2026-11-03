@@ -47,7 +47,9 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import com.hugodehu.gitmiro.ui.components.PanelDivider
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -1049,7 +1051,7 @@ fun CommitMessage(
         Text(
             text = message,
             modifier = Modifier
-                .padding(start = 8.dp)
+                .padding(start = 8.dp, end = 12.dp)
                 .weight(1f),
             style = MaterialTheme.typography.body2,
             color = if (matchesSearchFilter == false) MaterialTheme.colors.onBackgroundSecondary else MaterialTheme.colors.onBackground,
@@ -1461,7 +1463,7 @@ fun BranchChip(
                             .size((14 * sizeMultiplierTrackingRemoteBranch).dp),
                         painter = painterResource(Res.drawable.cloud),
                         contentDescription = null,
-                        tint = color,
+                        tint = MaterialTheme.colors.onBackgroundSecondary,
                     )
                 }
             }
@@ -1475,7 +1477,11 @@ fun BranchChip(
             },
             orientation = Orientation.Vertical,
         ),
-        color = color,
+        color = when {
+            branch.isRemote -> MaterialTheme.colors.onBackgroundSecondary
+            isCurrentBranch -> MaterialTheme.colors.graphColors[1]
+            else -> MaterialTheme.colors.primary
+        },
         isOutlined = branch.isRemote,
         text = branch.logName,
         icon = if (branch.isLocal) Res.drawable.branch else Res.drawable.cloud,
@@ -1523,7 +1529,7 @@ fun TagChip(
         Res.drawable.tag,
         onCheckoutRef = onCheckoutTag,
         contextMenuItemsList = contextMenuItemsList,
-        color = color,
+        color = MaterialTheme.colors.secondary,
     )
 }
 
@@ -1539,15 +1545,20 @@ fun Chip(
     contextMenuItemsList: () -> List<ContextMenuElement>,
     endingContent: @Composable RowScope.() -> Unit = {},
 ) {
-    val shape = RoundedCornerShape(50)
+    val shape = RoundedCornerShape(6.dp)
 
-    // Filled tint for local refs, outline for remote ones
+    // Tinted by the kind of ref, as in the mockup: tags, checked out branch, other local branches, remote branches
+    val accent = color
+    val contentColor = if (isOutlined || MaterialTheme.colors.isLight) accent else lerp(accent, Color.White, 0.3f)
+    val chipBackground = if (isOutlined) MaterialTheme.colors.onBackground.copy(alpha = 0.05f) else accent.copy(alpha = 0.14f)
+    val chipBorder = if (isOutlined) MaterialTheme.colors.onBackground.copy(alpha = 0.14f) else accent.copy(alpha = 0.4f)
+
     Box(
         modifier = Modifier
             .padding(horizontal = 3.dp)
             .clip(shape)
-            .background(if (isOutlined) Color.Transparent else color.copy(alpha = 0.16f))
-            .border(width = 1.5.dp, color = if (isOutlined) color.copy(alpha = 0.7f) else Color.Transparent, shape = shape)
+            .background(chipBackground)
+            .border(width = 1.dp, color = chipBorder, shape = shape)
             .combinedClickable(onDoubleClick = onCheckoutRef, onClick = {})
             .handOnHover()
     ) {
@@ -1556,21 +1567,21 @@ fun Chip(
         ) {
             Row(
                 modifier = modifier
-                    .height(24.dp)
-                    .padding(horizontal = 9.dp),
+                    .height(22.dp)
+                    .padding(horizontal = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(
-                    modifier = Modifier.size(13.dp),
+                    modifier = Modifier.size(12.dp),
                     painter = painterResource(icon),
                     contentDescription = null,
-                    tint = color,
+                    tint = contentColor,
                 )
                 Text(
                     text = text,
-                    style = MaterialTheme.typography.body2,
+                    fontSize = 11.5.sp,
                     fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colors.onBackground,
+                    color = contentColor,
                     maxLines = 1,
                     modifier = Modifier.padding(start = 5.dp)
                 )

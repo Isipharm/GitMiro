@@ -378,6 +378,7 @@ fun ColumnScope.ChangesList(
             onDelete = { onAction(StatusAction.Delete(statusEntry)) },
             onOpenFileInFolder = { onAction(StatusAction.OpenInFolder(statusEntry.filePath)) },
             onResolveConflict = { side -> onAction(StatusAction.ResolveConflict(statusEntry, side)) },
+            onToggleStage = { onAction(StatusAction.EntryAction(statusEntry)) },
             onCopyFilePath = { relative ->
                 onCopy(
                     relative,
@@ -952,23 +953,8 @@ private fun UncommittedFileEntry(
         onClick = onClick,
         onDoubleClick = onButtonClick,
         onGenerateContextMenu = { onGenerateContextMenu(statusEntry) },
-        trailingAction = { isHovered ->
-            AnimatedVisibility(
-                modifier = Modifier
-                    .align(Alignment.CenterEnd),
-                visible = isHovered,
-                enter = fadeIn(),
-                exit = fadeOut(),
-            ) {
-                SecondaryButton(
-                    onClick = onButtonClick,
-                    text = actionTitle,
-                    backgroundButton = actionColor,
-                    modifier = Modifier
-                        .padding(horizontal = 16.dp),
-                )
-            }
-        }
+        // Staging is done with a double click or from the context menu, there is no button over the row
+        trailingAction = null,
     )
 }
 

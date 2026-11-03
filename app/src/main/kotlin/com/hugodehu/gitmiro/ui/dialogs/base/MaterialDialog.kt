@@ -25,12 +25,13 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.hugodehu.gitmiro.keybindings.KeybindingOption
 import com.hugodehu.gitmiro.keybindings.matchesBinding
+import com.hugodehu.gitmiro.theme.secondarySurface
 
 @Composable
 fun MaterialDialog(
-    paddingHorizontal: Dp = 16.dp,
-    paddingVertical: Dp = 16.dp,
-    background: Color = MaterialTheme.colors.surface,
+    paddingHorizontal: Dp = 24.dp,
+    paddingVertical: Dp = 24.dp,
+    background: Color = MaterialTheme.colors.secondarySurface,
     onCloseRequested: () -> Unit = {},
     content: @Composable () -> Unit,
 ) {
@@ -51,8 +52,8 @@ fun MaterialDialog(
                 } else
                     false
             }
-            .border(1.dp, MaterialTheme.colors.onBackground.copy(alpha = 0.1f), MaterialTheme.shapes.medium)
-            .clip(MaterialTheme.shapes.medium)
+            .border(1.dp, MaterialTheme.colors.onBackground.copy(alpha = 0.12f), MaterialTheme.shapes.large)
+            .clip(MaterialTheme.shapes.large)
             .background(background)
             .padding(
                 horizontal = paddingHorizontal,

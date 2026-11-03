@@ -57,7 +57,7 @@
     <string name="bottom_info_bar_app_version">Version %1$s</string>
 
     <!-- Side pane view -->
-    <string name="side_pane_search_hint">Search for branches, tags &amp; more</string>
+    <string name="side_pane_search_hint">Filter refs</string>
     <string name="side_pane_local_branches_title">Local branches</string>
     <string name="side_pane_local_branches_current_branch_label">HEAD</string>
     <string name="side_pane_remotes_title">Remotes</string>

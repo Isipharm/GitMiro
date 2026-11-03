@@ -65,7 +65,6 @@ fun <T : TabInformationProvider> TabsRow(
     Row(
         modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         LazyRow(
             modifier = clientArea(
@@ -161,7 +160,7 @@ private fun Tab(
     Row(
         modifier = tabModifier
             .height(TAB_HEIGHT)
-            .widthIn(min = 120.dp, max = 260.dp)
+            .widthIn(max = 260.dp)
             .clip(MaterialTheme.shapes.small)
             .hoverable(hoverInteraction)
             .handMouseClickable { onClick() }

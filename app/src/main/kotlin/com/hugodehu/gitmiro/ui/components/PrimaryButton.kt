@@ -12,6 +12,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.hugodehu.gitmiro.extensions.backgroundIf
 import com.hugodehu.gitmiro.extensions.handMouseClickable
@@ -32,9 +33,9 @@ fun PrimaryButton(
     enabled: Boolean = true,
     focusable: Boolean = true,
     backgroundColor: Color = MaterialTheme.colors.primary,
-    backgroundDisabled: Color = MaterialTheme.colors.primary.copy(0.5f),
+    backgroundDisabled: Color = MaterialTheme.colors.onBackground.copy(alpha = 0.08f),
     textColor: Color = MaterialTheme.colors.onPrimary,
-    disabledTextColor: Color = MaterialTheme.colors.onPrimary.copy(alpha = 0.5f),
+    disabledTextColor: Color = MaterialTheme.colors.onBackground.copy(alpha = 0.4f),
     onClick: () -> Unit,
 ) {
     Box(
@@ -54,7 +55,9 @@ fun PrimaryButton(
     ) {
         Text(
             text,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            style = MaterialTheme.typography.body2,
+            fontWeight = FontWeight.SemiBold,
             color = if (enabled) textColor else disabledTextColor
         )
     }

@@ -18,8 +18,17 @@ fun statusEntryContextMenuItems(
     onCopyFilePath: (relative: Boolean) -> Unit,
     onOpenFileInFolder: () -> Unit,
     onResolveConflict: (ConflictSide) -> Unit,
+    onToggleStage: () -> Unit,
 ): List<ContextMenuElement> {
     return mutableListOf<ContextMenuElement>().apply {
+        addContextMenu(
+            composableLabel = { if (entryType == EntryType.STAGED) "Unstage file" else "Stage file" },
+            icon = { painterResource(if (entryType == EntryType.STAGED) Res.drawable.remove_done else Res.drawable.done) },
+            onClick = onToggleStage,
+        )
+
+        add(ContextMenuElement.ContextSeparator)
+
         if (statusEntry.statusType == StatusType.CONFLICTING) {
             addContextMenu(
                 composableLabel = { stringResource(Res.string.status_entries_context_menu_keep_current) },

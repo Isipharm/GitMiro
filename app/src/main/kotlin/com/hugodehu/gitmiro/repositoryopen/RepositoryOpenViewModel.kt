@@ -140,6 +140,7 @@ class RepositoryOpenViewModel @Inject constructor(
     private val getBranchesToPruneUseCase: GetBranchesToPruneUseCase,
     private val stashChangesUseCase: StashChangesUseCase,
     private val openRepositoryInTerminalGitAction: OpenRepositoryInTerminalGitAction,
+    private val getAheadCountUseCase: GetAheadCountUseCase,
 ) : IVerticalSplitPaneConfig by verticalSplitPaneConfig,
     TabViewModel() {
     val completedTasks = repositoryStateRepository.completedTasks
@@ -350,7 +351,15 @@ class RepositoryOpenViewModel @Inject constructor(
             getSummaryFromStatusUseCase(status)
         }
 
-    private val verticalListState = MutableStateFlow(LazyListState(0, 0))
+    /**
+     * Commits to push. Reloaded whenever the log, branches or current branch refresh (commit, push, pull, fetch...)
+     */
+    val aheadCount: StateFlow<Int> =
+        combine(log, branches, currentBranch) { _, _, _ -> }
+            .map { getAheadCountUseCase().okOrNull() ?: 0 }
+            .stateIn(0)
+
+    private val verticalListState =MutableStateFlow(LazyListState(0, 0))
     private val horizontalListState = MutableStateFlow(ScrollState(0))
 
 
