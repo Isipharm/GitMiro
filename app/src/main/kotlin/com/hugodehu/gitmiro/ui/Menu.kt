@@ -42,11 +42,8 @@ private const val DISABLED_BUTTON_ALPHA = 0.5F
 fun Menu(
     modifier: Modifier,
     viewModel: RepositoryOpenViewModel,
-    onStashWithMessage: () -> Unit,
 ) {
     val isPullWithRebaseDefault by viewModel.isPullWithRebaseDefault.collectAsState(false)
-    val hasUncommittedChanges by viewModel.hasUncommittedChanges.collectAsState()
-    val stashesState by viewModel.stashesState.collectAsState()
     val remotes by viewModel.remoteState.collectAsState()
     val hasRemotes = remotes.remotes.isNotEmpty()
 
@@ -132,40 +129,6 @@ fun Menu(
             icon = painterResource(Res.drawable.cut),
             keybinding = null,
             onClick = { viewModel.prune() },
-        )
-
-        // Separates the actions on the remote from the one on the working directory
-        Box(
-            modifier = Modifier
-                .padding(horizontal = 4.dp)
-                .size(width = 1.dp, height = 18.dp)
-                .background(MaterialTheme.colors.onBackground.copy(alpha = 0.12f))
-        )
-
-        val enableStash = hasUncommittedChanges
-        val enablePopStash = stashesState.stashes.isNotEmpty()
-
-        val stashTooltipText = if (enableStash) {
-            stringResource(Res.string.menu_stash_tooltip)
-        } else {
-            stringResource(Res.string.menu_stash_tooltip_disabled)
-        }
-
-        ExtendedMenuButton(
-            title = stringResource(Res.string.menu_stash),
-            tooltipText = stashTooltipText,
-            enabled = enableStash,
-            // Pop stash stays reachable while there is nothing to stash
-            isDropdownEnabled = enableStash || enablePopStash,
-            icon = painterResource(Res.drawable.stash),
-            keybinding = if (enableStash) KeybindingOption.STASH.keyBinding else null,
-            onClick = { viewModel.stash() },
-            extendedListItems = stashContextMenuItems(
-                canStash = enableStash,
-                canPopStash = enablePopStash,
-                onStashWithMessage = onStashWithMessage,
-                onPopStash = { viewModel.popStash() },
-            )
         )
     }
 }

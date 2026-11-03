@@ -68,6 +68,27 @@ val DiffEntry.iconColor: Color
         }
     }
 
+val StatusType.letter: String
+    get() = when (this) {
+        StatusType.ADDED -> "A"
+        StatusType.MODIFIED -> "M"
+        StatusType.REMOVED -> "D"
+        StatusType.CONFLICTING -> "U"
+    }
+
+val StatusEntry.letter: String
+    get() = statusType.letter
+
+val DiffEntry.letter: String
+    get() = when (this.changeType) {
+        DiffEntry.ChangeType.ADD -> "A"
+        DiffEntry.ChangeType.MODIFY -> "M"
+        DiffEntry.ChangeType.DELETE -> "D"
+        DiffEntry.ChangeType.COPY -> "C"
+        DiffEntry.ChangeType.RENAME -> "R"
+        else -> throw NotImplementedError("Unexpected ChangeType")
+    }
+
 fun DiffEntry.toStatusType(): StatusType = when (this.changeType) {
     DiffEntry.ChangeType.ADD -> StatusType.ADDED
     DiffEntry.ChangeType.MODIFY -> StatusType.MODIFIED

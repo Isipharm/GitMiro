@@ -41,6 +41,7 @@ fun statusEntryContextMenuItems(
                 composableLabel = { stringResource(Res.string.status_entries_context_menu_discard_file_changes) },
                 icon = { painterResource(Res.drawable.undo) },
                 onClick = onReset,
+                isDanger = true,
             )
 
             if (statusEntry.statusType != StatusType.REMOVED) {
@@ -66,6 +67,7 @@ fun statusEntryContextMenuItems(
                 composableLabel = { stringResource(Res.string.status_entries_context_menu_delete_file) },
                 icon = { painterResource(Res.drawable.delete) },
                 onClick = onDelete,
+                isDanger = true,
             )
         }
 
@@ -139,6 +141,7 @@ fun statusEntriesContextMenuItems(
             },
             icon = { painterResource(Res.drawable.undo) },
             onClick = onDiscard,
+            isDanger = true,
         )
 
         add(ContextMenuElement.ContextSeparator)

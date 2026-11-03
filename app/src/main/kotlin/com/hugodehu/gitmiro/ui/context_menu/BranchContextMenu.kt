@@ -87,6 +87,7 @@ fun branchContextMenuItems(
                 composableLabel = { stringResource(Res.string.branch_context_menu_delete_remote_branch) },
                 icon = { painterResource(Res.drawable.delete) },
                 onClick = { onDeleteRemoteBranch(branch) },
+                isDanger = true,
             )
 
             add(ContextMenuElement.ContextSeparator)
@@ -97,6 +98,7 @@ fun branchContextMenuItems(
                 composableLabel = { stringResource(Res.string.branch_context_menu_delete_branch) },
                 icon = { painterResource(Res.drawable.delete) },
                 onClick = { onDeleteBranch(branch) },
+                isDanger = true,
             )
 
             add(ContextMenuElement.ContextSeparator)

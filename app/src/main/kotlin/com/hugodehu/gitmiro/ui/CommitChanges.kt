@@ -28,7 +28,7 @@ import com.hugodehu.gitmiro.domain.models.Commit
 import com.hugodehu.gitmiro.domain.models.DiffSelected
 import com.hugodehu.gitmiro.domain.models.Identity
 import com.hugodehu.gitmiro.extensions.handMouseClickable
-import com.hugodehu.gitmiro.extensions.icon
+import com.hugodehu.gitmiro.extensions.letter
 import com.hugodehu.gitmiro.extensions.iconColor
 import com.hugodehu.gitmiro.extensions.toSmartSystemString
 import com.hugodehu.gitmiro.repositoryopen.CommitChangesAction
@@ -333,8 +333,8 @@ fun ListCommitLogChanges(
     ) {
         items(items = diffEntries) { diffEntry ->
             FileEntry(
-                icon = diffEntry.icon,
-                iconColor = diffEntry.iconColor,
+                statusLetter = diffEntry.letter,
+                statusColor = diffEntry.iconColor,
                 parentDirectoryPath = diffEntry.parentDirectoryPath,
                 fileName = diffEntry.fileName,
                 isSelected = diffSelected?.items?.any { it.diffEntry == diffEntry} ?: false,
@@ -413,8 +413,8 @@ private fun CommitFileEntry(
     val diffEntry = fileEntry.data
 
     FileEntry(
-        icon = diffEntry.icon,
-        iconColor = diffEntry.iconColor,
+        statusLetter = diffEntry.letter,
+        statusColor = diffEntry.iconColor,
         parentDirectoryPath = "",
         fileName = diffEntry.fileName,
         isSelected = isSelected,

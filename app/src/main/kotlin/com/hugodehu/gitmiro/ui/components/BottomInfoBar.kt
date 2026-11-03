@@ -23,6 +23,7 @@ import com.hugodehu.gitmiro.app.generated.resources.bottom_info_bar_app_version
 import com.hugodehu.gitmiro.app.generated.resources.bottom_info_bar_update_available
 import com.hugodehu.gitmiro.app.generated.resources.refresh
 import com.hugodehu.gitmiro.extensions.handMouseClickable
+import com.hugodehu.gitmiro.theme.monoTypography
 import com.hugodehu.gitmiro.theme.onBackgroundSecondary
 import com.hugodehu.gitmiro.ui.components.tooltip.InstantTooltip
 import com.hugodehu.gitmiro.ui.components.tooltip.InstantTooltipPosition
@@ -51,12 +52,15 @@ fun BottomInfoBar(
     val scope = rememberCoroutineScope()
     val update = newUpdate ?: checkedUpdate
 
+    Column {
+    PanelDivider()
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(32.dp)
+            .height(28.dp)
             .background(MaterialTheme.colors.surface)
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         leadingContent?.invoke()
@@ -77,6 +81,16 @@ fun BottomInfoBar(
                     .background(MaterialTheme.colors.onBackground.copy(alpha = 0.12f))
             )
         }
+
+        // Not clickable: it used to open Gitnuro's releases and GitMiro has no public releases page
+        Text(
+            "v${AppConstants.APP_VERSION}",
+            style = MaterialTheme.typography.caption,
+            fontFamily = monoTypography(),
+            color = MaterialTheme.colors.onBackgroundSecondary,
+            maxLines = 1,
+            modifier = Modifier.padding(end = 8.dp),
+        )
 
         if (update != null) {
             SecondaryButton(
@@ -136,12 +150,7 @@ fun BottomInfoBar(
             }
         }
 
-        // Not clickable: it used to open Gitnuro's releases and GitMiro has no public releases page
-        Text(
-            stringResource(Res.string.bottom_info_bar_app_version, AppConstants.APP_VERSION),
-            style = MaterialTheme.typography.body2,
-            maxLines = 1,
-        )
+    }
     }
 
     if (showUpdateDialog && update != null) {

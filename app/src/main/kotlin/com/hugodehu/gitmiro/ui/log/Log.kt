@@ -48,6 +48,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import com.hugodehu.gitmiro.ui.components.PanelDivider
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -665,39 +666,33 @@ private fun scrollOnNewCommitAdded(
 fun GraphHeader(
     onShowSearch: () -> Unit,
 ) {
-    Box(
+    Column(
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(48.dp)
-                .padding(start = 20.dp, end = 4.dp),
+                .height(44.dp)
+                .padding(start = 14.dp, end = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                modifier = Modifier.weight(1f),
-                text = "History",
-                color = MaterialTheme.colors.onBackground,
-                style = MaterialTheme.typography.h4,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-            )
+            Spacer(modifier = Modifier.weight(1f))
 
-            IconButton(
-                modifier = Modifier
-                    .padding(end = 8.dp)
-                    .handOnHover(),
-                onClick = onShowSearch
-            ) {
+            InstantTooltip(text = "Search commits") {
                 Icon(
                     painterResource(Res.drawable.search),
-                    modifier = Modifier.size(18.dp),
-                    contentDescription = null,
-                    tint = MaterialTheme.colors.onBackground,
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(MaterialTheme.shapes.small)
+                        .handMouseClickable { onShowSearch() }
+                        .padding(6.dp),
+                    contentDescription = "Search commits",
+                    tint = MaterialTheme.colors.onBackgroundSecondary,
                 )
             }
         }
+
+        PanelDivider()
     }
 }
 
@@ -750,7 +745,7 @@ fun LogStatusSummary(statusSummary: StatusSummary, modifier: Modifier) {
         if (statusSummary.modifiedCount > 0) {
             SummaryEntry(
                 count = statusSummary.modifiedCount,
-                icon = Icons.Default.Edit,
+                letter = "M",
                 color = MaterialTheme.colors.modifyFile,
             )
         }
@@ -758,7 +753,7 @@ fun LogStatusSummary(statusSummary: StatusSummary, modifier: Modifier) {
         if (statusSummary.addedCount > 0) {
             SummaryEntry(
                 count = statusSummary.addedCount,
-                icon = Icons.Default.Add,
+                letter = "A",
                 color = MaterialTheme.colors.addFile,
             )
         }
@@ -766,7 +761,7 @@ fun LogStatusSummary(statusSummary: StatusSummary, modifier: Modifier) {
         if (statusSummary.deletedCount > 0) {
             SummaryEntry(
                 count = statusSummary.deletedCount,
-                icon = Icons.Default.Delete,
+                letter = "D",
                 color = MaterialTheme.colors.deleteFile,
             )
         }
@@ -774,7 +769,7 @@ fun LogStatusSummary(statusSummary: StatusSummary, modifier: Modifier) {
         if (statusSummary.conflictingCount > 0) {
             SummaryEntry(
                 count = statusSummary.conflictingCount,
-                icon = Icons.Default.Warning,
+                letter = "U",
                 color = MaterialTheme.colors.conflictFile,
             )
         }
@@ -783,20 +778,25 @@ fun LogStatusSummary(statusSummary: StatusSummary, modifier: Modifier) {
 
 @Composable
 fun SummaryEntry(
-    count: Int, icon: ImageVector, color: Color,
+    count: Int, letter: String, color: Color,
 ) {
     Row(
         modifier = Modifier.padding(horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
+        Text(
+            text = letter,
+            fontFamily = monoTypography(),
+            fontWeight = FontWeight.Medium,
+            style = MaterialTheme.typography.caption,
+            color = color,
+        )
+
         Text(
             text = count.toString(),
             style = MaterialTheme.typography.body2,
             color = MaterialTheme.colors.onBackground,
-        )
-
-        Icon(
-            imageVector = icon, tint = color, contentDescription = null, modifier = Modifier.size(14.dp)
         )
     }
 }
@@ -1057,9 +1057,18 @@ fun CommitMessage(
             overflow = TextOverflow.Ellipsis,
         )
 
+        Text(
+            text = graphCommit.commit.author.name.orEmpty(),
+            modifier = Modifier.width(LOG_AUTHOR_COLUMN_WIDTH),
+            style = MaterialTheme.typography.caption,
+            color = MaterialTheme.colors.onBackgroundSecondary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+
         InstantTooltip(
             text = graphCommit.date.toSmartSystemString(allowRelative = false, showTime = true),
-            modifier = Modifier.padding(horizontal = 16.dp),
+            modifier = Modifier.width(LOG_DATE_COLUMN_WIDTH),
             position = InstantTooltipPosition.RIGHT,
         ) {
             Text(
@@ -1070,8 +1079,21 @@ fun CommitMessage(
                 overflow = TextOverflow.Ellipsis,
             )
         }
+
+        Text(
+            text = graphCommit.commit.shortHash,
+            modifier = Modifier.width(LOG_HASH_COLUMN_WIDTH),
+            style = MaterialTheme.typography.caption,
+            fontFamily = monoTypography(),
+            color = MaterialTheme.colors.onBackgroundSecondary,
+            maxLines = 1,
+        )
     }
 }
+
+private val LOG_AUTHOR_COLUMN_WIDTH = 120.dp
+private val LOG_DATE_COLUMN_WIDTH = 96.dp
+private val LOG_HASH_COLUMN_WIDTH = 76.dp
 
 @Composable
 fun DividerLog(modifier: Modifier, graphWidth: Dp) {

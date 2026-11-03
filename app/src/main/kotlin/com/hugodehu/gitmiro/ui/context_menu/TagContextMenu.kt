@@ -21,7 +21,8 @@ fun tagContextMenuItems(
         ContextMenuElement.ContextTextEntry(
             composableLabel = { stringResource(Res.string.tag_context_menu_delete_tag) },
             icon = { painterResource(Res.drawable.delete) },
-            onClick = onDeleteTag
+            onClick = onDeleteTag,
+            isDanger = true,
         )
     )
 }

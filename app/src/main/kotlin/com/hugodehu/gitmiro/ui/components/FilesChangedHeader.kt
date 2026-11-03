@@ -24,6 +24,12 @@ import androidx.compose.ui.graphics.painter.Painter
 import com.hugodehu.gitmiro.app.generated.resources.Res
 import com.hugodehu.gitmiro.app.generated.resources.delete
 import com.hugodehu.gitmiro.app.generated.resources.list
+import com.hugodehu.gitmiro.app.generated.resources.more_vert
+import androidx.compose.foundation.shape.CircleShape
+import com.hugodehu.gitmiro.theme.monoTypography
+import com.hugodehu.gitmiro.theme.onBackgroundSecondary
+import com.hugodehu.gitmiro.ui.context_menu.ContextMenuElement
+import com.hugodehu.gitmiro.ui.context_menu.DropDownMenu
 import com.hugodehu.gitmiro.app.generated.resources.search
 import com.hugodehu.gitmiro.app.generated.resources.tree
 import com.hugodehu.gitmiro.theme.tertiarySurface
@@ -47,6 +53,8 @@ fun FilesChangedHeader(
     showSearch: Boolean,
     showActionForSelected: Boolean,
     actionInfo: ActionInfo? = null,
+    count: Int? = null,
+    extraItems: List<ContextMenuElement> = emptyList(),
     onAllAction: (() -> Unit)? = null,
     onDiscardAll: (() -> Unit)? = null,
     onAlternateShowAsTree: () -> Unit,
@@ -67,23 +75,37 @@ fun FilesChangedHeader(
     Column {
         Row(
             modifier = Modifier
-                .height(34.dp)
+                .height(48.dp)
                 .fillMaxWidth()
-                .background(color = MaterialTheme.colors.tertiarySurface)
                 .hoverable(headerHoverInteraction),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                modifier = Modifier
-                    .padding(start = 14.dp, end = 8.dp)
-                    .weight(1f),
+                modifier = Modifier.padding(start = 14.dp),
                 text = title,
-                fontWeight = FontWeight.Medium,
+                fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Left,
                 color = MaterialTheme.colors.onBackground,
                 style = MaterialTheme.typography.body2,
                 maxLines = 1,
             )
+
+            if (count != null) {
+                Text(
+                    modifier = Modifier
+                        .padding(start = 8.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colors.onBackground.copy(alpha = 0.08f))
+                        .padding(horizontal = 7.dp, vertical = 1.dp),
+                    text = count.toString(),
+                    fontFamily = monoTypography(),
+                    color = MaterialTheme.colors.onBackgroundSecondary,
+                    style = MaterialTheme.typography.caption,
+                    maxLines = 1,
+                )
+            }
+
+            Spacer(modifier = Modifier.weight(1f))
 
             HeaderIconButton(
                 icon = painterResource(if (showAsTree) Res.drawable.list else Res.drawable.tree),
@@ -102,27 +124,49 @@ fun FilesChangedHeader(
                 },
             )
 
-            if (onDiscardAll != null) {
-                HeaderIconButton(
-                    icon = painterResource(Res.drawable.delete),
-                    tooltip = "Discard all the changes of this list",
-                    tint = MaterialTheme.colors.error,
-                    onClick = onDiscardAll,
+            if (actionInfo != null && onAllAction != null) {
+                // The stage action is the primary one, unstaging stays neutral
+                val isPrimary = actionInfo.color == MaterialTheme.colors.primary
+
+                HeaderTextButton(
+                    text = if (showActionForSelected) actionInfo.applyToSelectedTitle else actionInfo.applyToAllTitle,
+                    isPrimary = isPrimary,
+                    enabled = count == null || count > 0,
+                    onClick = onAllAction,
                 )
             }
 
-            if (actionInfo != null && onAllAction != null) {
-                SecondaryButtonCompactable(
-                    text = if (showActionForSelected) actionInfo.applyToSelectedTitle else actionInfo.applyToAllTitle,
-                    icon = actionInfo.icon,
-                    isParentHovered = isHeaderHovered,
-                    backgroundButton = actionInfo.color,
-                    onBackgroundColor = actionInfo.textColor,
-                    onClick = onAllAction,
-                    modifier = Modifier.padding(start = 4.dp, end = 16.dp),
-                )
+            val overflowItems = buildList {
+                addAll(extraItems)
+
+                if (onDiscardAll != null) {
+                    if (extraItems.isNotEmpty()) add(ContextMenuElement.ContextSeparator)
+
+                    add(
+                        ContextMenuElement.ContextTextEntry(
+                            label = "Discard all changes",
+                            icon = { painterResource(Res.drawable.delete) },
+                            onClick = onDiscardAll,
+                            isDanger = true,
+                        )
+                    )
+                }
             }
+
+            if (overflowItems.isNotEmpty()) {
+                DropDownMenu(items = { overflowItems }) {
+                    HeaderIconButton(
+                        icon = painterResource(Res.drawable.more_vert),
+                        tooltip = "More actions",
+                        onClick = null,
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(8.dp))
         }
+
+        PanelDivider()
 
         if (showSearch) {
             SearchTextField(
@@ -144,11 +188,40 @@ fun FilesChangedHeader(
 }
 
 @Composable
+private fun HeaderTextButton(
+    text: String,
+    isPrimary: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    val color = when {
+        !enabled -> MaterialTheme.colors.onBackgroundSecondary.copy(alpha = 0.5f)
+        isPrimary -> MaterialTheme.colors.primaryVariant
+        else -> MaterialTheme.colors.onBackgroundSecondary
+    }
+
+    Text(
+        text = text,
+        color = color,
+        fontWeight = FontWeight.SemiBold,
+        style = MaterialTheme.typography.body2,
+        maxLines = 1,
+        modifier = Modifier
+            .padding(horizontal = 2.dp)
+            .clip(MaterialTheme.shapes.small)
+            .background(if (isPrimary && enabled) MaterialTheme.colors.primary.copy(alpha = 0.16f) else Color.Transparent)
+            .handMouseClickable(enabled) { onClick() }
+            .padding(horizontal = 12.dp, vertical = 5.dp),
+    )
+}
+
+@Composable
 private fun HeaderIconButton(
     icon: Painter,
     tooltip: String,
     tint: Color = MaterialTheme.colors.onBackground,
-    onClick: () -> Unit,
+    // Null when a parent handles the click, as the dropdown menu does
+    onClick: (() -> Unit)?,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isHovered by interactionSource.collectIsHoveredAsState()
@@ -160,7 +233,7 @@ private fun HeaderIconButton(
                 .clip(MaterialTheme.shapes.small)
                 .background(if (isHovered) MaterialTheme.colors.onBackground.copy(alpha = 0.07f) else Color.Transparent)
                 .hoverable(interactionSource)
-                .handMouseClickable { onClick() },
+                .then(if (onClick != null) Modifier.handMouseClickable { onClick() } else Modifier),
             contentAlignment = Alignment.Center,
         ) {
             Icon(

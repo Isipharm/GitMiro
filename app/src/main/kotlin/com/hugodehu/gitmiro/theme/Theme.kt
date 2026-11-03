@@ -26,15 +26,15 @@ class LinesHeight internal constructor(
 )
 
 val spacedLineHeight = LinesHeight(
-    fileHeight = 38.dp,
-    logCommitHeight = 38.dp,
-    sidePanelItemHeight = 36.dp
+    fileHeight = 32.dp,
+    logCommitHeight = 40.dp,
+    sidePanelItemHeight = 30.dp
 )
 
 val compactLineHeight = LinesHeight(
-    fileHeight = 34.dp,
+    fileHeight = 28.dp,
     logCommitHeight = 34.dp,
-    sidePanelItemHeight = 34.dp
+    sidePanelItemHeight = 28.dp
 )
 
 // small: controls and fields, medium: dialogs, menus and notifications, large: the main panes

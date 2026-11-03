@@ -11,7 +11,12 @@ import com.hugodehu.gitmiro.theme.monoTypography
 import com.hugodehu.gitmiro.theme.onBackgroundSecondary
 import com.hugodehu.gitmiro.ui.components.tooltip.InstantTooltip
 import androidx.compose.material.icons.Icons
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.border
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.ui.graphics.Color
 import com.hugodehu.gitmiro.theme.secondarySurface
 import org.jetbrains.compose.resources.painterResource
 import androidx.compose.foundation.focusable
@@ -62,7 +67,6 @@ fun RepositoryOpenPage(
     val showHistory by repositoryOpenViewModel.showHistory.collectAsState()
 
     val focusRequester = remember { FocusRequester() }
-    var isDetailsPanelCollapsed by rememberInTab("isDetailsPanelCollapsed") { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -120,7 +124,6 @@ fun RepositoryOpenPage(
         ) {
             RepositoryToolbar(
                 viewModel = repositoryOpenViewModel,
-                onStashWithMessage = { onNavigate(Screen.StashWithMessage) },
                 onShowSettings = { onNavigate(Screen.GlobalSettings) },
             )
 
@@ -131,8 +134,6 @@ fun RepositoryOpenPage(
                     repositoryState = repositoryState,
                     blameState = blameState,
                     showHistory = showHistory,
-                    isDetailsPanelCollapsed = isDetailsPanelCollapsed,
-                    onToggleDetailsPanel = { isDetailsPanelCollapsed = !isDetailsPanelCollapsed },
                     onNavigate = onNavigate,
                 )
             }
@@ -180,23 +181,44 @@ private fun RepositoryOpenBottomInfoBar(
             )
         },
         leadingContent = {
-            Box(
+            val identityHover = remember { MutableInteractionSource() }
+            val isIdentityHovered by identityHover.collectIsHoveredAsState()
+
+            Row(
                 modifier = Modifier
-                    .fillMaxHeight()
-                    .handMouseClickable { onShowAuthorInfoDialog() },
-                contentAlignment = Alignment.Center,
+                    .offset(x = (-8).dp)
+                    .height(22.dp)
+                    .clip(MaterialTheme.shapes.small)
+                    .background(if (isIdentityHovered) MaterialTheme.colors.onBackground.copy(alpha = 0.07f) else Color.Transparent)
+                    .hoverable(identityHover)
+                    .handMouseClickable { onShowAuthorInfoDialog() }
+                    .padding(horizontal = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 val identity = userInfo.data
 
                 if (identity != null) {
                     val name = identity.name ?: stringResource(Res.string.bottom_info_bar_name_not_set)
                     val email = identity.email ?: stringResource(Res.string.bottom_info_bar_email_not_set)
+                    val color = if (isIdentityHovered) MaterialTheme.colors.onBackground else MaterialTheme.colors.onBackgroundSecondary
 
                     Text(
                         text = stringResource(Res.string.bottom_info_bar_name_and_email, name, email),
-                        style = MaterialTheme.typography.body2,
-                        color = MaterialTheme.colors.onBackground,
+                        style = MaterialTheme.typography.caption,
+                        color = color,
                     )
+
+                    // The pencil slides in on hover to tell the identity can be edited
+                    AnimatedVisibility(visible = isIdentityHovered) {
+                        Icon(
+                            painter = painterResource(Res.drawable.edit),
+                            contentDescription = "Edit your Git identity",
+                            tint = color,
+                            modifier = Modifier
+                                .padding(start = 6.dp)
+                                .size(12.dp),
+                        )
+                    }
                 }
             }
         }
@@ -206,7 +228,6 @@ private fun RepositoryOpenBottomInfoBar(
 @Composable
 private fun RepositoryToolbar(
     viewModel: RepositoryOpenViewModel,
-    onStashWithMessage: () -> Unit,
     onShowSettings: () -> Unit,
 ) {
     Column {
@@ -221,7 +242,6 @@ private fun RepositoryToolbar(
             Menu(
                 modifier = Modifier,
                 viewModel = viewModel,
-                onStashWithMessage = onStashWithMessage,
             )
 
             Spacer(modifier = Modifier.weight(1f))
@@ -254,8 +274,6 @@ fun RepoContent(
     repositoryState: RepositoryState,
     blameState: BlameState,
     showHistory: Boolean,
-    isDetailsPanelCollapsed: Boolean,
-    onToggleDetailsPanel: () -> Unit,
     onNavigate: (Screen) -> Unit,
 ) {
     if (showHistory) {
@@ -275,8 +293,6 @@ fun RepoContent(
             selectedItem = selectedItem,
             repositoryState = repositoryState,
             blameState = blameState,
-            isDetailsPanelCollapsed = isDetailsPanelCollapsed,
-            onToggleDetailsPanel = onToggleDetailsPanel,
             onNavigate = onNavigate,
         )
     }
@@ -288,8 +304,6 @@ fun MainContentView(
     selectedItem: SelectedItem,
     repositoryState: RepositoryState,
     blameState: BlameState,
-    isDetailsPanelCollapsed: Boolean,
-    onToggleDetailsPanel: () -> Unit,
     onNavigate: (Screen) -> Unit,
 ) {
     val diffSelected by viewModel.diffSelected.collectAsState()
@@ -318,10 +332,9 @@ fun MainContentView(
     TripleVerticalSplitPanel(
         modifier = Modifier
             .weight(1f)
-            .fillMaxHeight()
-            .padding(start = 8.dp, end = 8.dp, bottom = 8.dp),
+            .fillMaxHeight(),
         firstWidth = if (isRebaseInteractive) 0f else firstWidth,
-        thirdWidth = if (isDetailsPanelCollapsed) 0f else thirdWidth,
+        thirdWidth = thirdWidth,
         first = {
             SidePanel(
                 viewModel = viewModel,
@@ -394,12 +407,6 @@ fun MainContentView(
                 modifier = Modifier
                     .fillMaxHeight()
             ) {
-                DetailsPanelHeader(
-                    title = if (commitChangesState != null) "Commit" else "Changes",
-                    subtitle = commitChangesState?.commit?.shortHash,
-                    onCollapse = onToggleDetailsPanel,
-                )
-
                 if (commitChangesState != null) {
                     CommitChanges(
                         viewModel = viewModel,
@@ -413,7 +420,9 @@ fun MainContentView(
                         completedTasks = viewModel.completedTasks,
                         onAction = { viewModel.onAction(it) },
                         onBlameFile = { viewModel.blameFile(it) },
-                        onHistoryFile = { viewModel.fileHistory(it) }
+                        onHistoryFile = { viewModel.fileHistory(it) },
+                        onStash = { viewModel.stash() },
+                        onStashWithMessage = { onNavigate(Screen.StashWithMessage) },
                     )
                 }
             }
@@ -453,98 +462,6 @@ fun MainContentView(
             }
         },
     )
-
-    if (isDetailsPanelCollapsed) {
-        CollapsedDetailsPanel(onExpand = onToggleDetailsPanel)
-    }
     }
 }
 
-@Composable
-private fun DetailsPanelHeader(
-    title: String,
-    subtitle: String?,
-    onCollapse: () -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(44.dp)
-            .padding(start = 14.dp, end = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.body1,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colors.onBackground,
-            maxLines = 1,
-        )
-
-        if (subtitle != null) {
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.body2,
-                fontFamily = monoTypography(),
-                color = MaterialTheme.colors.onBackgroundSecondary,
-                maxLines = 1,
-                modifier = Modifier.padding(start = 8.dp),
-            )
-        }
-
-        Spacer(modifier = Modifier.weight(1f))
-
-        PanelToggleButton(
-            icon = Icons.Outlined.ChevronRight,
-            tooltip = "Collapse the panel",
-            onClick = onCollapse,
-        )
-    }
-}
-
-/**
- * Thin strip left on the right edge of the window while the details panel is collapsed, to open it again.
- */
-@Composable
-private fun CollapsedDetailsPanel(onExpand: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxHeight()
-            .padding(end = 8.dp, bottom = 8.dp)
-            .width(36.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Spacer(modifier = Modifier.height(6.dp))
-
-        PanelToggleButton(
-            icon = Icons.Outlined.ChevronLeft,
-            tooltip = "Show the changes and commit panel",
-            onClick = onExpand,
-        )
-    }
-}
-
-@Composable
-private fun PanelToggleButton(
-    icon: ImageVector,
-    tooltip: String,
-    onClick: () -> Unit,
-) {
-    InstantTooltip(text = tooltip) {
-        Box(
-            modifier = Modifier
-                .size(28.dp)
-                .clip(MaterialTheme.shapes.small)
-                .background(MaterialTheme.colors.onBackground.copy(alpha = 0.06f))
-                .handMouseClickable { onClick() },
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = tooltip,
-                tint = MaterialTheme.colors.onBackgroundSecondary,
-                modifier = Modifier.size(18.dp),
-            )
-        }
-    }
-}

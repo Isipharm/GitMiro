@@ -41,7 +41,7 @@ import com.hugodehu.gitmiro.domain.extensions.parentDirectoryPath
 import com.hugodehu.gitmiro.domain.models.*
 import com.hugodehu.gitmiro.domain.repositories.CompletedTask
 import com.hugodehu.gitmiro.extensions.handMouseClickable
-import com.hugodehu.gitmiro.extensions.icon
+import com.hugodehu.gitmiro.extensions.letter
 import com.hugodehu.gitmiro.extensions.iconColor
 import com.hugodehu.gitmiro.extensions.setClipboardText
 import com.hugodehu.gitmiro.keybindings.KeybindingOption
@@ -50,6 +50,12 @@ import com.hugodehu.gitmiro.theme.abortButton
 import com.hugodehu.gitmiro.theme.textFieldColors
 import com.hugodehu.gitmiro.ui.components.*
 import com.hugodehu.gitmiro.ui.context_menu.ContextMenuElement
+import com.hugodehu.gitmiro.theme.onBackgroundSecondary
+import androidx.compose.foundation.border
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.graphics.SolidColor
 import com.hugodehu.gitmiro.ui.context_menu.statusDirEntriesContextMenuItems
 import com.hugodehu.gitmiro.ui.context_menu.statusEntriesContextMenuItems
 import com.hugodehu.gitmiro.ui.context_menu.statusEntryContextMenuItems
@@ -70,6 +76,8 @@ fun StatusPane(
     onBlameFile: (String) -> Unit,
     onHistoryFile: (String) -> Unit,
     completedTasks: StateFlow<List<CompletedTask>>,
+    onStash: () -> Unit,
+    onStashWithMessage: () -> Unit,
 ) {
     val swapUncommittedChanges = statusState.swapUncommittedChanges
     val stagedListState = rememberInTab("statusStagedListState", statusState.staged) {
@@ -118,6 +126,26 @@ fun StatusPane(
         }
     }
 
+    // Stashing only concerns the uncommitted changes, so it lives in the unstaged list's menu
+    val stashItems = buildList {
+        if (statusState.hasStagedFiles || statusState.hasUnstagedFiles) {
+            add(
+                ContextMenuElement.ContextTextEntry(
+                    label = "Stash all changes",
+                    icon = { painterResource(Res.drawable.stash) },
+                    onClick = onStash,
+                )
+            )
+            add(
+                ContextMenuElement.ContextTextEntry(
+                    label = "Stash with message…",
+                    icon = { painterResource(Res.drawable.message) },
+                    onClick = onStashWithMessage,
+                )
+            )
+        }
+    }
+
     if (committerDataRequestState is CommitterDataRequestState.WaitingInput) {
         CommitAuthorDialog(
             committerDataRequestState.authorInfo,
@@ -129,9 +157,7 @@ fun StatusPane(
     }
 
     Column(
-        modifier = Modifier
-            .padding(end = 8.dp, bottom = 8.dp)
-            .fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth(),
     ) {
         AnimatedVisibility(
             visible = statusState.isLoading,
@@ -179,6 +205,7 @@ fun StatusPane(
                     selectedEntries = selectedUnstagedDiffEntries,
                     onSearchFilterToggled = { onAction(StatusAction.SearchFilterToggledUnstaged(it)) },
                     onSearchFocused = { onAction(StatusAction.AddUnstagedSearchToCloseableView) },
+                    extraItems = stashItems,
                     onDiscardAll = if (canDiscard && statusState.hasUnstagedFiles) {
                         { discardScope = DiscardScope.UNSTAGED }
                     } else {
@@ -239,11 +266,6 @@ fun StatusPane(
 
                 onAction(StatusAction.ToggleAmendRebaseInteractive(amend))
             },
-            onDiscardAll = if (canDiscard && (statusState.hasStagedFiles || statusState.hasUnstagedFiles)) {
-                { discardScope = DiscardScope.ALL }
-            } else {
-                null
-            },
         )
     }
 
@@ -276,6 +298,7 @@ fun ColumnScope.StatusChangesList(
     onBlameFile: (String) -> Unit,
     onHistoryFile: (String) -> Unit,
     onAction: (StatusAction) -> Unit,
+    extraItems: List<ContextMenuElement> = emptyList(),
 ) {
     val scope = rememberCoroutineScope()
     val clipboard = LocalClipboard.current
@@ -311,6 +334,8 @@ fun ColumnScope.StatusChangesList(
         onSearchFilterToggled = onSearchFilterToggled,
         onSearchFocused = onSearchFocused,
         onDiscardAll = onDiscardAll,
+        count = entries.count { it is TreeItem.File<*> },
+        extraItems = extraItems,
         onBlameFile = onBlameFile,
         onHistoryFile = onHistoryFile,
         onAction = onAction,
@@ -336,6 +361,8 @@ fun ColumnScope.ChangesList(
     onSearchFilterToggled: (Boolean) -> Unit,
     onSearchFocused: () -> Unit,
     onDiscardAll: (() -> Unit)?,
+    count: Int,
+    extraItems: List<ContextMenuElement>,
     onBlameFile: (String) -> Unit,
     onHistoryFile: (String) -> Unit,
     onAction: (StatusAction) -> Unit,
@@ -392,8 +419,27 @@ fun ColumnScope.ChangesList(
         listState = listState,
         onAllAction = { onAction(StatusAction.AllEntriesAction(entryType)) },
         onDiscardAll = onDiscardAll,
+        count = count,
+        extraItems = extraItems,
         onAlternateShowAsTree = { onAction(StatusAction.ToggleShowAsTree) },
     ) {
+        if (entries.isEmpty()) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillParentMaxWidth()
+                        .height(96.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = if (entryType == EntryType.STAGED) "Nothing staged" else "No changes",
+                        style = MaterialTheme.typography.body2,
+                        color = MaterialTheme.colors.onBackgroundSecondary,
+                    )
+                }
+            }
+        }
+
         items(entries, key = { it.fullPath }) { treeEntry ->
             val isEntrySelected = treeEntry is TreeItem.File<StatusEntry> &&
                     selectedEntries.any { entry ->
@@ -463,12 +509,13 @@ fun ColumnScope.ChangesList(
     onSearchFilterChanged: (TextFieldValue) -> Unit,
     onAllAction: () -> Unit,
     onDiscardAll: (() -> Unit)?,
+    count: Int,
+    extraItems: List<ContextMenuElement>,
     onAlternateShowAsTree: () -> Unit,
     content: LazyListScope.() -> Unit,
 ) {
     val modifier = Modifier
         .weight(5f)
-        .padding(bottom = 4.dp)
         .fillMaxWidth()
     Column(
         modifier = modifier
@@ -478,6 +525,8 @@ fun ColumnScope.ChangesList(
             actionInfo = actionInfo,
             onAllAction = onAllAction,
             onDiscardAll = onDiscardAll,
+            count = count,
+            extraItems = extraItems,
             onAlternateShowAsTree = onAlternateShowAsTree,
             searchFilter = searchFilter,
             onSearchFilterChanged = onSearchFilterChanged,
@@ -490,15 +539,57 @@ fun ColumnScope.ChangesList(
 
         ScrollableLazyColumn(
             modifier = Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colors.background),
+                .weight(1f)
+                .fillMaxWidth(),
             state = listState,
         ) {
             this.content()
         }
+
+        PanelDivider()
     }
 }
 
+
+@Composable
+private fun CommitMessageField(
+    value: TextFieldValue,
+    onValueChange: (TextFieldValue) -> Unit,
+    enabled: Boolean,
+    placeholder: String,
+    modifier: Modifier = Modifier,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    val shape = MaterialTheme.shapes.small
+    val borderColor = if (isFocused) MaterialTheme.colors.primary else MaterialTheme.colors.onBackground.copy(alpha = 0.12f)
+
+    BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        enabled = enabled,
+        interactionSource = interactionSource,
+        textStyle = MaterialTheme.typography.body1.copy(color = MaterialTheme.colors.onBackground),
+        cursorBrush = SolidColor(MaterialTheme.colors.primary),
+        modifier = modifier
+            .padding(bottom = 8.dp)
+            .background(MaterialTheme.colors.surface, shape)
+            .border(1.dp, borderColor, shape),
+        decorationBox = { innerTextField ->
+            Box(modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 10.dp)) {
+                if (value.text.isEmpty()) {
+                    Text(
+                        text = placeholder,
+                        style = MaterialTheme.typography.body2,
+                        color = MaterialTheme.colors.onBackgroundSecondary,
+                    )
+                }
+
+                innerTextField()
+            }
+        },
+    )
+}
 
 @Composable
 private fun CommitField(
@@ -522,18 +613,17 @@ private fun CommitField(
     onSkipRebase: () -> Unit,
     onAmendChecked: (Boolean) -> Unit,
     onAmendRebaseInteractiveChecked: (Boolean) -> Unit,
-    onDiscardAll: (() -> Unit)?,
 ) {
     val isReadOnlyRebase = repositoryState.isRebasing && !isAmenableRebaseInteractive
     Column(
         modifier = Modifier
-            .height(192.dp)
             .fillMaxWidth()
+            .padding(14.dp)
     ) {
-        TextField(
+        CommitMessageField(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(weight = 1f, fill = true)
+                .height(96.dp)
                 .onPreviewKeyEvent { keyEvent ->
                     if (keyEvent.matchesBinding(KeybindingOption.TEXT_ACCEPT) && (canCommit || isAmend && canAmend)) {
                         doCommit()
@@ -544,21 +634,11 @@ private fun CommitField(
             value = if (isReadOnlyRebase) TextFieldValue(previousCommitMessage.orEmpty()) else commitMessage,
             onValueChange = setCommitMessage,
             enabled = !repositoryState.isRebasing || isAmenableRebaseInteractive,
-            label = {
-                val text = if (isReadOnlyRebase) {
-                    stringResource(Res.string.uncommited_changes_text_input_label_message_read_only)
-                } else {
-                    stringResource(Res.string.uncommited_changes_text_input_label_message)
-                }
-
-                Text(
-                    text = text,
-                    style = MaterialTheme.typography.body2,
-                    color = MaterialTheme.colors.primaryVariant,
-                )
+            placeholder = if (isReadOnlyRebase) {
+                stringResource(Res.string.uncommited_changes_text_input_label_message_read_only)
+            } else {
+                stringResource(Res.string.uncommited_changes_text_input_label_message)
             },
-            colors = textFieldColors(),
-            textStyle = MaterialTheme.typography.body1,
         )
 
         when {
@@ -606,7 +686,6 @@ private fun CommitField(
                 isAmend = isAmend,
                 onAmendChecked = onAmendChecked,
                 onCommit = doCommit,
-                onDiscardAll = onDiscardAll,
             )
         }
     }
@@ -619,7 +698,6 @@ fun UncommittedChangesButtons(
     isAmend: Boolean,
     onAmendChecked: (Boolean) -> Unit,
     onCommit: () -> Unit,
-    onDiscardAll: (() -> Unit)?,
 ) {
     val buttonText = if (isAmend)
         stringResource(Res.string.uncommited_changes_primary_button_amend)
@@ -627,29 +705,11 @@ fun UncommittedChangesButtons(
         stringResource(Res.string.uncommited_changes_primary_button_commit)
 
     Column {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            CheckboxText(
-                value = isAmend,
-                onCheckedChange = { onAmendChecked(!isAmend) },
-                text = stringResource(Res.string.uncommited_changes_amend_check)
-            )
-
-            Spacer(Modifier.weight(1f))
-
-            if (onDiscardAll != null) {
-                InstantTooltip(text = "Discard all the changes, staged and unstaged") {
-                    Icon(
-                        painter = painterResource(Res.drawable.delete),
-                        contentDescription = "Discard all the changes",
-                        tint = MaterialTheme.colors.error,
-                        modifier = Modifier
-                            .padding(4.dp)
-                            .size(20.dp)
-                            .handMouseClickable { onDiscardAll() },
-                    )
-                }
-            }
-        }
+        CheckboxText(
+            value = isAmend,
+            onCheckedChange = { onAmendChecked(!isAmend) },
+            text = stringResource(Res.string.uncommited_changes_amend_check)
+        )
         Row(
             modifier = Modifier
                 .padding(top = 2.dp)
@@ -883,9 +943,9 @@ private fun UncommittedFileEntry(
     onGenerateContextMenu: (StatusEntry) -> List<ContextMenuElement>,
 ) {
     FileEntry(
-        icon = statusEntry.icon,
+        statusLetter = statusEntry.letter,
         depth = depth,
-        iconColor = statusEntry.iconColor,
+        statusColor = statusEntry.iconColor,
         parentDirectoryPath = if (showDirectory) statusEntry.parentDirectoryPath else "",
         fileName = statusEntry.fileName,
         isSelected = isSelected,
