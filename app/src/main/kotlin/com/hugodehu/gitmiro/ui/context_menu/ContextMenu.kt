@@ -90,8 +90,8 @@ fun DropDownMenuText(
         Row(
             modifier = Modifier.width(180.dp)
                 .border(
-                    width = 2.dp,
-                    color = MaterialTheme.colors.onBackground.copy(alpha = 0.1F),
+                    width = 1.dp,
+                    color = MaterialTheme.colors.onBackground.copy(alpha = 0.14F),
                     shape = MaterialTheme.shapes.small,
                 )
                 .clip(shape = MaterialTheme.shapes.small)
