@@ -108,10 +108,11 @@ fn git_text(path: &Path, args: &[&str]) -> Result<String, String> {
 }
 
 fn parse_commits(output: &str) -> Vec<Commit> {
-    output
-        .split('\0')
-        .collect::<Vec<_>>()
-        .chunks_exact(4)
+    let fields: Vec<_> = output.split('\0').collect();
+    fields
+        .as_chunks::<4>()
+        .0
+        .iter()
         .filter(|fields| !fields[0].trim_matches(['\r', '\n']).is_empty())
         .map(|fields| Commit {
             id: fields[0].trim_matches(['\r', '\n']).to_owned(),
