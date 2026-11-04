@@ -107,7 +107,8 @@ class StatusViewModelExtender @AssistedInject constructor(
     ) { normalCommitMessage, mergeCommitMessage, repositoryState ->
         val state = repositoryState.dataOrNull()
 
-        if (state?.isMerging == true) {
+        // Git prepares the message of these operations itself, so it's the one to show instead of a draft
+        if (state?.isMerging == true || state?.isReverting == true || state?.isCherryPicking == true) {
             mergeCommitMessage
         } else {
             normalCommitMessage
