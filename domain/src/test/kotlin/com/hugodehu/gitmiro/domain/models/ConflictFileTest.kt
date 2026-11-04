@@ -44,6 +44,37 @@ class ConflictFileTest {
     }
 
     @Test
+    fun `lines can be picked one by one from both sides`() {
+        val multiLine = ConflictFile(
+            listOf(
+                ConflictChunk.Conflict(
+                    0,
+                    current = listOf(line("c1\n"), line("c2\n"), line("c3\n")),
+                    incoming = listOf(line("i1\n"), line("i2\n")),
+                ),
+            )
+        )
+
+        // Pick c2 first, then i1 and i2, then c3
+        var choice = ConflictChoice().withCurrentLine(1, keep = true, total = 3)
+        assertEquals("c2\n", String(multiLine.resolve(mapOf(0 to choice))))
+
+        choice = choice.withIncomingLine(0, keep = true, total = 2).withIncomingLine(1, keep = true, total = 2)
+        assertEquals("c2\ni1\ni2\n", String(multiLine.resolve(mapOf(0 to choice))))
+        assertTrue(choice.isCurrentPartial)
+        assertFalse(choice.isIncomingPartial)
+
+        choice = choice.withCurrentLine(2, keep = true, total = 3)
+        assertEquals("c2\nc3\ni1\ni2\n", String(multiLine.resolve(mapOf(0 to choice))))
+
+        // Dropping the last kept line of a side drops the side, and keeping the whole side brings every line back
+        val onlyIncoming = choice.withCurrentLine(1, keep = false, total = 3).withCurrentLine(2, keep = false, total = 3)
+        assertFalse(onlyIncoming.keepCurrent)
+        assertEquals("i1\ni2\n", String(multiLine.resolve(mapOf(0 to onlyIncoming))))
+        assertEquals("c1\nc2\nc3\ni1\ni2\n", String(multiLine.resolve(mapOf(0 to choice.withCurrent(true)))))
+    }
+
+    @Test
     fun `not fully decided while a conflict has no side kept`() {
         assertFalse(file.isFullyDecided(mapOf(0 to ConflictChoice(keepCurrent = true))))
         assertFalse(file.isFullyDecided(mapOf(0 to ConflictChoice(keepCurrent = true), 1 to ConflictChoice())))

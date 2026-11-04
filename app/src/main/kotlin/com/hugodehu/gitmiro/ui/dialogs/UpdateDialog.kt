@@ -1,12 +1,11 @@
 package com.hugodehu.gitmiro.ui.dialogs
 
+import com.hugodehu.gitmiro.ui.components.AppProgressBar
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.material.LinearProgressIndicator
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
-import androidx.compose.material.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -21,6 +20,11 @@ import com.hugodehu.gitmiro.extensions.handOnHover
 import com.hugodehu.gitmiro.theme.dialogOverlay
 import com.hugodehu.gitmiro.theme.onBackgroundSecondary
 import com.hugodehu.gitmiro.theme.textButtonColors
+import com.hugodehu.gitmiro.app.generated.resources.Res
+import com.hugodehu.gitmiro.app.generated.resources.download
+import com.hugodehu.gitmiro.ui.components.GhostButton
+import com.hugodehu.gitmiro.ui.dialogs.base.DialogHeader
+import org.jetbrains.compose.resources.painterResource
 import com.hugodehu.gitmiro.ui.components.PrimaryButton
 import com.hugodehu.gitmiro.ui.components.ScrollableLazyColumn
 import com.hugodehu.gitmiro.ui.dialogs.base.MaterialDialog
@@ -72,16 +76,11 @@ fun UpdateDialog(
                     .width(600.dp)
                     .height(500.dp)
             ) {
-                Text(
-                    "GitMiro ${update.appVersion} is available",
-                    style = MaterialTheme.typography.h3,
-                )
-
-                Text(
-                    "You are using version ${AppConstants.APP_VERSION}. Changes since then:",
-                    style = MaterialTheme.typography.body2,
-                    color = MaterialTheme.colors.onBackgroundSecondary,
-                    modifier = Modifier.padding(top = 4.dp, bottom = 16.dp),
+                DialogHeader(
+                    icon = painterResource(Res.drawable.download),
+                    title = "Version ${update.appVersion} is available",
+                    subtitle = "You are on ${AppConstants.APP_VERSION}. Here is what changed since then.",
+                    modifier = Modifier.padding(bottom = 16.dp),
                 )
 
                 Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
@@ -101,9 +100,9 @@ fun UpdateDialog(
                 }
 
                 downloadProgress?.let { progress ->
-                    LinearProgressIndicator(
+                    AppProgressBar(
                         progress = progress,
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        modifier = Modifier.padding(top = 8.dp),
                     )
                 }
 
@@ -111,22 +110,18 @@ fun UpdateDialog(
                     modifier = Modifier.align(Alignment.End).padding(top = 16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    TextButton(
-                        modifier = Modifier.handOnHover(),
+                    GhostButton(
+                        text = "Open on GitHub",
                         onClick = { onOpenUrlInBrowser(update.downloadUrl) },
-                        colors = textButtonColors(),
-                    ) {
-                        Text("Open on GitHub")
-                    }
+                        modifier = Modifier.height(36.dp).padding(end = 8.dp),
+                    )
 
-                    TextButton(
-                        modifier = Modifier.padding(end = 8.dp).handOnHover(),
+                    GhostButton(
+                        text = "Later",
                         enabled = downloadProgress == null,
                         onClick = onClose,
-                        colors = textButtonColors(),
-                    ) {
-                        Text("Later")
-                    }
+                        modifier = Modifier.height(36.dp).padding(end = 8.dp),
+                    )
 
                     if (currentOs == OS.WINDOWS) {
                         PrimaryButton(

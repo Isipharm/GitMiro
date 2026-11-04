@@ -45,7 +45,7 @@ fun AdjustableOutlinedTextField(
         color = MaterialTheme.colors.onBackground,
     ),
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
-    shape: Shape = RoundedCornerShape(4.dp),
+    shape: Shape = MaterialTheme.shapes.small,
     backgroundColor: Color = MaterialTheme.colors.background,
     visualTransformation: VisualTransformation = VisualTransformation.None,
     leadingIcon: @Composable (() -> Unit)? = null,
@@ -81,7 +81,7 @@ fun AdjustableOutlinedTextField(
                 Row(
                     modifier = Modifier
                         .border(
-                            width = 2.dp,
+                            width = 1.dp,
                             color = indicatorColor,
                             shape = shape
                         )
@@ -145,7 +145,7 @@ fun AdjustableOutlinedTextField(
         color = MaterialTheme.colors.onBackground,
     ),
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
-    shape: Shape = RoundedCornerShape(4.dp),
+    shape: Shape = MaterialTheme.shapes.small,
     backgroundColor: Color = MaterialTheme.colors.background,
     visualTransformation: VisualTransformation = VisualTransformation.None,
     leadingIcon: @Composable (() -> Unit)? = null,
@@ -181,7 +181,7 @@ fun AdjustableOutlinedTextField(
                 Row(
                     modifier = Modifier
                         .border(
-                            width = 2.dp,
+                            width = 1.dp,
                             color = indicatorColor,
                             shape = shape
                         )

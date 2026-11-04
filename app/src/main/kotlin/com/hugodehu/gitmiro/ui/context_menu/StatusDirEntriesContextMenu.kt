@@ -43,6 +43,7 @@ fun statusDirEntriesContextMenuItems(
                 composableLabel = { stringResource(Res.string.status_dir_entries_context_menu_discard_changes) },
                 icon = { painterResource(Res.drawable.undo) },
                 onClick = onDiscardDirectoryChanges,
+                isDanger = true,
             )
         }
     }

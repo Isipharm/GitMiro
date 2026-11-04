@@ -20,6 +20,7 @@ fun pushContextMenuItems(
         ContextMenuElement.ContextTextEntry(
             composableLabel = { stringResource(Res.string.push_context_menu_force_push) },
             onClick = onForcePush,
+            isDanger = true,
         ),
     )
 }

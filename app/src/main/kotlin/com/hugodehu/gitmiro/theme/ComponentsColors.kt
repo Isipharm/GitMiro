@@ -25,9 +25,9 @@ fun textFieldColors(
 
 @Composable
 fun outlinedTextFieldColors() = TextFieldDefaults.outlinedTextFieldColors(
-    cursorColor = MaterialTheme.colors.primaryVariant,
-    focusedBorderColor = MaterialTheme.colors.primaryVariant,
-    unfocusedBorderColor = MaterialTheme.colors.onBackgroundSecondary.copy(alpha = 0.4f),
+    cursorColor = MaterialTheme.colors.primary,
+    focusedBorderColor = MaterialTheme.colors.primary,
+    unfocusedBorderColor = MaterialTheme.colors.onBackground.copy(alpha = 0.12f),
     disabledBorderColor = MaterialTheme.colors.onBackgroundSecondary.copy(alpha = 0.2f),
     disabledTextColor = MaterialTheme.colors.onBackgroundSecondary.copy(alpha = 0.2f),
     focusedLabelColor = MaterialTheme.colors.primaryVariant,

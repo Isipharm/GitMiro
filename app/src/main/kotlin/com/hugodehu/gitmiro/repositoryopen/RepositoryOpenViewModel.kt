@@ -24,9 +24,7 @@ import com.hugodehu.gitmiro.domain.repositories.*
 import com.hugodehu.gitmiro.domain.services.AppSettingsService
 import com.hugodehu.gitmiro.domain.usecases.*
 import com.hugodehu.gitmiro.extensions.stateIn
-import com.hugodehu.gitmiro.system.OpenFilePickerUseCase
 import com.hugodehu.gitmiro.system.OpenUrlInBrowserUseCase
-import com.hugodehu.gitmiro.system.PickerType
 import com.hugodehu.gitmiro.terminal.OpenRepositoryInTerminalGitAction
 import com.hugodehu.gitmiro.ui.AppViewModel
 import com.hugodehu.gitmiro.ui.IVerticalSplitPaneConfig
@@ -83,7 +81,6 @@ class RepositoryOpenViewModel @Inject constructor(
     private val getWorktreeUseCase: GetWorktreeUseCase,
     private val historyViewModelProvider: Provider<HistoryViewModel>,
     val appStateManager: AppStateManager,
-    private val openFilePickerUseCase: OpenFilePickerUseCase,
     private val openUrlInBrowserUseCase: OpenUrlInBrowserUseCase,
     private val appViewModel: AppViewModel,
     private val tabScope: TabCoroutineScope,
@@ -143,6 +140,9 @@ class RepositoryOpenViewModel @Inject constructor(
     private val getBranchesToPruneUseCase: GetBranchesToPruneUseCase,
     private val stashChangesUseCase: StashChangesUseCase,
     private val openRepositoryInTerminalGitAction: OpenRepositoryInTerminalGitAction,
+    private val getAheadCountUseCase: GetAheadCountUseCase,
+    private val getRebaseProgressUseCase: GetRebaseProgressUseCase,
+    private val getCommitStatsUseCase: GetCommitStatsUseCase,
 ) : IVerticalSplitPaneConfig by verticalSplitPaneConfig,
     TabViewModel() {
     val completedTasks = repositoryStateRepository.completedTasks
@@ -155,7 +155,6 @@ class RepositoryOpenViewModel @Inject constructor(
 
     val isPullWithRebaseDefault = settings.pullWithRebase
 
-    val lastLoadedTabs = appStateManager.latestOpenedRepositoriesPaths
 
     val repositoryState: StateFlow<RepositoryState> =
         repositoryDataRepository.repositoryState.toUiDataState()
@@ -245,6 +244,8 @@ class RepositoryOpenViewModel @Inject constructor(
     private val currentBranch = repositoryDataRepository
         .currentBranch
         .toUiDataState()
+
+    val currentBranchName: StateFlow<String?> = currentBranch.map { it.data?.simpleName }.stateIn(null)
 
     private val remotes = repositoryDataRepository.remotes.toUiDataState()
 
@@ -354,7 +355,23 @@ class RepositoryOpenViewModel @Inject constructor(
             getSummaryFromStatusUseCase(status)
         }
 
-    private val verticalListState = MutableStateFlow(LazyListState(0, 0))
+    /**
+     * Commits to push. Reloaded whenever the log, branches or current branch refresh (commit, push, pull, fetch...)
+     */
+    val aheadCount: StateFlow<Int> =
+        combine(log, branches, currentBranch) { _, _, _ -> }
+            .map { getAheadCountUseCase().okOrNull() ?: 0 }
+            .stateIn(0)
+
+    /**
+     * Commits replayed by the rebase in progress, null when not rebasing. Reloaded after each step of the rebase.
+     */
+    val rebaseProgress: StateFlow<RebaseProgress?> =
+        combine(repositoryState, log) { state, _ -> state }
+            .map { state -> if (state.isRebasing) getRebaseProgressUseCase().okOrNull() else null }
+            .stateIn(null)
+
+    private val verticalListState =MutableStateFlow(LazyListState(0, 0))
     private val horizontalListState = MutableStateFlow(ScrollState(0))
 
 
@@ -406,6 +423,15 @@ class RepositoryOpenViewModel @Inject constructor(
     )
 
     val commitChangesState = commitChangesViewModelExtender.commitChangesState
+
+    /**
+     * Lines added and removed by the selected commit, null while loading or when no commit is selected.
+     */
+    val commitStats: StateFlow<CommitStats?> = commitChangesState
+        .map { it?.commit }
+        .distinctUntilChangedBy { it?.hash }
+        .map { commit -> commit?.let { getCommitStatsUseCase(it).okOrNull() } }
+        .stateIn(null)
 
     val statusState = statusViewModelExtender.statusState
 
@@ -652,30 +678,8 @@ class RepositoryOpenViewModel @Inject constructor(
     override fun onClear() {
     }
 
-    /**
-     * To make sure the tab opens the new repository with a clean state,
-     * instead of opening the repo in the same ViewModel we simply create a new tab with a new TabViewModel
-     * replacing the current tab
-     */
-    fun openAnotherRepository(directory: String) {
-        viewModelScope.launch {
-            val worktree = getWorktreeUseCase()
-
-            if (worktree is Either.Ok) {
-                appViewModel.addNewTabFromPath(directory, true, worktree.value)
-            }
-        }
-    }
-
-
     private fun refreshRepositoryInfo() {
         refreshDataUseCase(DataToRefresh.ALL)
-    }
-
-    fun openDirectoryPicker(): String? {
-        val latestDirectoryOpened = appStateManager.latestOpenedRepositoryPath
-
-        return openFilePickerUseCase(PickerType.DIRECTORIES, latestDirectoryOpened)
     }
 
     val update: StateFlow<Update?> = updatesRepository.hasUpdatesFlow.stateIn(null)

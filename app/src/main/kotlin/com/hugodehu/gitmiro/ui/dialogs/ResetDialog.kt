@@ -91,9 +91,9 @@ fun RadioButtonText(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .width(380.dp)
-            .clip(RoundedCornerShape(8.dp))
+            .clip(MaterialTheme.shapes.medium)
             .background(MaterialTheme.colors.background)
-            .border(2.dp, color, RoundedCornerShape(8.dp))
+            .border(2.dp, color, MaterialTheme.shapes.medium)
             .onClick {
                 if (onClick != null) {
                     onClick()

@@ -1,5 +1,6 @@
 package com.hugodehu.gitmiro.ui.context_menu
 
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.layout.*
@@ -43,7 +44,10 @@ import com.hugodehu.gitmiro.extensions.handMouseClickable
 import com.hugodehu.gitmiro.extensions.handOnHover
 import com.hugodehu.gitmiro.keybindings.KeybindingOption
 import com.hugodehu.gitmiro.keybindings.matchesBinding
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import com.hugodehu.gitmiro.theme.isDark
+import com.hugodehu.gitmiro.theme.secondarySurface
 import com.hugodehu.gitmiro.theme.onBackgroundSecondary
 import org.jetbrains.compose.resources.painterResource
 import java.awt.event.KeyEvent
@@ -63,11 +67,13 @@ fun ContextMenu(enabled: Boolean = true, items: () -> List<ContextMenuElement>, 
 fun DropDownMenu(
     enabled: Boolean = true,
     showIcons: Boolean = true,
+    // Clips the press highlight of the anchor, for anchors that aren't rectangular
+    shape: Shape? = null,
     items: () -> List<ContextMenuElement>,
     function: @Composable () -> Unit
 ) {
     Box(
-        modifier = Modifier
+        modifier = (if (shape != null) Modifier.clip(shape) else Modifier)
             .dropdownMenu(enabled, showIcons, items),
         propagateMinConstraints = true,
     ) {
@@ -83,15 +89,15 @@ fun DropDownMenuText(
     currentValue: String,
     items: () -> List<ContextMenuElement>,
 ) {
-    DropDownMenu(enabled, showIcons, items) {
+    DropDownMenu(enabled = enabled, showIcons = showIcons, items = items) {
         Row(
             modifier = Modifier.width(180.dp)
                 .border(
-                    width = 2.dp,
-                    color = MaterialTheme.colors.onBackground.copy(alpha = 0.1F),
-                    shape = RoundedCornerShape(4.dp),
+                    width = 1.dp,
+                    color = MaterialTheme.colors.onBackground.copy(alpha = 0.14F),
+                    shape = MaterialTheme.shapes.small,
                 )
-                .clip(shape = RoundedCornerShape(4.dp))
+                .clip(shape = MaterialTheme.shapes.small)
                 .background(MaterialTheme.colors.background)
                 .padding(vertical = 8.dp, horizontal = 12.dp)
                 .handOnHover(),
@@ -255,27 +261,22 @@ fun showPopup(
         Box(
             modifier = Modifier
                 .dropShadow(
-                    shape = RoundedCornerShape(4.dp),
+                    shape = MaterialTheme.shapes.medium,
                     shadow = Shadow(
-                        radius = 5.dp,
-                        spread = 6.dp,
-                        color = Color(0x20000000),
+                        radius = 12.dp,
+                        spread = 2.dp,
+                        color = Color(0x40000000),
                     )
                 )
-                .clip(MaterialTheme.shapes.small)
-                .background(MaterialTheme.colors.background)
+                .clip(MaterialTheme.shapes.medium)
+                .background(MaterialTheme.colors.secondarySurface)
                 .width(IntrinsicSize.Max)
-                .widthIn(min = 180.dp)
-                .run {
-                    if (MaterialTheme.colors.isDark) {
-                        this.border(
-                            2.dp,
-                            MaterialTheme.colors.onBackground.copy(alpha = 0.2f),
-                            shape = MaterialTheme.shapes.small
-                        )
-                    } else
-                        this
-                }
+                .widthIn(min = 220.dp)
+                .border(
+                    1.dp,
+                    MaterialTheme.colors.onBackground.copy(alpha = 0.14f),
+                    shape = MaterialTheme.shapes.medium
+                )
                 .focusRequester(focusRequester)
                 .focusable()
                 .onPreviewKeyEvent { keyEvent ->
@@ -286,7 +287,12 @@ fun showPopup(
                         false
                 },
         ) {
-            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+            Column(
+                modifier = Modifier
+                    .verticalScroll(rememberScrollState())
+                    .padding(6.dp),
+                verticalArrangement = Arrangement.spacedBy(1.dp),
+            ) {
                 for (item in contextMenuElements) {
                     when (item) {
                         is ContextMenuElement.ContextTextEntry -> TextEntry(
@@ -308,10 +314,10 @@ fun showPopup(
 fun Separator() {
     Box(
         modifier = Modifier
-            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .padding(horizontal = 6.dp, vertical = 5.dp)
             .fillMaxWidth()
-            .height(2.dp)
-            .background(MaterialTheme.colors.onBackground.copy(alpha = 0.2f))
+            .height(1.dp)
+            .background(MaterialTheme.colors.onBackground.copy(alpha = 0.12f))
     )
 }
 
@@ -322,21 +328,28 @@ fun TextEntry(
     onDismissRequest: () -> Unit,
 ) {
     val icon = contextTextEntry.icon
+    val hoverInteraction = remember { MutableInteractionSource() }
+    val isHovered by hoverInteraction.collectIsHoveredAsState()
 
     Row(
         modifier = Modifier
+            .fillMaxWidth()
+            .height(34.dp)
+            .clip(MaterialTheme.shapes.small)
+            .background(if (isHovered) MaterialTheme.colors.onBackground.copy(alpha = 0.09f) else Color.Transparent)
+            .hoverable(hoverInteraction)
             .clickable {
                 onDismissRequest()
                 contextTextEntry.onClick()
             }
             .pointerHoverIcon(PointerIcon.Default)
-            .padding(horizontal = if (showIcons) 8.dp else 12.dp, vertical = 8.dp),
+            .padding(horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (showIcons) {
             Box(
                 modifier = Modifier
-                    .padding(end = 8.dp)
+                    .padding(end = 11.dp)
                     .size(16.dp)
             ) {
                 if (icon != null) {
@@ -344,7 +357,11 @@ fun TextEntry(
                         painter = icon(),
                         contentDescription = null,
                         modifier = Modifier.fillMaxSize(),
-                        tint = (MaterialTheme.colors.onBackgroundSecondary.copy(alpha = 0.8f))
+                        tint = if (contextTextEntry.isDanger) {
+                            MaterialTheme.colors.error
+                        } else {
+                            MaterialTheme.colors.onBackgroundSecondary.copy(alpha = 0.8f)
+                        }
                     )
                 }
             }
@@ -353,6 +370,7 @@ fun TextEntry(
         Text(
             contextTextEntry.composableLabel(),
             style = MaterialTheme.typography.body2,
+            color = if (contextTextEntry.isDanger) MaterialTheme.colors.error else Color.Unspecified,
             modifier = Modifier.fillMaxWidth(),
         )
     }
@@ -367,16 +385,20 @@ sealed class ContextMenuElement(
         val composableLabel: @Composable (() -> String) = { label },
         val icon: @Composable (() -> Painter)? = null,
         onClick: () -> Unit = {},
+        // Drawn in the error color, for the actions that lose data
+        val isDanger: Boolean = false,
     ) : ContextMenuElement(label, onClick) {
         constructor(
             composableLabel: @Composable (() -> String),
             icon: @Composable (() -> Painter)? = null,
             onClick: () -> Unit = {},
+            isDanger: Boolean = false,
         ) : this(
             label = "",
             composableLabel,
             icon,
             onClick,
+            isDanger,
         )
     }
 
@@ -524,12 +546,14 @@ fun MutableList<ContextMenuElement>.addContextMenu(
     composableLabel: @Composable (() -> String),
     icon: @Composable (() -> Painter)? = null,
     onClick: () -> Unit = {},
+    isDanger: Boolean = false,
 ) {
     this.add(
         ContextMenuElement.ContextTextEntry(
             composableLabel = composableLabel,
             icon = icon,
             onClick = onClick,
+            isDanger = isDanger,
         )
     )
 }

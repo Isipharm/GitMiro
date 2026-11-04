@@ -98,7 +98,14 @@ class StatusViewModelExtender @AssistedInject constructor(
 
     private val normalCommitMessage = persistedCommitMessageFlow { it.commitMessage }
 
-    private val mergeCommitMessage = persistedCommitMessageFlow { it.mergeMessage }
+    // Git adds "# Conflicts:" comments to this message and removes them when committing, JGit doesn't
+    private val mergeCommitMessage = persistedCommitMessageFlow { message ->
+        message.mergeMessage
+            ?.lines()
+            ?.filterNot { it.startsWith("#") }
+            ?.joinToString(separator = System.lineSeparator())
+            ?.trim()
+    }
 
     private val commitMessage = combine(
         normalCommitMessage,
@@ -107,7 +114,8 @@ class StatusViewModelExtender @AssistedInject constructor(
     ) { normalCommitMessage, mergeCommitMessage, repositoryState ->
         val state = repositoryState.dataOrNull()
 
-        if (state?.isMerging == true) {
+        // Git prepares the message of these operations itself, so it's the one to show instead of a draft
+        if (state?.isMerging == true || state?.isReverting == true || state?.isCherryPicking == true) {
             mergeCommitMessage
         } else {
             normalCommitMessage

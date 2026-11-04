@@ -16,74 +16,70 @@ import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.sp
 import com.hugodehu.gitmiro.extensions.handMouseClickable
 import com.hugodehu.gitmiro.app.generated.resources.Res
 import com.hugodehu.gitmiro.app.generated.resources.chevron_right
 import com.hugodehu.gitmiro.app.generated.resources.expand_more
-import com.hugodehu.gitmiro.theme.linesHeight
+import com.hugodehu.gitmiro.theme.monoTypography
 import com.hugodehu.gitmiro.theme.onBackgroundSecondary
 import org.jetbrains.compose.resources.painterResource
 
+/**
+ * Section title of the side panel: small uppercase label with its count and, if any, a quick action.
+ */
 @Composable
 fun SideMenuHeader(
     text: String,
-    icon: Painter? = null,
+    @Suppress("UNUSED_PARAMETER") icon: Painter? = null,
     itemsCount: Int,
     isExpanded: Boolean,
     onExpand: () -> Unit = {},
     hoverIcon: @Composable (() -> Unit)? = null,
 ) {
     val hoverInteraction = remember { MutableInteractionSource() }
-    val isHovered by hoverInteraction.collectIsHoveredAsState()
 
     Row(
         modifier = Modifier
-            .height(MaterialTheme.linesHeight.sidePanelItemHeight)
+            .height(30.dp)
             .fillMaxWidth()
             .hoverable(hoverInteraction)
-            .handMouseClickable { onExpand() },
+            .handMouseClickable { onExpand() }
+            .padding(horizontal = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
             painter = painterResource(if (isExpanded) Res.drawable.expand_more else Res.drawable.chevron_right),
             contentDescription = null,
-            tint = MaterialTheme.colors.onBackground,
+            tint = MaterialTheme.colors.onBackgroundSecondary,
             modifier = Modifier
-                .padding(horizontal = 8.dp)
-                .size(16.dp),
+                .padding(end = 8.dp)
+                .size(14.dp),
         )
 
-        if (icon != null) {
-            Icon(
-                painter = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colors.onBackground,
-                modifier = Modifier
-                    .size(16.dp),
-            )
-        }
-
         Text(
-            text = text,
-            modifier = Modifier
-                .padding(horizontal = 8.dp)
-                .weight(1f),
+            text = text.uppercase(),
+            modifier = Modifier.weight(1f),
             maxLines = 1,
-            style = MaterialTheme.typography.body2,
-            fontWeight = FontWeight.Medium,
-            color = MaterialTheme.colors.onBackground,
+            fontSize = 11.sp,
+            letterSpacing = 0.06.em,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colors.onBackgroundSecondary,
             overflow = TextOverflow.Ellipsis,
         )
 
-        if (hoverIcon != null && isHovered) {
-            hoverIcon()
-        } else
-            Text(
-                text = itemsCount.toString(),
-                style = MaterialTheme.typography.body2,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colors.onBackgroundSecondary,
-                modifier = Modifier.padding(end = 16.dp),
-            )
+        Text(
+            text = itemsCount.toString(),
+            fontSize = 11.sp,
+            fontFamily = monoTypography(),
+            color = MaterialTheme.colors.onBackgroundSecondary,
+        )
+
+        if (hoverIcon != null) {
+            Box(modifier = Modifier.padding(start = 6.dp)) {
+                hoverIcon()
+            }
+        }
     }
 }

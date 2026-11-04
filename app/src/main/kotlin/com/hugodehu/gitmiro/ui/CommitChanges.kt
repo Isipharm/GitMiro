@@ -8,7 +8,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.LinearProgressIndicator
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.runtime.*
@@ -25,10 +24,21 @@ import com.hugodehu.gitmiro.domain.extensions.fileName
 import com.hugodehu.gitmiro.domain.extensions.filePath
 import com.hugodehu.gitmiro.domain.extensions.parentDirectoryPath
 import com.hugodehu.gitmiro.domain.models.Commit
+import com.hugodehu.gitmiro.domain.models.CommitStats
+import com.hugodehu.gitmiro.repositoryopen.LogAction
+import com.hugodehu.gitmiro.theme.monoTypography
+import com.hugodehu.gitmiro.ui.context_menu.DropDownMenu
+import com.hugodehu.gitmiro.app.generated.resources.Res
+import com.hugodehu.gitmiro.app.generated.resources.more_vert
+import org.jetbrains.compose.resources.painterResource
+import androidx.compose.foundation.border
+import androidx.compose.material.Icon
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import com.hugodehu.gitmiro.domain.models.DiffSelected
 import com.hugodehu.gitmiro.domain.models.Identity
 import com.hugodehu.gitmiro.extensions.handMouseClickable
-import com.hugodehu.gitmiro.extensions.icon
+import com.hugodehu.gitmiro.extensions.letter
 import com.hugodehu.gitmiro.extensions.iconColor
 import com.hugodehu.gitmiro.extensions.toSmartSystemString
 import com.hugodehu.gitmiro.repositoryopen.CommitChangesAction
@@ -57,7 +67,22 @@ fun CommitChanges(
         .filterIsInstance<DiffSelected.CommitedChanges>()
         .collectAsState(null)
 
+    val stats by viewModel.commitStats.collectAsState()
+    val logState by viewModel.logState.collectAsState()
+    val commit = commitChangesState.commit
+    val branchName = logState.branches[commit.hash].orEmpty().firstOrNull { it.isLocal }?.simpleName
+        ?: logState.currentBranch?.simpleName
+
     CommitChangesView(
+        stats = stats,
+        branchName = branchName,
+        isStash = logState.stashes.contains(commit.hash),
+        onCheckout = { viewModel.onAction(LogAction.CheckoutCommit(commit)) },
+        onCherryPick = { viewModel.onAction(LogAction.CherryPickCommit(commit)) },
+        onRevert = { viewModel.onAction(LogAction.RevertCommit(commit)) },
+        onApplyStash = { viewModel.onAction(LogAction.ApplyStash(commit)) },
+        onPopStash = { viewModel.onAction(LogAction.PopStash(commit)) },
+        onDropStash = { viewModel.onAction(LogAction.DeleteStash(commit)) },
         diffSelected = diffSelected,
         commitChangesState = commitChangesState,
         onBlame = onBlame,
@@ -82,6 +107,15 @@ fun CommitChanges(
 
 @Composable
 private fun CommitChangesView(
+    stats: CommitStats?,
+    branchName: String?,
+    isStash: Boolean,
+    onCheckout: () -> Unit,
+    onCherryPick: () -> Unit,
+    onRevert: () -> Unit,
+    onApplyStash: () -> Unit,
+    onPopStash: () -> Unit,
+    onDropStash: () -> Unit,
     commitChangesState: CommitChangesState,
     diffSelected: DiffSelected.CommitedChanges?,
     onBlame: (String) -> Unit,
@@ -96,6 +130,7 @@ private fun CommitChangesView(
 ) {
     val tabFocusRequester = LocalTabFocusRequester.current
     val commit = commitChangesState.commit
+    val clipboard = LocalClipboardManager.current
 
     LaunchedEffect(commitChangesState.showSearch) {
         if (!commitChangesState.showSearch) {
@@ -119,17 +154,14 @@ private fun CommitChangesView(
         ScrollState(0)
     }
 
-    Column(
-        modifier = Modifier
-            .padding(end = 8.dp, bottom = 8.dp)
-            .fillMaxSize(),
-    ) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        CommitHeader(commit, branchName, textScroll)
+        PanelDivider()
+
         Column(
             modifier = Modifier
-                .padding(bottom = 4.dp)
                 .fillMaxWidth()
                 .weight(1f, fill = true)
-                .background(MaterialTheme.colors.background)
         ) {
             FilesChangedHeader(
                 title = "Files changed",
@@ -141,10 +173,12 @@ private fun CommitChangesView(
                 onSearchFilterToggled = onSearchFilterToggled,
                 onSearchFilterChanged = onSearchFilterChanged,
                 showActionForSelected = false,
+                count = commitChangesState.changes.size,
+                stats = stats?.let { it.added to it.removed },
             )
 
             if (commitChangesState.isLoading) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                AppProgressBar()
             }
 
             if (commitChangesState.showAsTree) {
@@ -189,129 +223,163 @@ private fun CommitChangesView(
             }
         }
 
-        MessageAuthorFooter(
-            commit,
-            textScroll,
-        )
+        PanelDivider()
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 18.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (isStash) {
+                // A stash isn't part of the history: it is applied back to the working directory, not checked out
+                PrimaryButton(
+                    text = "Apply stash",
+                    onClick = onApplyStash,
+                    modifier = Modifier.weight(1f).height(34.dp),
+                )
+                GhostButton(text = "Pop stash", onClick = onPopStash, modifier = Modifier.height(34.dp))
+            } else {
+                PrimaryButton(
+                    text = "Checkout",
+                    onClick = onCheckout,
+                    modifier = Modifier.weight(1f).height(34.dp),
+                )
+                GhostButton(text = "Cherry-pick", onClick = onCherryPick, modifier = Modifier.height(34.dp))
+            }
+
+            DropDownMenu(
+                showIcons = false,
+                items = {
+                    val copyHash = ContextMenuElement.ContextTextEntry(
+                        label = "Copy commit hash",
+                        onClick = { clipboard.setText(AnnotatedString(commit.hash)) },
+                    )
+
+                    if (isStash) {
+                        listOf(
+                            copyHash,
+                            ContextMenuElement.ContextTextEntry(label = "Drop stash", onClick = onDropStash, isDanger = true),
+                        )
+                    } else {
+                        listOf(
+                            ContextMenuElement.ContextTextEntry(label = "Revert commit", onClick = onRevert, isDanger = true),
+                            copyHash,
+                        )
+                    }
+                },
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(MaterialTheme.shapes.small)
+                        .border(1.dp, MaterialTheme.colors.onBackground.copy(alpha = 0.16f), MaterialTheme.shapes.small),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        painter = painterResource(Res.drawable.more_vert),
+                        contentDescription = "More actions",
+                        tint = MaterialTheme.colors.onBackground,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+            }
+        }
     }
 }
 
+/**
+ * Hash and branch, subject, body and author of the selected commit.
+ */
 @Composable
-private fun MessageAuthorFooter(
+private fun CommitHeader(
     commit: Commit,
+    branchName: String?,
     textScroll: ScrollState,
 ) {
+    var copied by remember(commit.hash) { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val clipboard = LocalClipboardManager.current
+    val body = commit.message.trim().lines().drop(1).joinToString("\n").trim()
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(4.dp))
-            .background(MaterialTheme.colors.background),
+            .padding(start = 18.dp, end = 18.dp, top = 18.dp, bottom = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        SelectionContainer {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
-                text = commit.message,
-                style = MaterialTheme.typography.body1,
-                color = MaterialTheme.colors.onBackground,
+                text = commit.shortHash,
+                fontFamily = monoTypography(),
+                style = MaterialTheme.typography.caption,
+                color = MaterialTheme.colors.primaryVariant,
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(120.dp)
-                    .padding(8.dp)
-                    .verticalScroll(textScroll),
+                    .clip(MaterialTheme.shapes.small)
+                    .handMouseClickable {
+                        scope.launch {
+                            clipboard.setText(AnnotatedString(commit.hash))
+                            copied = true
+                            delay(2000)
+                            copied = false
+                        }
+                    },
+            )
+
+            Text(
+                text = if (copied) "Copied!" else if (branchName != null) "on $branchName" else "",
+                style = MaterialTheme.typography.caption,
+                color = if (copied) MaterialTheme.colors.primaryVariant else MaterialTheme.colors.onBackgroundSecondary,
+                maxLines = 1,
             )
         }
 
-        CommitFooter(
-            shortHash = commit.shortHash,
-            hash = commit.hash,
-            date = commit.date,
-            author = commit.author,
-        )
-    }
-}
-
-@Composable
-fun CommitFooter(
-    shortHash: String,
-    hash: String,
-    date: Long,
-    author: Identity,
-) {
-    var copied by remember(hash) { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-    val clipboard = LocalClipboardManager.current
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(72.dp)
-            .background(MaterialTheme.colors.tertiarySurface),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        AvatarImage(
-            modifier = Modifier
-                .padding(horizontal = 16.dp)
-                .size(40.dp),
-            personIdent = author,
-        )
-
-        Column(
-            modifier = Modifier
-                .fillMaxSize(),
-            verticalArrangement = Arrangement.Center
-        ) {
-            TooltipText(
-                text = author.name.orEmpty(),
-                maxLines = 1,
-                style = MaterialTheme.typography.body2,
-                tooltipTitle = author.email.orEmpty(),
-            )
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
+        SelectionContainer {
+            Column(
+                modifier = Modifier
+                    .heightIn(max = 180.dp)
+                    .verticalScroll(textScroll),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
                 Text(
-                    text = shortHash,
-                    color = MaterialTheme.colors.onBackgroundSecondary,
-                    maxLines = 1,
-                    style = MaterialTheme.typography.body2,
-                    modifier = Modifier.handMouseClickable {
-                        scope.launch {
-                            clipboard.setText(AnnotatedString(hash))
-                            copied = true
-                            delay(2000) // 2s
-                            copied = false
-                        }
-                    }
+                    text = commit.shortMessage,
+                    style = MaterialTheme.typography.body1.copy(fontSize = 16.sp),
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colors.onBackground,
                 )
 
-                if (copied) {
+                if (body.isNotEmpty()) {
                     Text(
-                        text = "Copied!",
-                        color = MaterialTheme.colors.primaryVariant,
-                        maxLines = 1,
-                        style = MaterialTheme.typography.caption,
-                        modifier = Modifier.padding(start = 4.dp),
+                        text = body,
+                        style = MaterialTheme.typography.body2,
+                        color = MaterialTheme.colors.onBackground.copy(alpha = 0.8f),
                     )
                 }
+            }
+        }
 
+        Row(
+            modifier = Modifier.padding(top = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            AvatarImage(modifier = Modifier.size(30.dp), personIdent = commit.author)
 
-                Spacer(modifier = Modifier.weight(1f, fill = true))
-
-                val smartDate = date.toSmartSystemString(
-                    allowRelative = true,
-                    showTime = true,
-                )
-
-                val smartDateTooltip = date.toSmartSystemString(
-                    allowRelative = false,
-                    showTime = true,
+            Column {
+                TooltipText(
+                    text = commit.author.name.orEmpty(),
+                    maxLines = 1,
+                    style = MaterialTheme.typography.body2,
+                    fontWeight = FontWeight.Medium,
+                    tooltipTitle = commit.author.email.orEmpty(),
                 )
 
                 TooltipText(
-                    text = smartDate,
+                    text = commit.date.toSmartSystemString(allowRelative = true, showTime = true),
                     color = MaterialTheme.colors.onBackgroundSecondary,
                     maxLines = 1,
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                    style = MaterialTheme.typography.body2,
-                    tooltipTitle = smartDateTooltip,
+                    style = MaterialTheme.typography.caption,
+                    tooltipTitle = commit.date.toSmartSystemString(allowRelative = false, showTime = true),
                 )
             }
         }
@@ -333,8 +401,8 @@ fun ListCommitLogChanges(
     ) {
         items(items = diffEntries) { diffEntry ->
             FileEntry(
-                icon = diffEntry.icon,
-                iconColor = diffEntry.iconColor,
+                statusLetter = diffEntry.letter,
+                statusColor = diffEntry.iconColor,
                 parentDirectoryPath = diffEntry.parentDirectoryPath,
                 fileName = diffEntry.fileName,
                 isSelected = diffSelected?.items?.any { it.diffEntry == diffEntry} ?: false,
@@ -413,8 +481,8 @@ private fun CommitFileEntry(
     val diffEntry = fileEntry.data
 
     FileEntry(
-        icon = diffEntry.icon,
-        iconColor = diffEntry.iconColor,
+        statusLetter = diffEntry.letter,
+        statusColor = diffEntry.iconColor,
         parentDirectoryPath = "",
         fileName = diffEntry.fileName,
         isSelected = isSelected,

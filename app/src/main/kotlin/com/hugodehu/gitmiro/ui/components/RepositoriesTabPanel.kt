@@ -1,41 +1,47 @@
 package com.hugodehu.gitmiro.ui.components
 
-import androidx.compose.foundation.*
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.v2.maxScrollOffset
 import androidx.compose.material.Icon
-import androidx.compose.material.IconButton
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.hugodehu.gitmiro.app.generated.resources.Res
+import com.hugodehu.gitmiro.app.generated.resources.add
 import com.hugodehu.gitmiro.app.generated.resources.close
 import com.hugodehu.gitmiro.extensions.handMouseClickable
-import com.hugodehu.gitmiro.extensions.handOnHover
 import com.hugodehu.gitmiro.extensions.onMiddleMouseButtonClick
-import com.hugodehu.gitmiro.ui.components.tooltip.DelayedTooltip
+import com.hugodehu.gitmiro.theme.onBackgroundSecondary
+import com.hugodehu.gitmiro.theme.secondarySurface
 import com.hugodehu.gitmiro.ui.components.tooltip.InstantTooltip
 import com.hugodehu.gitmiro.ui.drag_sorting.HorizontalDraggableItem
 import com.hugodehu.gitmiro.ui.drag_sorting.horizontalDragContainer
 import com.hugodehu.gitmiro.ui.drag_sorting.rememberHorizontalDragDropState
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.firstOrNull
-import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
 
+private val TAB_HEIGHT = 32.dp
+
+/**
+ * Repository tabs, meant to be laid out in the window title bar.
+ *
+ * @param clientArea marks a part as interactive for the title bar, so a click there is not a window drag
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun <T : TabInformationProvider> TabsRow(
@@ -46,54 +52,24 @@ fun <T : TabInformationProvider> TabsRow(
     onTabClosed: (TabInformation<T>) -> Unit,
     onMoveTab: (Int, Int) -> Unit,
     onAddNewTab: () -> Unit,
+    clientArea: @Composable (Modifier) -> Modifier,
+    modifier: Modifier = Modifier,
 ) {
-    val stateHorizontal = rememberLazyListState()
-    val scrollAdapter = rememberScrollbarAdapter(stateHorizontal)
-    val scope = rememberCoroutineScope()
+    val listState = rememberLazyListState()
     var latestTabCount by remember { mutableStateOf(tabs.count()) }
 
-    val canBeScrolled by remember {
-        derivedStateOf {
-            val layoutInfo = stateHorizontal.layoutInfo
-            val visibleItemsInfo = layoutInfo.visibleItemsInfo
-            if (layoutInfo.totalItemsCount == 0) {
-                false
-            } else {
-                val firstVisibleItem = visibleItemsInfo.first()
-                val lastVisibleItem = visibleItemsInfo.last()
-
-                val viewportHeight = layoutInfo.viewportEndOffset + layoutInfo.viewportStartOffset
-
-                !(firstVisibleItem.index == 0 &&
-                        firstVisibleItem.offset == 0 &&
-                        lastVisibleItem.index + 1 == layoutInfo.totalItemsCount &&
-                        lastVisibleItem.offset + lastVisibleItem.size <= viewportHeight)
-            }
-        }
+    val dragDropState = rememberHorizontalDragDropState(listState) { fromIndex, toIndex ->
+        onMoveTab(fromIndex, toIndex)
     }
 
-    Column {
-        if (canBeScrolled) {
-            DelayedTooltip(
-                "\"Shift + Mouse wheel\" to scroll"
-            ) {
-                HorizontalScrollbar(
-                    modifier = Modifier
-                        .fillMaxWidth(),
-                    adapter = scrollAdapter
-                )
-            }
-        }
-
-
-        val dragDropState = rememberHorizontalDragDropState(stateHorizontal) { fromIndex, toIndex ->
-            onMoveTab(fromIndex, toIndex)
-        }
-
-        Row {
-            LazyRow(
-                modifier = Modifier
-                    .height(36.dp)
+    Row(
+        modifier = modifier,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        LazyRow(
+            modifier = clientArea(
+                Modifier
+                    .height(TAB_HEIGHT)
                     .weight(1f, false)
                     .horizontalDragContainer(
                         dragDropState = dragDropState,
@@ -104,61 +80,56 @@ fun <T : TabInformationProvider> TabsRow(
                                 onTabSelected(tab)
                             }
                         },
-                    ),
-                state = stateHorizontal,
-            ) {
-                itemsIndexed(
-                    items = tabs,
-                    key = { _, tab -> tab.data }
-                ) { index, tab ->
-                    HorizontalDraggableItem(dragDropState, index) { _ ->
-                        val tooltip by tab.extraInfo.collectAsState()
-                        val tabName by tab.name.collectAsState()
+                    )
+            ),
+            state = listState,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            itemsIndexed(
+                items = tabs,
+                key = { _, tab -> tab.data }
+            ) { index, tab ->
+                HorizontalDraggableItem(dragDropState, index) { _ ->
+                    val tooltip by tab.extraInfo.collectAsState()
+                    val tabName by tab.name.collectAsState()
 
-
-                        InstantTooltip(tooltip) {
-                            Tab(
-                                modifier = Modifier,
-                                title = tabName ?: defaultTabName,
-                                isSelected = currentTab == tab,
-                                onClick = {
-                                    onTabSelected(tab)
-                                },
-                                onCloseTab = {
-                                    onTabClosed(tab)
-                                }
-                            )
-                        }
+                    InstantTooltip(tooltip) {
+                        Tab(
+                            title = tabName ?: defaultTabName,
+                            isSelected = currentTab == tab,
+                            onClick = { onTabSelected(tab) },
+                            onCloseTab = { onTabClosed(tab) },
+                        )
                     }
                 }
             }
+        }
 
-            IconButton(
-                onClick = {
-                    onAddNewTab()
-                },
-                modifier = Modifier
-                    .size(36.dp)
-                    .handOnHover()
-                    .align(Alignment.CenterVertically),
+        InstantTooltip("Open a repository") {
+            Box(
+                modifier = clientArea(
+                    Modifier
+                        .size(TAB_HEIGHT)
+                        .clip(MaterialTheme.shapes.small)
+                        .handMouseClickable { onAddNewTab() }
+                ),
+                contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = null,
-                    tint = MaterialTheme.colors.primaryVariant,
+                    painter = painterResource(Res.drawable.add),
+                    contentDescription = "Open a repository",
+                    tint = MaterialTheme.colors.onBackgroundSecondary,
+                    modifier = Modifier.size(18.dp),
                 )
             }
         }
     }
 
     LaunchedEffect(tabs.count()) {
-        // Scroll to the end if a new tab has been added & it's empty (so it's not a new submodule tab)
+        // Show the new tab if it's empty (so it's not a new submodule tab)
         // TODO Use TabInformationProvider to know if the app should scroll to the tab or not instead of relying on extra info
         if (latestTabCount < tabs.count() && currentTab?.extraInfo?.firstOrNull() == null) {
-            scope.launch {
-                delay(50) // add small delay to wait until [scrollAdapter.maxScrollOffset] is recalculated. Seems more like a hack of some kind...
-                scrollAdapter.scrollTo(scrollAdapter.maxScrollOffset)
-            }
+            listState.animateScrollToItem(tabs.lastIndex)
         }
 
         latestTabCount = tabs.count()
@@ -166,78 +137,63 @@ fun <T : TabInformationProvider> TabsRow(
 }
 
 @Composable
-fun Tab(
-    modifier: Modifier,
+private fun Tab(
     title: String,
     isSelected: Boolean,
     onClick: () -> Unit,
     onCloseTab: () -> Unit,
 ) {
-    val backgroundColor = if (isSelected)
-        MaterialTheme.colors.surface
-    else
-        MaterialTheme.colors.background
-
     val hoverInteraction = remember { MutableInteractionSource() }
     val isHovered by hoverInteraction.collectIsHoveredAsState()
+    val showClose = isHovered || isSelected
 
-    Box(
-        modifier = modifier
-            .widthIn(min = 200.dp)
-            .width(IntrinsicSize.Max)
-            .fillMaxHeight()
+    val tabModifier = if (isSelected) {
+        Modifier
+            .background(MaterialTheme.colors.secondarySurface, MaterialTheme.shapes.small)
+            .border(1.dp, MaterialTheme.colors.onBackground.copy(alpha = 0.1f), MaterialTheme.shapes.small)
+    } else if (isHovered) {
+        Modifier.background(MaterialTheme.colors.onBackground.copy(alpha = 0.06f), MaterialTheme.shapes.small)
+    } else {
+        Modifier
+    }
+
+    Row(
+        modifier = tabModifier
+            .height(TAB_HEIGHT)
+            .widthIn(max = 260.dp)
+            .clip(MaterialTheme.shapes.small)
             .hoverable(hoverInteraction)
             .handMouseClickable { onClick() }
-            .onMiddleMouseButtonClick {
-                onCloseTab()
-            }
-            .background(backgroundColor),
+            .onMiddleMouseButtonClick { onCloseTab() }
+            .padding(start = 14.dp, end = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(
+        Text(
+            text = title,
+            modifier = Modifier.weight(1f, false),
+            overflow = TextOverflow.Ellipsis,
+            style = MaterialTheme.typography.body2,
+            fontWeight = FontWeight.Medium,
+            color = if (isSelected) MaterialTheme.colors.onBackground else MaterialTheme.colors.onBackgroundSecondary,
+            maxLines = 1,
+            softWrap = false,
+        )
+
+        Box(
             modifier = Modifier
-                .align(Alignment.CenterStart),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
+                .padding(start = 10.dp)
+                .size(22.dp)
+                .alpha(if (showClose) 1f else 0f)
+                .clip(MaterialTheme.shapes.small)
+                .handMouseClickable(enabled = showClose) { onCloseTab() },
+            contentAlignment = Alignment.Center,
         ) {
-            Text(
-                text = title,
-                modifier = Modifier
-                    .padding(start = 16.dp)
-                    .weight(1f)
-                    .widthIn(max = 720.dp),
-                overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.body2,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colors.onBackground,
-                maxLines = 1,
-                softWrap = false,
-            )
-
-            IconButton(
-                onClick = onCloseTab,
-                enabled = isHovered || isSelected,
-                modifier = Modifier
-                    .alpha(if (isHovered || isSelected) 1f else 0f)
-                    .padding(horizontal = 8.dp)
-                    .size(14.dp)
-            ) {
-                Icon(
-                    painterResource(Res.drawable.close),
-                    contentDescription = null,
-                    tint = MaterialTheme.colors.onBackground
-                )
-            }
-        }
-
-        if (isSelected) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .height(3.dp)
-                    .background(MaterialTheme.colors.primaryVariant)
+            Icon(
+                painter = painterResource(Res.drawable.close),
+                contentDescription = "Close tab",
+                tint = MaterialTheme.colors.onBackgroundSecondary,
+                modifier = Modifier.size(14.dp),
             )
         }
     }
 }
-

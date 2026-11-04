@@ -2,10 +2,15 @@
 
 package com.hugodehu.gitmiro.ui
 
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.*
@@ -17,7 +22,10 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.hugodehu.gitmiro.LocalTabFocusRequester
 import com.hugodehu.gitmiro.Screen
 import com.hugodehu.gitmiro.app.generated.resources.*
@@ -25,6 +33,8 @@ import com.hugodehu.gitmiro.domain.models.*
 import com.hugodehu.gitmiro.domain.models.ui.SelectedItem
 import com.hugodehu.gitmiro.extensions.handOnHover
 import com.hugodehu.gitmiro.extensions.setClipboardText
+import com.hugodehu.gitmiro.keybindings.KeybindingOption
+import com.hugodehu.gitmiro.keybindings.keyBinding
 import com.hugodehu.gitmiro.repositoryopen.RepositoryOpenViewModel
 import com.hugodehu.gitmiro.theme.onBackgroundSecondary
 import com.hugodehu.gitmiro.ui.components.AdjustableOutlinedTextField
@@ -32,6 +42,7 @@ import com.hugodehu.gitmiro.ui.components.ScrollableLazyColumn
 import com.hugodehu.gitmiro.ui.components.SideMenuHeader
 import com.hugodehu.gitmiro.ui.components.SideMenuSubentry
 import com.hugodehu.gitmiro.ui.components.tooltip.DelayedTooltip
+import com.hugodehu.gitmiro.ui.components.tooltip.InstantTooltip
 import com.hugodehu.gitmiro.ui.context_menu.*
 import com.hugodehu.gitmiro.viewmodels.sidepanel.*
 import kotlinx.coroutines.flow.collectLatest
@@ -62,14 +73,13 @@ fun SidePanel(
         }
     }
 
-    Column {
+    Column(modifier = Modifier.padding(12.dp)) {
         FilterTextField(
             value = filter,
             onValueChange = { newValue ->
                 viewModel.newFilter(newValue)
             },
             modifier = Modifier
-                .padding(start = 8.dp)
                 .focusRequester(searchFocusRequester)
                 .onFocusChanged {
                     if (it.isFocused) {
@@ -83,7 +93,7 @@ fun SidePanel(
         ScrollableLazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(top = 4.dp)
+                .padding(top = 10.dp)
         ) {
             localBranches(
                 branchesState = branchesState,
@@ -91,6 +101,7 @@ fun SidePanel(
                 viewModel = viewModel,
                 onChangeDefaultUpstreamBranch = { onNavigate(Screen.BranchChangeUpstream(it)) },
                 onRenameBranch = { onNavigate(Screen.BranchRename(it)) },
+                onCreateBranch = { onNavigate(Screen.BranchCreate(null)) },
             )
 
             remotes(
@@ -130,40 +141,61 @@ fun FilterTextField(
     onValueChange: (String) -> Unit,
     modifier: Modifier,
 ) {
-    AdjustableOutlinedTextField(
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    val shape = MaterialTheme.shapes.small
+    val borderColor = if (isFocused) MaterialTheme.colors.primary else MaterialTheme.colors.onBackground.copy(alpha = 0.12f)
+
+    BasicTextField(
         value = value,
-        hint = stringResource(Res.string.side_pane_search_hint),
         onValueChange = onValueChange,
-        modifier = modifier,
-        textStyle = LocalTextStyle.current.copy(
-            fontSize = MaterialTheme.typography.body2.fontSize,
-            color = MaterialTheme.colors.onBackground,
-        ),
         singleLine = true,
-        leadingIcon = {
-            Icon(
-                painterResource(Res.drawable.search),
-                contentDescription = null,
-                modifier = Modifier.size(16.dp),
-                tint = if (value.isEmpty()) MaterialTheme.colors.onBackgroundSecondary else MaterialTheme.colors.onBackground
-            )
-        },
-        trailingIcon = {
-            if (value.isNotEmpty()) {
-                IconButton(
-                    onClick = { onValueChange("") },
-                    modifier = Modifier
-                        .size(16.dp)
-                        .handOnHover(),
-                ) {
+        interactionSource = interactionSource,
+        textStyle = MaterialTheme.typography.body2.copy(color = MaterialTheme.colors.onBackground),
+        cursorBrush = SolidColor(MaterialTheme.colors.primary),
+        modifier = modifier
+            .fillMaxWidth()
+            .height(34.dp)
+            .background(MaterialTheme.colors.background, shape)
+            .border(1.dp, borderColor, shape),
+        decorationBox = { innerTextField ->
+            Row(
+                modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    painterResource(Res.drawable.search),
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                    tint = MaterialTheme.colors.onBackgroundSecondary,
+                )
+
+                Box(modifier = Modifier.weight(1f).padding(horizontal = 8.dp)) {
+                    if (value.isEmpty()) {
+                        Text(
+                            text = stringResource(Res.string.side_pane_search_hint),
+                            style = MaterialTheme.typography.body2,
+                            color = MaterialTheme.colors.onBackgroundSecondary,
+                            maxLines = 1,
+                        )
+                    }
+
+                    innerTextField()
+                }
+
+                if (value.isNotEmpty()) {
                     Icon(
                         painterResource(Res.drawable.close),
-                        contentDescription = null,
-                        tint = if (value.isEmpty()) MaterialTheme.colors.onBackgroundSecondary else MaterialTheme.colors.onBackground
+                        contentDescription = "Clear the filter",
+                        tint = MaterialTheme.colors.onBackground,
+                        modifier = Modifier
+                            .size(14.dp)
+                            .handOnHover()
+                            .clickable { onValueChange("") },
                     )
                 }
             }
-        }
+        },
     )
 }
 
@@ -174,6 +206,7 @@ fun LazyListScope.localBranches(
     viewModel: RepositoryOpenViewModel,
     onChangeDefaultUpstreamBranch: (Branch) -> Unit,
     onRenameBranch: (Branch) -> Unit,
+    onCreateBranch: () -> Unit,
 ) {
     val isExpanded = branchesState.isExpanded
     val branches = branchesState.branches
@@ -187,7 +220,29 @@ fun LazyListScope.localBranches(
                 text = stringResource(Res.string.side_pane_local_branches_title),
                 icon = painterResource(Res.drawable.branch),
                 itemsCount = branches.count(),
-                hoverIcon = null,
+                hoverIcon = {
+                    val keybinding = KeybindingOption.BRANCH_CREATE.keyBinding
+
+                    InstantTooltip(
+                        text = stringResource(Res.string.menu_branch_tooltip),
+                        trailingContent = keybinding?.let { { KeybindingHint(it) } },
+                    ) {
+                        IconButton(
+                            onClick = onCreateBranch,
+                            modifier = Modifier
+                                .padding(end = 0.dp)
+                                .size(16.dp)
+                                .handOnHover(),
+                        ) {
+                            Icon(
+                                painter = painterResource(Res.drawable.add),
+                                contentDescription = stringResource(Res.string.menu_branch_tooltip),
+                                modifier = Modifier.fillMaxSize(),
+                                tint = MaterialTheme.colors.onBackground,
+                            )
+                        }
+                    }
+                },
                 isExpanded = isExpanded,
                 onExpand = { viewModel.onExpandBranches() }
             )
@@ -238,7 +293,7 @@ fun LazyListScope.remotes(
                 IconButton(
                     onClick = { onShowAddEditRemoteDialog(null) },
                     modifier = Modifier
-                        .padding(end = 16.dp)
+                        .padding(end = 0.dp)
                         .size(16.dp)
                         .handOnHover(),
                 ) {
@@ -395,7 +450,7 @@ fun LazyListScope.submodules(
                     IconButton(
                         onClick = onAddSubmodule,
                         modifier = Modifier
-                            .padding(end = 16.dp)
+                            .padding(end = 0.dp)
                             .size(16.dp)
                             .handOnHover(),
                     ) {
@@ -467,19 +522,22 @@ private fun Branch(
     ) {
         SideMenuSubentry(
             text = branch.simpleName,
-            fontWeight = if (isCurrentBranch) FontWeight.Bold else FontWeight.Normal,
             iconResourcePath = Res.drawable.branch,
             isSelected = isSelectedItem,
+            isCurrent = isCurrentBranch,
             onClick = onBranchClicked,
             onDoubleClick = onBranchDoubleClicked,
         ) {
             if (isCurrentBranch) {
                 Text(
                     text = stringResource(Res.string.side_pane_local_branches_current_branch_label),
-                    color = MaterialTheme.colors.onBackgroundSecondary,
-                    style = MaterialTheme.typography.caption,
+                    color = MaterialTheme.colors.primaryVariant,
+                    fontSize = 10.sp,
                     fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(horizontal = 16.dp),
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(5.dp))
+                        .background(MaterialTheme.colors.primary.copy(alpha = 0.22f))
+                        .padding(horizontal = 6.dp, vertical = 1.dp),
                 )
             }
         }

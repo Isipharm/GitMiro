@@ -36,7 +36,7 @@ fun NotificationSuccessPreview() {
 
 @Composable
 fun Notification(data: NotificationData) {
-    val notificationShape = RoundedCornerShape(8.dp)
+    val notificationShape = MaterialTheme.shapes.medium
 
     Row(
         modifier = Modifier
@@ -69,7 +69,7 @@ fun Notification(data: NotificationData) {
 
         Box(
             modifier = Modifier
-                .clip(RoundedCornerShape(topStart = 6.dp, bottomStart = 6.dp))
+                .clip(RoundedCornerShape(topStart = 10.dp, bottomStart = 10.dp))
                 .background(backgroundColor)
                 .fillMaxHeight()
         ) {

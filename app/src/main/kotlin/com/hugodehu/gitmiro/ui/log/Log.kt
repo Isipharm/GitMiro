@@ -2,6 +2,9 @@
 
 package com.hugodehu.gitmiro.ui.log
 
+import androidx.compose.ui.draw.rotate
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import com.hugodehu.gitmiro.ui.components.AppProgressBar
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.*
@@ -10,6 +13,7 @@ import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
@@ -32,6 +36,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
@@ -45,7 +50,10 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import com.hugodehu.gitmiro.ui.components.PanelDivider
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -75,8 +83,8 @@ import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
 import java.util.LinkedHashMap
 
-private const val CANVAS_MIN_WIDTH = 100
-private const val CANVAS_DEFAULT_WIDTH = 120
+private const val CANVAS_MIN_WIDTH = 60
+private const val CANVAS_DEFAULT_WIDTH = 80
 private const val MIN_GRAPH_LANES = 2
 
 private const val HORIZONTAL_SCROLL_PIXELS_MULTIPLIER = 10
@@ -88,8 +96,10 @@ private const val ARC_DIRECTION_RIGHT = 1
  * Additional number of lanes to simulate to create a margin at the end of the graph.
  */
 private const val MARGIN_GRAPH_LANES = 2
-private const val LANE_WIDTH = 30f
+private const val LANE_WIDTH = 18f
+private const val NODE_SIZE = 10
 private const val DIVIDER_WIDTH = 8
+private const val ROW_INSET = 6
 
 private const val LOG_BOTTOM_PADDING = 80
 
@@ -165,7 +175,7 @@ fun Log(
         )
 
         AnimatedVisibility(visible = logStatus.isLoading) {
-            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            AppProgressBar()
         }
     }
 }
@@ -245,11 +255,27 @@ private fun LogView(
             searchView(searchFilterValue)
         }
 
+        var branchFilter by remember { mutableStateOf<Branch?>(null) }
+        var authorFilter by remember { mutableStateOf<String?>(null) }
+        var dateFilter by remember { mutableStateOf(DateFilter.ANY) }
+
+        val commitFilter = remember(branchFilter, authorFilter, dateFilter, commitList) {
+            buildCommitFilter(commitList, branchFilter, authorFilter, dateFilter)
+        }
+
         GraphHeader(
-            graphWidth = graphWidth,
-            onPaddingChange = {
-                onGraphPaddingChange(it)
+            branches = remember(logState.branches) {
+                logState.branches.values.flatten().filter { it.isLocal }.distinctBy { it.simpleName }
             },
+            authors = remember(commitList) {
+                commitList.values.mapNotNull { it.author.name }.distinct().sorted()
+            },
+            branchFilter = branchFilter,
+            authorFilter = authorFilter,
+            dateFilter = dateFilter,
+            onBranchFilter = { branchFilter = it },
+            onAuthorFilter = { authorFilter = it },
+            onDateFilter = { dateFilter = it },
             onShowSearch = {
                 onAction(LogAction.SearchValueChange(""))
             }
@@ -277,6 +303,7 @@ private fun LogView(
                 horizontalScrollState = horizontalScrollState,
                 hasUncommittedChanges = hasUncommittedChanges,
                 searchFilter = if (searchFilterValue is LogSearch.SearchResults) searchFilterValue.commits else null,
+                commitFilter = commitFilter,
                 selectedCommit = selectedCommit,
                 logState = logState,
                 repositoryState = repositoryState,
@@ -399,91 +426,127 @@ fun SearchFilter(
         textFieldFocusRequester.requestFocus()
     }
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(56.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        TextField(
-            value = searchFilterText,
-            onValueChange = {
-                searchFilterText = it
-                scope.launch {
-                    logViewModel.onSearchValueChanged(it)
-                }
-            },
-            maxLines = 1,
+    Column {
+        Row(
             modifier = Modifier
-                .fillMaxSize()
-                .focusRequester(textFieldFocusRequester)
-                .onFocusChanged {
-                    if (it.isFocused) {
-                        searchFocused()
-                    }
-                }
-                .onPreviewKeyEvent { keyEvent ->
-                    when {
-                        keyEvent.matchesBinding(KeybindingOption.SIMPLE_ACCEPT) -> {
-                            scope.launch {
-                                logViewModel.selectNextFilterCommit()
-                            }
-                            true
-                        }
+                .fillMaxWidth()
+                .height(52.dp)
+                .background(MaterialTheme.colors.secondarySurface)
+                .padding(horizontal = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            val shape = MaterialTheme.shapes.small
+            val fieldInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+            val isFocused by fieldInteraction.collectIsFocusedAsState()
 
-                        else -> false
+            androidx.compose.foundation.text.BasicTextField(
+                value = searchFilterText,
+                onValueChange = {
+                    searchFilterText = it
+                    scope.launch {
+                        logViewModel.onSearchValueChanged(it)
                     }
                 },
-            label = {
-                Text("Search by message, author name or commit ID")
-            },
-            colors = textFieldColors(),
-            textStyle = MaterialTheme.typography.body1,
-            trailingIcon = {
-                Row(
-                    modifier = Modifier
-                        .fillMaxHeight(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    if (searchFilterText.isNotEmpty()) {
-                        Text(
-                            "${searchFilterResults.index}/${searchFilterResults.totalCount}",
-                            color = MaterialTheme.colors.onBackgroundSecondary,
+                singleLine = true,
+                interactionSource = fieldInteraction,
+                textStyle = MaterialTheme.typography.body2.copy(color = MaterialTheme.colors.onBackground),
+                cursorBrush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colors.primary),
+                modifier = Modifier
+                    .weight(1f)
+                    .height(34.dp)
+                    .background(MaterialTheme.colors.background, shape)
+                    .border(
+                        1.dp,
+                        if (isFocused) MaterialTheme.colors.primary else MaterialTheme.colors.onBackground.copy(alpha = 0.12f),
+                        shape,
+                    )
+                    .focusRequester(textFieldFocusRequester)
+                    .onFocusChanged {
+                        if (it.isFocused) {
+                            searchFocused()
+                        }
+                    }
+                    .onPreviewKeyEvent { keyEvent ->
+                        when {
+                            keyEvent.matchesBinding(KeybindingOption.SIMPLE_ACCEPT) -> {
+                                scope.launch {
+                                    logViewModel.selectNextFilterCommit()
+                                }
+                                true
+                            }
+
+                            else -> false
+                        }
+                    },
+                decorationBox = { innerTextField ->
+                    Row(
+                        modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            painterResource(Res.drawable.search),
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp),
+                            tint = MaterialTheme.colors.onBackgroundSecondary,
                         )
-                    }
 
-                    IconButton(
-                        modifier = Modifier
-                            .handOnHover(),
-                        onClick = {
-                            scope.launch { logViewModel.selectPreviousFilterCommit() }
+                        Box(modifier = Modifier.weight(1f).padding(horizontal = 8.dp)) {
+                            if (searchFilterText.isEmpty()) {
+                                Text(
+                                    text = "Search by message, author name or commit ID",
+                                    style = MaterialTheme.typography.body2,
+                                    color = MaterialTheme.colors.onBackgroundSecondary,
+                                    maxLines = 1,
+                                )
+                            }
+
+                            innerTextField()
                         }
-                    ) {
-                        Icon(Icons.Default.KeyboardArrowUp, contentDescription = null)
-                    }
 
-                    IconButton(
-                        modifier = Modifier
-                            .handOnHover(),
-                        onClick = {
-                            scope.launch { logViewModel.selectNextFilterCommit() }
+                        if (searchFilterText.isNotEmpty()) {
+                            Text(
+                                text = "${searchFilterResults.index}/${searchFilterResults.totalCount}",
+                                fontFamily = monoTypography(),
+                                style = MaterialTheme.typography.caption,
+                                color = MaterialTheme.colors.onBackgroundSecondary,
+                            )
                         }
-                    ) {
-                        Icon(Icons.Default.KeyboardArrowDown, contentDescription = null)
                     }
+                },
+            )
 
-                    IconButton(
-                        modifier = Modifier
-                            .handOnHover()
-                            .padding(end = 4.dp),
-                        onClick = { logViewModel.closeSearch() }
-                    ) {
-                        Icon(painterResource(Res.drawable.close), contentDescription = null)
-                    }
-                }
+            SearchBarIconButton(Res.drawable.dropdown, "Previous result", rotated = true) {
+                scope.launch { logViewModel.selectPreviousFilterCommit() }
             }
-        )
+            SearchBarIconButton(Res.drawable.dropdown, "Next result") {
+                scope.launch { logViewModel.selectNextFilterCommit() }
+            }
+            SearchBarIconButton(Res.drawable.close, "Close search") { logViewModel.closeSearch() }
+        }
+
+        PanelDivider()
     }
+}
+
+@Composable
+private fun SearchBarIconButton(
+    icon: DrawableResource,
+    description: String,
+    rotated: Boolean = false,
+    onClick: () -> Unit,
+) {
+    Icon(
+        painter = painterResource(icon),
+        contentDescription = description,
+        tint = MaterialTheme.colors.onBackgroundSecondary,
+        modifier = Modifier
+            .size(28.dp)
+            .clip(MaterialTheme.shapes.small)
+            .handMouseClickable(onClick = onClick)
+            .padding(6.dp)
+            .rotate(if (rotated) 180f else 0f),
+    )
 }
 
 @OptIn(ExperimentalComposeUiApi::class)
@@ -492,6 +555,7 @@ fun CommitsList(
     scrollState: LazyListState,
     hasUncommittedChanges: Boolean,
     searchFilter: List<GraphCommit>?,
+    commitFilter: ((GraphCommit) -> Boolean)?,
     selectedCommit: Commit?,
     logState: LogState,
     mergeTrackedBranches: Boolean,
@@ -539,7 +603,8 @@ fun CommitsList(
             item {
                 Box(
                     modifier = Modifier.height(MaterialTheme.linesHeight.logCommitHeight)
-                        .clipToBounds()
+                        .padding(horizontal = ROW_INSET.dp)
+                        .clip(MaterialTheme.shapes.small)
                         .fillMaxWidth()
                         .handMouseClickable { onAction(LogAction.UncommittedChangesSelected) }
                 ) {
@@ -581,7 +646,8 @@ fun CommitsList(
                 branches = branches[graphNode.hash].orEmpty(),
                 tags = tags[graphNode.hash].orEmpty(),
                 currentBranch = logState.currentBranch,
-                matchesSearchFilter = searchFilter?.contains(graphNode),
+                // Commits excluded by the header filters are dimmed, like the ones not matching the search
+                matchesSearchFilter = if (commitFilter?.invoke(graphNode) == false) false else searchFilter?.contains(graphNode),
                 horizontalScrollState = horizontalScrollState,
                 showCreateNewBranch = { onCreateBranch(graphNode.commit) },
                 showCreateNewTag = { onCreateTag(graphNode.commit) },
@@ -660,63 +726,164 @@ private fun scrollOnNewCommitAdded(
 }
 
 
+enum class DateFilter(val label: String, val seconds: Long?) {
+    ANY("Any date", null),
+    TODAY("Last 24 hours", 24 * 3600L),
+    WEEK("Last 7 days", 7 * 24 * 3600L),
+    MONTH("Last 30 days", 30 * 24 * 3600L),
+}
+
+/**
+ * Predicate telling which commits match the header filters, or null when no filter is active.
+ */
+private fun buildCommitFilter(
+    commitList: GraphCommits,
+    branch: Branch?,
+    author: String?,
+    date: DateFilter,
+): ((GraphCommit) -> Boolean)? {
+    if (branch == null && author == null && date == DateFilter.ANY) return null
+
+    // Commits reachable from the branch, only the loaded ones can be walked
+    val reachable: Set<String>? = branch?.let {
+        val visited = HashSet<String>()
+        val pending = ArrayDeque(listOf(it.hash))
+
+        while (pending.isNotEmpty()) {
+            val hash = pending.removeLast()
+
+            if (visited.add(hash)) {
+                commitList.commits[hash]?.commit?.parentsHashes?.let(pending::addAll)
+            }
+        }
+
+        visited
+    }
+    val minDate = date.seconds?.let { System.currentTimeMillis() / 1000 - it }
+
+    return { node ->
+        (reachable == null || node.hash in reachable) &&
+                (author == null || node.author.name == author) &&
+                (minDate == null || node.date >= minDate)
+    }
+}
+
 @Composable
 fun GraphHeader(
-    graphWidth: Dp,
-    onPaddingChange: (Float) -> Unit,
+    branches: List<Branch>,
+    authors: List<String>,
+    branchFilter: Branch?,
+    authorFilter: String?,
+    dateFilter: DateFilter,
+    onBranchFilter: (Branch?) -> Unit,
+    onAuthorFilter: (String?) -> Unit,
+    onDateFilter: (DateFilter) -> Unit,
     onShowSearch: () -> Unit,
 ) {
-    Box(
+    Column(
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(34.dp)
-                .background(MaterialTheme.colors.tertiarySurface),
+                .height(44.dp)
+                .padding(start = 14.dp, end = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text(
-                modifier = Modifier
-                    .width(graphWidth)
-                    .padding(start = 16.dp),
-                text = "Graph",
-                color = MaterialTheme.colors.onBackground,
-                style = MaterialTheme.typography.body2,
-                maxLines = 1,
+            FilterPill(
+                label = branchFilter?.simpleName ?: "All branches",
+                isActive = branchFilter != null,
+                items = {
+                    listOf(
+                        ContextMenuElement.ContextTextEntry(label = "All branches", onClick = { onBranchFilter(null) })
+                    ) + branches.map { branch ->
+                        ContextMenuElement.ContextTextEntry(label = branch.simpleName, onClick = { onBranchFilter(branch) })
+                    }
+                },
+            )
+            FilterPill(
+                label = authorFilter ?: "Author",
+                isActive = authorFilter != null,
+                items = {
+                    listOf(
+                        ContextMenuElement.ContextTextEntry(label = "Any author", onClick = { onAuthorFilter(null) })
+                    ) + authors.map { author ->
+                        ContextMenuElement.ContextTextEntry(label = author, onClick = { onAuthorFilter(author) })
+                    }
+                },
+            )
+            FilterPill(
+                label = if (dateFilter == DateFilter.ANY) "Date" else dateFilter.label,
+                isActive = dateFilter != DateFilter.ANY,
+                items = {
+                    DateFilter.entries.map { option ->
+                        ContextMenuElement.ContextTextEntry(label = option.label, onClick = { onDateFilter(option) })
+                    }
+                },
             )
 
-            val density = LocalDensity.current.density
+            Spacer(modifier = Modifier.weight(1f))
 
-            SimpleDividerLog(
-                modifier = Modifier.draggable(
-                    rememberDraggableState {
-                        onPaddingChange(it / density) // Divide by density for screens with scaling > 1
-                    }, Orientation.Horizontal
-                ),
-            )
-
-            Text(
-                modifier = Modifier
-                    .padding(start = 16.dp)
-                    .weight(1f),
-                text = "Message",
-                color = MaterialTheme.colors.onBackground,
-                style = MaterialTheme.typography.body2,
-                maxLines = 1,
-            )
-
-            IconButton(
-                modifier = Modifier
-                    .padding(end = 8.dp)
-                    .handOnHover(),
-                onClick = onShowSearch
-            ) {
+            InstantTooltip(text = "Search commits") {
                 Icon(
                     painterResource(Res.drawable.search),
-                    modifier = Modifier.size(18.dp),
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(MaterialTheme.shapes.small)
+                        .handMouseClickable { onShowSearch() }
+                        .padding(6.dp),
+                    contentDescription = "Search commits",
+                    tint = MaterialTheme.colors.onBackgroundSecondary,
+                )
+            }
+        }
+
+        PanelDivider()
+    }
+}
+
+@Composable
+private fun FilterPill(
+    label: String,
+    isActive: Boolean,
+    items: () -> List<ContextMenuElement>,
+) {
+    // The popup of the dropdown is emitted next to its anchor, so the Box keeps it out of the parent Row, where its
+    // spacing would move the pills that follow
+    Box {
+        DropDownMenu(items = items, showIcons = false, shape = RoundedCornerShape(percent = 50)) {
+            Row(
+                modifier = Modifier
+                    .height(28.dp)
+                    .clip(RoundedCornerShape(percent = 50))
+                    .background(
+                        if (isActive) MaterialTheme.colors.primary.copy(alpha = 0.16f) else Color.Transparent
+                    )
+                    .border(
+                        1.dp,
+                        if (isActive) MaterialTheme.colors.primary.copy(alpha = 0.5f)
+                        else MaterialTheme.colors.onBackground.copy(alpha = 0.12f),
+                        RoundedCornerShape(percent = 50),
+                    )
+                    // The dropdown wrapping the pill handles the click, a clickable here would swallow it
+                    .handOnHover()
+                    .padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.body2,
+                    fontWeight = FontWeight.Medium,
+                    color = if (isActive) MaterialTheme.colors.primaryVariant else MaterialTheme.colors.onBackgroundSecondary,
+                    maxLines = 1,
+                )
+                Icon(
+                    painter = painterResource(Res.drawable.dropdown),
                     contentDescription = null,
-                    tint = MaterialTheme.colors.onBackground,
+                    tint = MaterialTheme.colors.onBackgroundSecondary,
+                    modifier = Modifier.size(14.dp),
                 )
             }
         }
@@ -752,7 +919,7 @@ fun UncommittedChangesLine(
             modifier = Modifier.padding(start = 16.dp),
             style = MaterialTheme.typography.body2,
             maxLines = 1,
-            color = MaterialTheme.colors.onBackground,
+            color = MaterialTheme.colors.onBackgroundSecondary,
         )
 
         Spacer(modifier = Modifier.weight(1f))
@@ -772,7 +939,7 @@ fun LogStatusSummary(statusSummary: StatusSummary, modifier: Modifier) {
         if (statusSummary.modifiedCount > 0) {
             SummaryEntry(
                 count = statusSummary.modifiedCount,
-                icon = Icons.Default.Edit,
+                letter = "M",
                 color = MaterialTheme.colors.modifyFile,
             )
         }
@@ -780,7 +947,7 @@ fun LogStatusSummary(statusSummary: StatusSummary, modifier: Modifier) {
         if (statusSummary.addedCount > 0) {
             SummaryEntry(
                 count = statusSummary.addedCount,
-                icon = Icons.Default.Add,
+                letter = "A",
                 color = MaterialTheme.colors.addFile,
             )
         }
@@ -788,7 +955,7 @@ fun LogStatusSummary(statusSummary: StatusSummary, modifier: Modifier) {
         if (statusSummary.deletedCount > 0) {
             SummaryEntry(
                 count = statusSummary.deletedCount,
-                icon = Icons.Default.Delete,
+                letter = "D",
                 color = MaterialTheme.colors.deleteFile,
             )
         }
@@ -796,7 +963,7 @@ fun LogStatusSummary(statusSummary: StatusSummary, modifier: Modifier) {
         if (statusSummary.conflictingCount > 0) {
             SummaryEntry(
                 count = statusSummary.conflictingCount,
-                icon = Icons.Default.Warning,
+                letter = "U",
                 color = MaterialTheme.colors.conflictFile,
             )
         }
@@ -805,20 +972,25 @@ fun LogStatusSummary(statusSummary: StatusSummary, modifier: Modifier) {
 
 @Composable
 fun SummaryEntry(
-    count: Int, icon: ImageVector, color: Color,
+    count: Int, letter: String, color: Color,
 ) {
     Row(
         modifier = Modifier.padding(horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
+        Text(
+            text = letter,
+            fontFamily = monoTypography(),
+            fontWeight = FontWeight.Medium,
+            style = MaterialTheme.typography.caption,
+            color = color,
+        )
+
         Text(
             text = count.toString(),
             style = MaterialTheme.typography.body2,
             color = MaterialTheme.colors.onBackground,
-        )
-
-        Icon(
-            imageVector = icon, tint = color, contentDescription = null, modifier = Modifier.size(14.dp)
         )
     }
 }
@@ -891,6 +1063,8 @@ private fun CommitLine(
         Box(
             modifier = Modifier
                 .height(MaterialTheme.linesHeight.logCommitHeight)
+                .padding(horizontal = ROW_INSET.dp)
+                .clip(MaterialTheme.shapes.small)
                 .handMouseClickable { onRevCommitSelected() }
         ) {
             val colors = MaterialTheme.colors.graphColors
@@ -939,6 +1113,7 @@ private fun CommitLine(
                         .padding(end = 4.dp),
                 ) {
                     CommitMessage(
+                        isSelected = isSelected,
                         graphCommit = graphNode,
                         nodeColor = nodeColor,
                         matchesSearchFilter = matchesSearchFilter,
@@ -968,12 +1143,57 @@ private fun CommitLine(
                     )
                 }
             }
+
+            if (isSelected) {
+                Box(
+                    modifier = Modifier
+                        .width(2.dp)
+                        .fillMaxHeight()
+                        .background(MaterialTheme.colors.primary)
+                )
+            }
         }
+    }
+}
+
+/**
+ * Marks the stashes of the log, which are not commits of the history.
+ */
+@Composable
+private fun StashBadge() {
+    val accent = MaterialTheme.colors.secondary
+    val shape = RoundedCornerShape(6.dp)
+
+    Row(
+        modifier = Modifier
+            .padding(horizontal = 3.dp)
+            .height(22.dp)
+            .clip(shape)
+            .background(accent.copy(alpha = 0.14f))
+            .border(1.dp, accent.copy(alpha = 0.4f), shape)
+            .padding(horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            modifier = Modifier.size(12.dp),
+            painter = painterResource(Res.drawable.stash),
+            contentDescription = null,
+            tint = accent,
+        )
+        Text(
+            text = "stash",
+            fontSize = 11.5.sp,
+            fontWeight = FontWeight.Medium,
+            color = accent,
+            maxLines = 1,
+            modifier = Modifier.padding(start = 5.dp),
+        )
     }
 }
 
 @Composable
 fun CommitMessage(
+    isSelected: Boolean,
     graphCommit: GraphCommit,
     currentBranch: Branch?,
     isStash: Boolean,
@@ -1006,6 +1226,10 @@ fun CommitMessage(
         Row(
             modifier = Modifier.padding(start = 16.dp)
         ) {
+            if (isStash) {
+                StashBadge()
+            }
+
             if (!isStash) {
                 // TODO Enable this once commits list is migrated to new structure
                 for (tag in tags) {
@@ -1066,20 +1290,33 @@ fun CommitMessage(
             graphCommit.commit.shortMessage
         }
 
+        // The commit the current branch points to is in bold, the selected one is marked by the violet bar of its row
+        val isCurrentCommit = currentBranch?.hash == graphCommit.hash
+
         Text(
             text = message,
             modifier = Modifier
-                .padding(start = 8.dp)
+                .padding(start = 8.dp, end = 12.dp)
                 .weight(1f),
+            fontWeight = if (isCurrentCommit) FontWeight.SemiBold else FontWeight.Normal,
             style = MaterialTheme.typography.body2,
             color = if (matchesSearchFilter == false) MaterialTheme.colors.onBackgroundSecondary else MaterialTheme.colors.onBackground,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
 
+        Text(
+            text = graphCommit.commit.author.name.orEmpty(),
+            modifier = Modifier.width(LOG_AUTHOR_COLUMN_WIDTH),
+            style = MaterialTheme.typography.caption,
+            color = MaterialTheme.colors.onBackgroundSecondary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+
         InstantTooltip(
             text = graphCommit.date.toSmartSystemString(allowRelative = false, showTime = true),
-            modifier = Modifier.padding(horizontal = 16.dp),
+            modifier = Modifier.width(LOG_DATE_COLUMN_WIDTH),
             position = InstantTooltipPosition.RIGHT,
         ) {
             Text(
@@ -1090,31 +1327,46 @@ fun CommitMessage(
                 overflow = TextOverflow.Ellipsis,
             )
         }
+
+        Text(
+            text = graphCommit.commit.shortHash,
+            modifier = Modifier.width(LOG_HASH_COLUMN_WIDTH),
+            style = MaterialTheme.typography.caption,
+            fontFamily = monoTypography(),
+            color = MaterialTheme.colors.onBackgroundSecondary,
+            maxLines = 1,
+        )
     }
 }
 
+private val LOG_AUTHOR_COLUMN_WIDTH = 120.dp
+private val LOG_DATE_COLUMN_WIDTH = 96.dp
+private val LOG_HASH_COLUMN_WIDTH = 76.dp
+
 @Composable
 fun DividerLog(modifier: Modifier, graphWidth: Dp) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isHovered by interactionSource.collectIsHoveredAsState()
+
+    // Only shown while hovered, to tell the graph width can be dragged
     Box(
         modifier = Modifier
             .padding(start = graphWidth)
             .width(DIVIDER_WIDTH.dp)
             .then(modifier)
+            .hoverable(interactionSource)
             .pointerHoverIcon(resizePointerIconEast)
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxHeight()
-                .width(2.dp)
-                .background(color = MaterialTheme.colors.onBackground.copy(alpha = 0.2F))
-                .align(Alignment.Center)
-        )
+        if (isHovered) {
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .width(2.dp)
+                    .background(color = MaterialTheme.colors.onBackground.copy(alpha = 0.2F))
+                    .align(Alignment.Center)
+            )
+        }
     }
-}
-
-@Composable
-fun SimpleDividerLog(modifier: Modifier) {
-    DividerLog(modifier, graphWidth = 0.dp)
 }
 
 
@@ -1231,7 +1483,7 @@ fun CommitsGraph(
         CommitNode(
             modifier = Modifier
                 .align(Alignment.CenterStart)
-                .padding(start = ((itemPosition + 1) * 30 - 15).dp),
+                .padding(start = ((itemPosition + 1) * LANE_WIDTH - NODE_SIZE / 2f).dp),
             author = plotCommit.author,
             isMerge = plotCommit.commit.parentCount > 1,
             isStash = isStash,
@@ -1280,24 +1532,17 @@ fun CommitNode(
     color: Color,
 ) {
     if (isStash) {
+        // Hollow node, so a stash stands apart from the commits of its lane
         Box(
             modifier = modifier
-                .size(30.dp)
+                .size(NODE_SIZE.dp)
                 .border(2.dp, color, shape = CircleShape)
                 .clip(CircleShape)
                 .background(MaterialTheme.colors.background),
-            contentAlignment = Alignment.Center,
-        ) {
-            Image(
-                painterResource(Res.drawable.stash),
-                modifier = Modifier.size(20.dp),
-                contentDescription = null,
-                colorFilter = ColorFilter.tint(color),
-            )
-        }
+        )
     } else {
         val shape = if (isMerge) {
-            RoundedCornerShape(4.dp)
+            RoundedCornerShape(3.dp)
         } else {
             CircleShape
         }
@@ -1308,17 +1553,10 @@ fun CommitNode(
         ) {
             Box(
                 modifier = modifier
-                    .size(30.dp)
-                    .border(2.dp, color, shape = shape)
+                    .size(NODE_SIZE.dp)
                     .clip(shape)
-            ) {
-                AvatarImage(
-                    modifier = Modifier.fillMaxSize(),
-                    personIdent = author,
-                    shape = shape,
-                    color = color,
-                )
-            }
+                    .background(color)
+            )
         }
     }
 }
@@ -1343,17 +1581,24 @@ fun UncommittedChangesGraphNode(
             modifier = Modifier.fillMaxSize()
         ) {
             clipRect {
+                val radius = NODE_SIZE / 2f * density
+
                 if (hasPreviousCommits) drawLine(
                     color = colors[0],
-                    start = Offset(laneWidthWithDensity, this.center.y),
+                    start = Offset(laneWidthWithDensity, this.center.y + radius),
                     end = Offset(laneWidthWithDensity, this.size.height),
                     strokeWidth = 2f * density,
                 )
 
+                // Dashed ring: these changes are not a commit yet
                 drawCircle(
                     color = colors[0],
-                    radius = 15f * density,
+                    radius = radius,
                     center = Offset(laneWidthWithDensity, this.center.y),
+                    style = Stroke(
+                        width = 2f * density,
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(3f * density, 2f * density)),
+                    ),
                 )
             }
         }
@@ -1421,17 +1666,7 @@ fun BranchChip(
     }
 
     val endingContent: @Composable RowScope.() -> Unit = {
-        val sizeMultiplierCurrentBranch by animateFloatAsState(if (isCurrentBranch) 1f else 0f)
         val sizeMultiplierTrackingRemoteBranch by animateFloatAsState(if (trackingRemoteBranch != null) 1f else 0f)
-
-        Icon(
-            painter = painterResource(Res.drawable.location),
-            contentDescription = null,
-            modifier = Modifier
-                .size((18 * sizeMultiplierCurrentBranch).dp)
-                .padding(end = (6 * sizeMultiplierCurrentBranch).dp),
-            tint = MaterialTheme.colors.primaryVariant,
-        )
 
         if (trackingRemoteBranch != null) {
             val tooltipText = buildAnnotatedString {
@@ -1458,16 +1693,14 @@ fun BranchChip(
                 ContextMenu(
                     items = remoteContextMenuItemsList,
                 ) {
-                    Box(modifier = Modifier.background(color = color)) {
-                        Icon(
-                            modifier = Modifier
-                                .padding((6 * sizeMultiplierTrackingRemoteBranch).dp)
-                                .size((14 * sizeMultiplierTrackingRemoteBranch).dp),
-                            painter = painterResource(Res.drawable.cloud),
-                            contentDescription = null,
-                            tint = MaterialTheme.colors.background,
-                        )
-                    }
+                    Icon(
+                        modifier = Modifier
+                            .padding(start = (5 * sizeMultiplierTrackingRemoteBranch).dp)
+                            .size((14 * sizeMultiplierTrackingRemoteBranch).dp),
+                        painter = painterResource(Res.drawable.cloud),
+                        contentDescription = null,
+                        tint = MaterialTheme.colors.onBackgroundSecondary,
+                    )
                 }
             }
         }
@@ -1480,7 +1713,12 @@ fun BranchChip(
             },
             orientation = Orientation.Vertical,
         ),
-        color = color,
+        color = when {
+            branch.isRemote -> MaterialTheme.colors.onBackgroundSecondary
+            isCurrentBranch -> MaterialTheme.colors.graphColors[1]
+            else -> MaterialTheme.colors.primary
+        },
+        isOutlined = branch.isRemote,
         text = branch.logName,
         icon = if (branch.isLocal) Res.drawable.branch else Res.drawable.cloud,
         onCheckoutRef = { onCheckoutBranch(branch) },
@@ -1527,7 +1765,7 @@ fun TagChip(
         Res.drawable.tag,
         onCheckoutRef = onCheckoutTag,
         contextMenuItemsList = contextMenuItemsList,
-        color = color,
+        color = MaterialTheme.colors.secondary,
     )
 }
 
@@ -1538,15 +1776,32 @@ fun Chip(
     text: String,
     icon: DrawableResource,
     color: Color,
+    isOutlined: Boolean = false,
     onCheckoutRef: () -> Unit,
     contextMenuItemsList: () -> List<ContextMenuElement>,
     endingContent: @Composable RowScope.() -> Unit = {},
 ) {
+    val shape = RoundedCornerShape(6.dp)
+
+    // Tinted by the kind of ref, as in the mockup: tags, checked out branch, other local branches, remote branches
+    val accent = color
+    // On the light theme the text is a darker shade of the accent than the tint behind it, to stay readable
+    val contentColor = when {
+        isOutlined -> accent
+        MaterialTheme.colors.isLight ->
+            if (accent == MaterialTheme.colors.primary) MaterialTheme.colors.primaryVariant else lerp(accent, Color.Black, 0.25f)
+
+        else -> lerp(accent, Color.White, 0.3f)
+    }
+    val chipBackground = if (isOutlined) MaterialTheme.colors.onBackground.copy(alpha = 0.05f) else accent.copy(alpha = 0.14f)
+    val chipBorder = if (isOutlined) MaterialTheme.colors.onBackground.copy(alpha = 0.14f) else accent.copy(alpha = 0.4f)
+
     Box(
         modifier = Modifier
-            .padding(horizontal = 4.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .border(width = 2.dp, color = color, shape = RoundedCornerShape(16.dp))
+            .padding(horizontal = 3.dp)
+            .clip(shape)
+            .background(chipBackground)
+            .border(width = 1.dp, color = chipBorder, shape = shape)
             .combinedClickable(onDoubleClick = onCheckoutRef, onClick = {})
             .handOnHover()
     ) {
@@ -1554,25 +1809,24 @@ fun Chip(
             items = contextMenuItemsList
         ) {
             Row(
-                modifier = modifier,
+                modifier = modifier
+                    .height(22.dp)
+                    .padding(horizontal = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Box(modifier = Modifier.background(color = color)) {
-                    Icon(
-                        modifier = Modifier
-                            .padding(6.dp)
-                            .size(14.dp),
-                        painter = painterResource(icon),
-                        contentDescription = null,
-                        tint = MaterialTheme.colors.background,
-                    )
-                }
+                Icon(
+                    modifier = Modifier.size(12.dp),
+                    painter = painterResource(icon),
+                    contentDescription = null,
+                    tint = contentColor,
+                )
                 Text(
                     text = text,
-                    style = MaterialTheme.typography.body2,
-                    color = MaterialTheme.colors.onBackground,
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = contentColor,
                     maxLines = 1,
-                    modifier = Modifier.padding(horizontal = 6.dp)
+                    modifier = Modifier.padding(start = 5.dp)
                 )
 
                 endingContent()

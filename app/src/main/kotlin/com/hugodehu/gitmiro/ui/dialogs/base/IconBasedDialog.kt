@@ -1,7 +1,11 @@
 package com.hugodehu.gitmiro.ui.dialogs.base
 
 import androidx.compose.desktop.ui.tooling.preview.Preview
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.draw.clip
+import com.hugodehu.gitmiro.theme.onBackgroundSecondary
 import androidx.compose.material.Icon
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
@@ -66,36 +70,45 @@ fun IconBasedDialog(
 
     MaterialDialog(onCloseRequested = onDismiss) {
         Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
+            horizontalAlignment = Alignment.Start,
             verticalArrangement = Arrangement.Center,
-            modifier = Modifier.width(IntrinsicSize.Min)
+            modifier = Modifier.width(IntrinsicSize.Min).widthIn(min = 400.dp)
         ) {
-            Icon(
-                icon,
-                contentDescription = null,
-                modifier = Modifier
-                    .padding(bottom = 16.dp)
-                    .size(64.dp),
-                tint = MaterialTheme.colors.onBackground,
-            )
+            Row(
+                modifier = Modifier.padding(bottom = 18.dp),
+                verticalAlignment = Alignment.Top,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(MaterialTheme.shapes.medium)
+                        .background(MaterialTheme.colors.primary.copy(alpha = 0.16f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        icon,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = MaterialTheme.colors.primaryVariant,
+                    )
+                }
 
-            Text(
-                text = title,
-                modifier = Modifier
-                    .padding(bottom = 8.dp),
-                color = MaterialTheme.colors.onBackground,
-                style = MaterialTheme.typography.body1,
-                fontWeight = FontWeight.SemiBold,
-            )
+                Column(modifier = Modifier.padding(start = 14.dp)) {
+                    Text(
+                        text = title,
+                        modifier = Modifier.padding(bottom = 3.dp),
+                        color = MaterialTheme.colors.onBackground,
+                        style = MaterialTheme.typography.body1,
+                        fontWeight = FontWeight.SemiBold,
+                    )
 
-            Text(
-                text = subtitle,
-                modifier = Modifier
-                    .padding(bottom = 16.dp),
-                color = MaterialTheme.colors.onBackground,
-                style = MaterialTheme.typography.body2,
-                textAlign = TextAlign.Center,
-            )
+                    Text(
+                        text = subtitle,
+                        color = MaterialTheme.colors.onBackgroundSecondary,
+                        style = MaterialTheme.typography.body2,
+                    )
+                }
+            }
 
             content()
 
@@ -109,6 +122,11 @@ fun IconBasedDialog(
                         text = cancelActionText,
                         modifier = Modifier
                             .padding(end = 8.dp)
+                            .border(
+                                1.dp,
+                                MaterialTheme.colors.onBackground.copy(alpha = 0.16f),
+                                MaterialTheme.shapes.small,
+                            )
                             .run {
                                 if (
                                     actionsFocusRequester != null &&

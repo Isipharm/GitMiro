@@ -45,20 +45,13 @@ fun SecondaryButton(
     maxLines: Int = 1,
     onClick: () -> Unit,
 ) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(4.dp))
-            .background(backgroundButton)
-            .handMouseClickable { onClick() },
-    ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.body2,
-            color = textColor,
-            maxLines = maxLines,
-            modifier = Modifier.padding(vertical = 4.dp, horizontal = 16.dp)
-        )
-    }
+    // Graphite style: a bordered ghost button, red for the destructive ones
+    GhostButton(
+        text = text,
+        onClick = onClick,
+        modifier = modifier,
+        color = if (backgroundButton == MaterialTheme.colors.error) MaterialTheme.colors.error else MaterialTheme.colors.onBackground,
+    )
 }
 
 @Composable
@@ -104,7 +97,7 @@ fun SecondaryButtonCompactable(
 
     Row(
         modifier = modifier
-            .clip(RoundedCornerShape(4.dp))
+            .clip(MaterialTheme.shapes.small)
             .background(backgroundColorState)
             .hoverable(hoverInteraction)
             .handMouseClickable { onClick() }

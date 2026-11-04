@@ -136,7 +136,7 @@ fun AddSubmodulesDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 4.dp)
-                    .clip(RoundedCornerShape(4.dp))
+                    .clip(MaterialTheme.shapes.small)
                     .background(MaterialTheme.colors.error)
             ) {
                 Text(

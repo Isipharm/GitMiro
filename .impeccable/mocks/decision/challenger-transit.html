@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><title>Plan de réseau</title>
+<link href="https://fonts.googleapis.com/css2?family=Overpass:wght@400;600;700;800&family=Overpass+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--enamel:#0E1A33;--enamel2:#13234A;--enamel3:#0A1428;--porc:#F4F1E8;--porc2:#B9C0D0;--porc3:#94A0B8;
+--scarlet:#D02C40;--cobalt:#4C8DFF;--amber:#F2A900;--green:#2E9E5B;--sel:#1D3266}
+*{box-sizing:border-box;margin:0;padding:0}
+body{width:1440px;height:900px;overflow:hidden;font:13px/1.35 Overpass,sans-serif;color:var(--porc);background:var(--enamel3)}
+.mono{font-family:"Overpass Mono",monospace;font-variant-numeric:tabular-nums}
+.tabs{height:36px;display:flex;align-items:flex-end;padding:0 12px;gap:2px}
+.tab{height:30px;padding:0 16px;display:flex;align-items:center;color:var(--porc3);font-weight:600}
+.tab.on{background:var(--enamel);color:var(--porc);border-radius:6px 6px 0 0}
+.bar{height:52px;display:flex;align-items:center;gap:6px;padding:0 16px;background:var(--enamel)}
+.repo{font-size:18px;font-weight:800;margin-right:20px;letter-spacing:-.01em}
+.repo small{display:block;font-size:11px;font-weight:400;color:var(--porc3)}
+.btn{height:32px;padding:0 12px;display:flex;align-items:center;gap:6px;border-radius:16px;background:var(--enamel2);font-weight:600;color:var(--porc)}
+.btn svg{width:16px;height:16px;stroke:var(--porc);fill:none;stroke-width:1.8}
+.btn .n{background:var(--scarlet);color:#fff;border-radius:8px;padding:0 6px;font-size:11px}
+.btn.pri{background:var(--porc);color:var(--enamel)}
+.sp{flex:1}
+.search{width:280px;height:32px;border-radius:16px;background:var(--enamel3);display:flex;align-items:center;padding:0 14px;color:var(--porc3)}
+.main{display:grid;grid-template-columns:248px 1fr 420px;height:812px}
+.side{background:var(--enamel3);padding:12px 0}
+.sec{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--porc3);padding:14px 18px 6px;display:flex;justify-content:space-between}
+.it{height:28px;display:flex;align-items:center;gap:10px;padding:0 18px}
+.it.on{background:var(--enamel);font-weight:700}
+.dot{width:12px;height:12px;border-radius:50%;border:3px solid}
+.it .c{margin-left:auto;color:var(--porc3);font-size:11px}
+.log{background:var(--enamel);position:relative}
+.lh,.row{display:grid;grid-template-columns:96px 1fr 120px 92px 84px;align-items:center;padding:0 16px}
+.lh{height:32px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--porc3)}
+.row{height:30px}.row.on{background:var(--sel)}
+.msg{display:flex;gap:8px;align-items:center;white-space:nowrap;overflow:hidden}
+.line{font-weight:800;font-size:11px;line-height:20px;padding:0 9px;border-radius:10px;color:#fff}
+.tag{font:600 11px/18px "Overpass Mono",monospace;padding:0 7px;border-radius:9px;border:1.5px solid var(--porc3);color:var(--porc2)}
+.a,.d{color:var(--porc2);font-size:12px}.h{color:var(--porc3);font-size:12px}
+.wip{color:var(--porc2);font-style:italic}
+svg.g{position:absolute;left:16px;top:32px}
+.det{background:var(--enamel3);display:flex;flex-direction:column}
+.dh{padding:20px 22px 16px;background:var(--enamel)}
+.route{display:flex;align-items:center;gap:8px;margin-bottom:12px;font-weight:700}
+.dh h1{font-size:21px;line-height:1.25;font-weight:800;letter-spacing:-.01em;margin-bottom:12px}
+.facts{display:grid;grid-template-columns:64px 1fr;row-gap:5px;font-size:12px}
+.facts dt{color:var(--porc3);font-weight:700;letter-spacing:.08em;font-size:11px;text-transform:uppercase}
+.f{height:30px;display:flex;align-items:center;gap:10px;padding:0 22px}
+.st{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font:700 11px "Overpass Mono",monospace;color:var(--enamel)}
+.st.M{background:var(--cobalt)}.st.A{background:var(--green)}.st.D{background:var(--scarlet)}
+.p{color:var(--porc3)}.ln{margin-left:auto;font-size:12px}.plus{color:#5FD08E}.minus{color:#FF7A88}
+.diff{margin:10px 22px 0;background:var(--enamel);border-radius:8px;overflow:hidden;font:12px/22px "Overpass Mono",monospace}
+.dl{display:grid;grid-template-columns:36px 36px 1fr;padding:0 10px 0 6px}
+.dl i{color:var(--porc3);font-style:normal;text-align:right;padding-right:8px}
+.dl.add{background:rgba(46,158,91,.22)}.dl.rem{background:rgba(224,57,76,.22)}
+.dl.hk{color:var(--porc3);background:var(--enamel2);padding-left:10px;display:block}
+.commit{margin-top:auto;background:var(--enamel);padding:14px 22px 16px}
+.field{height:38px;border-radius:8px;background:var(--enamel3);display:flex;align-items:center;padding:0 12px;color:var(--porc3)}
+.crow{display:flex;gap:8px;margin-top:10px}
+</style></head><body>
+<div class="tabs"><div class="tab on">GitMiro</div><div class="tab">Officine-Back</div><div class="tab">LGO-Client</div></div>
+<div class="bar">
+<div class="repo">GitMiro<small>D:\WS\Tools\GitMiro</small></div>
+<div class="btn"><svg viewBox="0 0 16 16"><path d="M8 2v10M4 8l4 4 4-4"/></svg>Pull</div>
+<div class="btn"><svg viewBox="0 0 16 16"><path d="M8 14V4M4 8l4-4 4 4"/></svg>Push <span class="n">2</span></div>
+<div class="btn"><svg viewBox="0 0 16 16"><circle cx="4" cy="3.5" r="1.5"/><circle cx="4" cy="12.5" r="1.5"/><circle cx="12" cy="5" r="1.5"/><path d="M4 5v6M12 6.5L4 11"/></svg>Branche</div>
+<div class="btn"><svg viewBox="0 0 16 16"><path d="M2 5h12v8H2z"/></svg>Stash</div>
+<div class="btn"><svg viewBox="0 0 16 16"><path d="M2 7h12v6H2zM8 2v7"/></svg>Pop</div>
+<div class="sp"></div><div class="search">Rechercher un commit, auteur, hash</div>
+</div>
+<div class="main">
+<aside class="side">
+<div class="sec">Lignes locales <span>3</span></div>
+<div class="it on"><i class="dot" style="border-color:var(--scarlet)"></i>main<span class="c mono">↑2</span></div>
+<div class="it"><i class="dot" style="border-color:var(--amber)"></i>feat/conflict-preview</div>
+<div class="it"><i class="dot" style="border-color:var(--green)"></i>fix/stash-new-files</div>
+<div class="sec">Remotes <span>1</span></div>
+<div class="it">origin</div><div class="it" style="padding-left:40px"><i class="dot" style="border-color:var(--scarlet)"></i>main</div>
+<div class="sec">Tags <span>7</span></div>
+<div class="it mono">v1.0.7</div><div class="it mono">v1.0.6</div><div class="it mono">v1.0.5</div>
+<div class="sec">Stashes <span>1</span></div><div class="it">WIP sur main : theme tokens</div>
+<div class="sec">Sous-modules <span>0</span></div>
+</aside>
+<section class="log">
+<div class="lh"><span>Réseau</span><span>Message</span><span>Auteur</span><span>Date</span><span>Hash</span></div>
+<svg class="g" width="80" height="560" fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+<path d="M16 15V560" stroke="#E0394C"/>
+<path d="M16 105L40 129V261L16 285" stroke="#F2A900"/>
+<path d="M16 315L64 363V387L16 435" stroke="#2E9E5B"/>
+<g fill="#F4F1E8" stroke="#0E1A33" stroke-width="2.5">
+<circle cx="40" cy="165" r="5"/><circle cx="40" cy="195" r="5"/><circle cx="64" cy="375" r="5"/>
+<circle cx="16" cy="45" r="5"/><circle cx="16" cy="75" r="5"/><circle cx="16" cy="135" r="5"/><circle cx="16" cy="165" r="5" opacity="0"/><circle cx="16" cy="225" r="5"/><circle cx="16" cy="345" r="5"/><circle cx="16" cy="465" r="5"/><circle cx="16" cy="495" r="5"/><circle cx="16" cy="525" r="5"/><circle cx="16" cy="555" r="5"/>
+</g>
+<g fill="#F4F1E8" stroke="#0E1A33" stroke-width="3"><circle cx="16" cy="105" r="8"/><circle cx="16" cy="285" r="8"/><circle cx="16" cy="315" r="8"/><circle cx="16" cy="435" r="8"/></g>
+<circle cx="16" cy="15" r="6" fill="#0E1A33" stroke="#F4F1E8" stroke-width="2" stroke-dasharray="3 2"/>
+</svg>
+<div class="row"><span></span><span class="msg wip">Modifications non commitées · 3 fichiers</span><span></span><span></span><span></span></div>
+<div class="row on"><span></span><span class="msg"><b class="line" style="background:var(--scarlet)">main</b><span class="tag">v1.0.7</span>Bump the version to 1.0.7 (#31)</span><span class="a">B. Boquain</span><span class="d mono">03/11 14:12</span><span class="h mono">ee75b937</span></div>
+<div class="row"><span></span><span class="msg">Add buttons to discard all uncommitted changes (#30)</span><span class="a">B. Boquain</span><span class="d mono">31/10 17:40</span><span class="h mono">5041afbc</span></div>
+<div class="row"><span></span><span class="msg"><b class="line" style="border:1.5px solid var(--scarlet);color:var(--porc)">origin/main</b><span class="tag">v1.0.6</span>Bump the version to 1.0.6 (#29)</span><span class="a">B. Boquain</span><span class="d mono">30/10 09:05</span><span class="h mono">f87a2181</span></div>
+<div class="row"><span></span><span class="msg">Merge feat/conflict-preview</span><span class="a">B. Boquain</span><span class="d mono">29/10 16:22</span><span class="h mono">c3d1e0a4</span></div>
+<div class="row"><span></span><span class="msg"><b class="line" style="background:var(--amber);color:var(--enamel)">feat/conflict-preview</b>Preview the merged result before resolving</span><span class="a">B. Boquain</span><span class="d mono">29/10 11:48</span><span class="h mono">9b2f7c10</span></div>
+<div class="row"><span></span><span class="msg">Pick conflict blocks with checkboxes</span><span class="a">B. Boquain</span><span class="d mono">28/10 15:31</span><span class="h mono">7e41a9d2</span></div>
+<div class="row"><span></span><span class="msg">Color the cloud icons of the log with their label's color (#28)</span><span class="a">B. Boquain</span><span class="d mono">27/10 10:02</span><span class="h mono">1a03b690</span></div>
+<div class="row"><span></span><span class="msg"><span class="tag">v1.0.5</span>Bump the version to 1.0.5 (#27)</span><span class="a">B. Boquain</span><span class="d mono">24/10 18:14</span><span class="h mono">afe15e7e</span></div>
+<div class="row"><span></span><span class="msg">Add a button to check for updates on demand (#26)</span><span class="a">B. Boquain</span><span class="d mono">24/10 12:50</span><span class="h mono">96fac1d2</span></div>
+<div class="row"><span></span><span class="msg">Merge fix/stash-new-files</span><span class="a">B. Boquain</span><span class="d mono">23/10 17:20</span><span class="h mono">0f5e88b3</span></div>
+<div class="row"><span></span><span class="msg"><b class="line" style="background:var(--green);color:var(--enamel)">fix/stash-new-files</b>Keep the new files of a stash when applying it conflicts (#17)</span><span class="a">B. Boquain</span><span class="d mono">22/10 09:41</span><span class="h mono">647d8d82</span></div>
+<div class="row"><span></span><span class="msg">Add a Prune button that deletes branches whose remote branch is gone (#25)</span><span class="a">B. Boquain</span><span class="d mono">21/10 16:03</span><span class="h mono">abbee5e8</span></div>
+<div class="row"><span></span><span class="msg"><span class="tag">v1.0.4</span>Bump the version to 1.0.4 (#24)</span><span class="a">B. Boquain</span><span class="d mono">20/10 11:27</span><span class="h mono">bad28d00</span></div>
+<div class="row"><span></span><span class="msg">Replace the logo with the blue branches icon (#23)</span><span class="a">B. Boquain</span><span class="d mono">17/10 14:55</span><span class="h mono">ac091c66</span></div>
+<div class="row"><span></span><span class="msg">Move the log graph colors into the theme (#22)</span><span class="a">B. Boquain</span><span class="d mono">16/10 10:19</span><span class="h mono">34dc23fe</span></div>
+<div class="row"><span></span><span class="msg"><span class="tag">v1.0.3</span>Bump the version to 1.0.3 (#21)</span><span class="a">B. Boquain</span><span class="d mono">15/10 18:00</span><span class="h mono">242240f5</span></div>
+<div class="row"><span></span><span class="msg">Add a setting for merged branch labels and in-app updates (#20)</span><span class="a">B. Boquain</span><span class="d mono">14/10 15:12</span><span class="h mono">61bbb5a2</span></div>
+<div class="row"><span></span><span class="msg">Pin the Rust nightly toolchain (#18)</span><span class="a">B. Boquain</span><span class="d mono">13/10 09:30</span><span class="h mono">4327ae33</span></div>
+</section>
+<aside class="det">
+<div class="dh"><div class="route"><b class="line" style="background:var(--scarlet)">main</b><span class="mono p">ee75b937 · 2 stations devant origin</span></div>
+<h1>Bump the version to 1.0.7 (#31)</h1>
+<dl class="facts"><dt>Auteur</dt><dd>Baptiste Boquain</dd><dt>Date</dt><dd class="mono">03/11/2026 14:12</dd><dt>Parent</dt><dd class="mono">5041afbc</dd></dl></div>
+<div class="sec" style="padding:14px 22px 4px">Fichiers <span>3</span></div>
+<div class="f"><b class="st M">M</b>build.gradle.kts <span class="p">app/</span><span class="ln mono"><span class="plus">+2</span> <span class="minus">−2</span></span></div>
+<div class="f"><b class="st M">M</b>AppConstants.kt <span class="p">app/…/gitmiro/</span><span class="ln mono"><span class="plus">+2</span> <span class="minus">−2</span></span></div>
+<div class="f"><b class="st A">A</b>latest.json <span class="p">release/</span><span class="ln mono"><span class="plus">+6</span></span></div>
+<div class="diff">
+<div class="dl hk">@@ -12,4 +12,4 @@ object AppConstants</div>
+<div class="dl"><i>12</i><i>12</i><span>    const val APP_NAME = "GitMiro"</span></div>
+<div class="dl rem"><i>13</i><i></i><span>-   const val APP_VERSION = "1.0.6"</span></div>
+<div class="dl rem"><i>14</i><i></i><span>-   const val APP_VERSION_CODE = 6</span></div>
+<div class="dl add"><i></i><i>13</i><span>+   const val APP_VERSION = "1.0.7"</span></div>
+<div class="dl add"><i></i><i>14</i><span>+   const val APP_VERSION_CODE = 7</span></div>
+</div>
+<div class="commit"><div class="field">Résumé du commit</div>
+<div class="crow"><div class="btn pri" style="flex:1;justify-content:center">Commit 3 fichiers</div><div class="btn">Amender</div></div></div>
+</aside>
+</div>
+</body></html>

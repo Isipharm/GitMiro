@@ -3,12 +3,17 @@ package com.hugodehu.gitmiro.ui.components
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import com.hugodehu.gitmiro.theme.tertiarySurface
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.width
+import androidx.compose.material.MaterialTheme
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -55,13 +60,13 @@ fun TripleVerticalSplitPanel(
             Box(
                 modifier = Modifier
                     .width(firstWidth.dp)
+                    .fillMaxHeight()
+                    .background(MaterialTheme.colors.tertiarySurface)
             ) {
                 first()
             }
-            Box(
+            PaneDragHandle(
                 modifier = Modifier
-                    .fillMaxHeight()
-                    .width(8.dp)
                     .draggable(
                         state = rememberDraggableState {
                             onFirstSizeChange(it)
@@ -81,35 +86,60 @@ fun TripleVerticalSplitPanel(
         Box(
             Modifier
                 .weight(1f, true)
+                .fillMaxHeight()
         ) {
             second()
         }
 
+        if (thirdWidth > 0) {
+            PaneDragHandle(
+                modifier = Modifier
+                    .draggable(
+                        state = rememberDraggableState {
+                            onThirdSizeChange(it)
+                        },
+                        orientation = Orientation.Horizontal,
+                        onDragStarted = {
+                            onThirdSizeDragStarted(thirdWidthLimited)
+                        },
+                        onDragStopped = {
+                            onThirdSizeDragStopped()
+                        },
+                    )
+                    .pointerHoverIcon(resizePointerIconEast)
+            )
+
+            Box(
+                modifier = Modifier
+                    .width(thirdWidth.dp)
+                    .fillMaxHeight()
+                    .background(MaterialTheme.colors.tertiarySurface)
+            ) {
+                third()
+            }
+        }
+    }
+}
+
+/**
+ * Drag area between two panes, drawn as the one pixel line of the mockup.
+ */
+@Composable
+private fun PaneDragHandle(modifier: Modifier) {
+    // Wider than the visible line to leave a comfortable area to grab
+    Box(
+        modifier = Modifier
+            .fillMaxHeight()
+            .width(5.dp)
+            .then(modifier),
+        contentAlignment = Alignment.Center,
+    ) {
         Box(
             modifier = Modifier
                 .fillMaxHeight()
-                .width(8.dp)
-                .draggable(
-                    state = rememberDraggableState {
-                        onThirdSizeChange(it)
-                    },
-                    orientation = Orientation.Horizontal,
-                    onDragStarted = {
-                        onThirdSizeDragStarted(thirdWidthLimited)
-                    },
-                    onDragStopped = {
-                        onThirdSizeDragStopped()
-                    },
-                )
-                .pointerHoverIcon(resizePointerIconEast)
+                .width(1.dp)
+                .background(MaterialTheme.colors.onBackground.copy(alpha = 0.08f))
         )
-
-        Box(
-            modifier = Modifier
-                .width(thirdWidth.dp)
-        ) {
-            third()
-        }
     }
 }
 

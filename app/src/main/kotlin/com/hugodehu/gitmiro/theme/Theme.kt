@@ -2,8 +2,10 @@
 
 package com.hugodehu.gitmiro.theme
 
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Colors
 import androidx.compose.material.MaterialTheme
+import androidx.compose.material.Shapes
 import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
@@ -24,15 +26,22 @@ class LinesHeight internal constructor(
 )
 
 val spacedLineHeight = LinesHeight(
-    fileHeight = 38.dp,
-    logCommitHeight = 38.dp,
-    sidePanelItemHeight = 36.dp
+    fileHeight = 32.dp,
+    logCommitHeight = 40.dp,
+    sidePanelItemHeight = 30.dp
 )
 
 val compactLineHeight = LinesHeight(
-    fileHeight = 34.dp,
+    fileHeight = 28.dp,
     logCommitHeight = 34.dp,
-    sidePanelItemHeight = 34.dp
+    sidePanelItemHeight = 28.dp
+)
+
+// small: controls and fields, medium: dialogs, menus and notifications, large: the main panes
+private val appShapes = Shapes(
+    small = RoundedCornerShape(8.dp),
+    medium = RoundedCornerShape(12.dp),
+    large = RoundedCornerShape(16.dp),
 )
 
 @Composable
@@ -64,6 +73,7 @@ fun AppTheme(
             colors = composeColors,
             content = content,
             typography = typography(composeColors),
+            shapes = appShapes,
         )
     }
 

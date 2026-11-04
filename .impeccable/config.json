@@ -1,0 +1,116 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          ".impeccable/mocks/decision/assigned.html"
+        ],
+        "createdAt": "2026-11-03T08:08:01.822Z",
+        "reason": "Claude: throwaway decision sketch of a dense desktop shell; full-bleed panel rows and 11px captions are intentional density, not shipping UI"
+      },
+      {
+        "rule": "tiny-text",
+        "value": "*",
+        "files": [
+          ".impeccable/mocks/decision/assigned.html"
+        ],
+        "createdAt": "2026-11-03T08:08:02.071Z",
+        "reason": "Claude: throwaway decision sketch of a dense desktop shell; full-bleed panel rows and 11px captions are intentional density, not shipping UI"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          ".impeccable/mocks/decision/challenger-transit.html"
+        ],
+        "createdAt": "2026-11-03T08:08:02.324Z",
+        "reason": "Claude: throwaway decision sketch of a dense desktop shell; full-bleed panel rows and 11px captions are intentional density, not shipping UI"
+      },
+      {
+        "rule": "tiny-text",
+        "value": "*",
+        "files": [
+          ".impeccable/mocks/decision/challenger-transit.html"
+        ],
+        "createdAt": "2026-11-03T08:08:02.594Z",
+        "reason": "Claude: throwaway decision sketch of a dense desktop shell; full-bleed panel rows and 11px captions are intentional density, not shipping UI"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          ".impeccable/mocks/decision/canon.html"
+        ],
+        "createdAt": "2026-11-03T08:08:02.860Z",
+        "reason": "Claude: throwaway decision sketch of a dense desktop shell; full-bleed panel rows and 11px captions are intentional density, not shipping UI"
+      },
+      {
+        "rule": "tiny-text",
+        "value": "*",
+        "files": [
+          ".impeccable/mocks/decision/canon.html"
+        ],
+        "createdAt": "2026-11-03T08:08:03.126Z",
+        "reason": "Claude: throwaway decision sketch of a dense desktop shell; full-bleed panel rows and 11px captions are intentional density, not shipping UI"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          ".impeccable/mocks/decision/spaces.html"
+        ],
+        "createdAt": "2026-11-03T08:17:07.126Z",
+        "reason": "Claude: throwaway decision sketch; full-bleed log rows, branch pills and the intentional floating peek card trip these rules"
+      },
+      {
+        "rule": "nested-cards",
+        "value": "*",
+        "files": [
+          ".impeccable/mocks/decision/spaces.html"
+        ],
+        "createdAt": "2026-11-03T08:17:07.372Z",
+        "reason": "Claude: throwaway decision sketch; full-bleed log rows, branch pills and the intentional floating peek card trip these rules"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          ".impeccable/mocks/decision/split.html"
+        ],
+        "createdAt": "2026-11-03T08:17:07.646Z",
+        "reason": "Claude: throwaway decision sketch; full-bleed log rows, branch pills and the intentional floating peek card trip these rules"
+      },
+      {
+        "rule": "nested-cards",
+        "value": "*",
+        "files": [
+          ".impeccable/mocks/decision/split.html"
+        ],
+        "createdAt": "2026-11-03T08:17:07.952Z",
+        "reason": "Claude: throwaway decision sketch; full-bleed log rows, branch pills and the intentional floating peek card trip these rules"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          ".impeccable/mocks/decision/peek.html"
+        ],
+        "createdAt": "2026-11-03T08:17:08.235Z",
+        "reason": "Claude: throwaway decision sketch; full-bleed log rows, branch pills and the intentional floating peek card trip these rules"
+      },
+      {
+        "rule": "nested-cards",
+        "value": "*",
+        "files": [
+          ".impeccable/mocks/decision/peek.html"
+        ],
+        "createdAt": "2026-11-03T08:17:08.472Z",
+        "reason": "Claude: throwaway decision sketch; full-bleed log rows, branch pills and the intentional floating peek card trip these rules"
+      }
+    ]
+  }
+}

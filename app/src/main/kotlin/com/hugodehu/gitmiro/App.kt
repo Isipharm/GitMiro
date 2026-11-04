@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.awt.ComposeWindow
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.application
@@ -25,6 +26,7 @@ import androidx.compose.ui.window.rememberWindowState
 import androidx.navigation3.runtime.NavKey
 import com.hugodehu.gitmiro.app.generated.resources.Res
 import com.hugodehu.gitmiro.app.generated.resources.logo
+import com.hugodehu.gitmiro.app.generated.resources.logo_branch
 import com.hugodehu.gitmiro.avatarproviders.GravatarAvatarProvider
 import com.hugodehu.gitmiro.avatarproviders.NoneAvatarProvider
 import com.hugodehu.gitmiro.common.OS
@@ -47,11 +49,13 @@ import com.hugodehu.gitmiro.theme.onBackgroundSecondary
 import com.hugodehu.gitmiro.ui.AppTab
 import com.hugodehu.gitmiro.ui.AppViewModel
 import com.hugodehu.gitmiro.ui.components.TabsRow
-import com.hugodehu.gitmiro.ui.components.TabInformation
+import com.hugodehu.gitmiro.ui.components.WindowTitleBar
+import androidx.compose.foundation.Image
 import com.hugodehu.gitmiro.ui.context_menu.AppPopupMenu
 import com.hugodehu.gitmiro.viewmodels.RepositoryTabViewModel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import org.eclipse.jgit.lib.GpgConfig
 import org.eclipse.jgit.lib.Signers
@@ -227,7 +231,7 @@ class App @Inject constructor(
                         linesHeightType = linesHeightType,
                     ) {
                         Box(modifier = Modifier.background(MaterialTheme.colors.background)) {
-                            AppTabs()
+                            AppTabs(window)
                         }
                     }
                 }
@@ -284,14 +288,14 @@ class App @Inject constructor(
 
 
     @Composable
-    fun AppTabs() {
+    fun AppTabs(window: ComposeWindow) {
         val tabs by appViewModel.tabs.collectAsState()
         val currentTab = appViewModel.currentTab.collectAsState().value
 
         if (currentTab != null) {
             Column(
                 modifier = Modifier
-                    .background(MaterialTheme.colors.background)
+                    .background(MaterialTheme.colors.surface)
                     .onPreviewKeyEvent {
                         when {
                             it.matchesBinding(KeybindingOption.OPEN_NEW_TAB) -> {
@@ -324,49 +328,37 @@ class App @Inject constructor(
                         }
                     }
             ) {
-                Tabs(
-                    tabsInformationList = tabs,
-                    currentTab = currentTab,
-                    onAddedTab = {
-                        appViewModel.addNewEmptyTab()
-                    },
-                    onCloseTab = { tab ->
-                        appViewModel.closeTab(tab)
-                    }
-                )
+                WindowTitleBar(
+                    window = window,
+                    isDark = !MaterialTheme.colors.isLight,
+                ) {
+                    Image(
+                        painter = painterResource(Res.drawable.logo_branch),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .padding(start = 16.dp, end = 12.dp)
+                            .size(22.dp),
+                    )
 
-                CompositionLocalProvider(LocalTab provides currentTab.data) {
-                    TabContent(currentTab.data)
+                    TabsRow(
+                        tabs = tabs,
+                        defaultTabName = NEW_TAB_DEFAULT_NAME,
+                        currentTab = currentTab,
+                        onTabSelected = { appViewModel.selectTab(it) },
+                        onTabClosed = { appViewModel.closeTab(it) },
+                        onMoveTab = { fromIndex, toIndex -> appViewModel.onMoveTab(fromIndex, toIndex) },
+                        onAddNewTab = { appViewModel.addNewEmptyTab() },
+                        clientArea = { it.clientArea() },
+                        modifier = Modifier.weight(1f, false),
+                    )
+                }
+
+                Box(modifier = Modifier.weight(1f)) {
+                    CompositionLocalProvider(LocalTab provides currentTab.data) {
+                        TabContent(currentTab.data)
+                    }
                 }
             }
-        }
-    }
-
-    @Composable
-    fun Tabs(
-        tabsInformationList: List<TabInformation<RepositoryTabViewModel>>,
-        currentTab: TabInformation<RepositoryTabViewModel>?,
-        onAddedTab: () -> Unit,
-        onCloseTab: (TabInformation<RepositoryTabViewModel>) -> Unit,
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            TabsRow(
-                tabs = tabsInformationList,
-                defaultTabName = NEW_TAB_DEFAULT_NAME,
-                currentTab = currentTab,
-                onTabSelected = { selectedTab ->
-                    appViewModel.selectTab(selectedTab)
-                },
-                onTabClosed = onCloseTab,
-                onAddNewTab = onAddedTab,
-                onMoveTab = { fromIndex, toIndex ->
-                    appViewModel.onMoveTab(fromIndex, toIndex)
-                },
-            )
         }
     }
 

@@ -65,6 +65,7 @@ fun logContextMenu(
     addContextMenu(
         composableLabel = { stringResource(Res.string.log_context_menu_reset_current_branch_to_commit) },
         icon = { painterResource(Res.drawable.undo) },
-        onClick = onResetBranch
+        onClick = onResetBranch,
+        isDanger = true,
     )
 }

@@ -27,7 +27,8 @@ fun stashesContextMenuItems(
         ContextMenuElement.ContextTextEntry(
             composableLabel = { stringResource(Res.string.stashes_context_menu_drop_stash) },
             icon = { painterResource(Res.drawable.delete) },
-            onClick = onDelete
+            onClick = onDelete,
+            isDanger = true,
         ),
     )
 }

@@ -53,6 +53,7 @@ fun submoduleContextMenuItems(
             composableLabel = { stringResource(Res.string.submodules_context_menu_delete_submodule) },
             icon = { painterResource(Res.drawable.delete) },
             onClick = onDeleteSubmodule,
+            isDanger = true,
         )
     }
 }

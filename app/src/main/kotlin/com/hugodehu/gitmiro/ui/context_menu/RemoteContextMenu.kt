@@ -21,7 +21,8 @@ fun remoteContextMenu(
     ContextMenuElement.ContextTextEntry(
         composableLabel = { stringResource(Res.string.remote_context_menu_delete) },
         icon = { painterResource(Res.drawable.delete) },
-        onClick = onDelete
+        onClick = onDelete,
+        isDanger = true,
     ),
     ContextMenuElement.ContextSeparator,
     ContextMenuElement.ContextTextEntry(

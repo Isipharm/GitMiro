@@ -14,9 +14,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import com.hugodehu.gitmiro.theme.monoTypography
 import androidx.compose.ui.unit.dp
 import com.hugodehu.gitmiro.extensions.backgroundIf
 import com.hugodehu.gitmiro.extensions.handMouseClickable
@@ -33,10 +34,13 @@ import org.jetbrains.compose.resources.painterResource
 
 private const val TREE_START_PADDING = 12
 
+/**
+ * Entry of a changed file, flagged with the letter of its status (A, M, D...) drawn in the status color.
+ */
 @Composable
 fun FileEntry(
-    icon: ImageVector,
-    iconColor: Color,
+    statusLetter: String,
+    statusColor: Color,
     parentDirectoryPath: String,
     fileName: String,
     isSelected: Boolean,
@@ -47,8 +51,20 @@ fun FileEntry(
     trailingAction: (@Composable BoxScope.(isHovered: Boolean) -> Unit)?,
 ) {
     FileEntry(
-        icon = rememberVectorPainter(icon),
-        iconColor = iconColor,
+        leading = {
+            Text(
+                text = statusLetter,
+                modifier = Modifier
+                    .padding(horizontal = 8.dp)
+                    .width(16.dp),
+                textAlign = TextAlign.Center,
+                fontFamily = monoTypography(),
+                fontWeight = FontWeight.Medium,
+                style = MaterialTheme.typography.caption,
+                color = statusColor,
+                maxLines = 1,
+            )
+        },
         parentDirectoryPath = parentDirectoryPath,
         fileName = fileName,
         isSelected = isSelected,
@@ -64,6 +80,40 @@ fun FileEntry(
 fun FileEntry(
     icon: Painter,
     iconColor: Color,
+    parentDirectoryPath: String,
+    fileName: String,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    onDoubleClick: () -> Unit,
+    depth: Int = 0,
+    onGenerateContextMenu: () -> List<ContextMenuElement>,
+    trailingAction: (@Composable BoxScope.(isHovered: Boolean) -> Unit)?,
+) {
+    FileEntry(
+        leading = {
+            Icon(
+                painter = icon,
+                contentDescription = null,
+                modifier = Modifier
+                    .padding(horizontal = 8.dp)
+                    .size(16.dp),
+                tint = iconColor,
+            )
+        },
+        parentDirectoryPath = parentDirectoryPath,
+        fileName = fileName,
+        isSelected = isSelected,
+        onClick = onClick,
+        onDoubleClick = onDoubleClick,
+        depth = depth,
+        onGenerateContextMenu = onGenerateContextMenu,
+        trailingAction = trailingAction
+    )
+}
+
+@Composable
+private fun FileEntry(
+    leading: @Composable () -> Unit,
     parentDirectoryPath: String,
     fileName: String,
     isSelected: Boolean,
@@ -96,15 +146,7 @@ fun FileEntry(
                     .padding(start = (TREE_START_PADDING * depth).dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-
-                Icon(
-                    painter = icon,
-                    contentDescription = null,
-                    modifier = Modifier
-                        .padding(horizontal = 8.dp)
-                        .size(16.dp),
-                    tint = iconColor,
-                )
+                leading()
 
                 if (parentDirectoryPath.isNotEmpty()) {
                     Text(

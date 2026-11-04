@@ -45,6 +45,8 @@ import com.hugodehu.gitmiro.theme.onBackgroundSecondary
 import com.hugodehu.gitmiro.theme.textButtonColors
 import com.hugodehu.gitmiro.ui.components.AdjustableOutlinedTextField
 import com.hugodehu.gitmiro.ui.components.BottomInfoBar
+import com.hugodehu.gitmiro.ui.components.GhostButton
+import com.hugodehu.gitmiro.ui.components.PrimaryButton
 import com.hugodehu.gitmiro.ui.components.tooltip.DelayedTooltip
 import com.hugodehu.gitmiro.ui.components.tooltip.InstantTooltip
 import com.hugodehu.gitmiro.ui.dialogs.AppInfoDialog
@@ -135,7 +137,7 @@ fun WelcomeView(
             .fillMaxSize()
             .focusable(true)
             .focusRequester(welcomeViewFocusRequester)
-            .background(MaterialTheme.colors.surface)
+            .background(MaterialTheme.colors.background)
             .onPreviewKeyEvent {
                 when {
                     it.matchesBinding(KeybindingOption.OPEN_REPOSITORY) -> {
@@ -153,22 +155,25 @@ fun WelcomeView(
             },
     ) {
 
-        Column(
-            modifier = Modifier.align(Alignment.CenterHorizontally)
-                .weight(1f),
-            verticalArrangement = Arrangement.spacedBy(16.dp, BiasAlignment.Vertical(-0.5f)),
-        ) {
-
-            Text(
-                text = AppConstants.APP_NAME,
-                style = MaterialTheme.typography.h1,
-                maxLines = 1,
-                modifier = Modifier.padding(bottom = 8.dp),
-            )
-
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
+        Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Column(
+                modifier = Modifier.width(520.dp),
+                verticalArrangement = Arrangement.spacedBy(22.dp),
             ) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = "Open a repository",
+                        style = MaterialTheme.typography.h4,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colors.onBackground,
+                    )
+                    Text(
+                        text = "Pick a folder, clone from a URL or reopen a recent repository.",
+                        style = MaterialTheme.typography.body2,
+                        color = MaterialTheme.colors.onBackgroundSecondary,
+                    )
+                }
+
                 HomeButtons(
                     onOpenRepository = onOpenRepository,
                     onStartRepository = onStartRepository,
@@ -187,13 +192,6 @@ fun WelcomeView(
                 )
             }
         }
-
-        Spacer(
-            modifier = Modifier
-                .height(1.dp)
-                .fillMaxWidth()
-                .background(MaterialTheme.colors.primaryVariant.copy(alpha = 0.2f))
-        )
 
         BottomInfoBar(
             newUpdate = newUpdate,
@@ -226,62 +224,49 @@ fun HomeButtons(
     onShowSettings: () -> Unit,
     onOpenUrlInBrowser: (String) -> Unit,
 ) {
-    Column {
-        ButtonTile(
-            modifier = Modifier.padding(bottom = 8.dp),
-            title = stringResource(Res.string.home_button_open_repository),
-            painter = painterResource(Res.drawable.open),
-            onClick = onOpenRepository
-        )
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            PrimaryButton(
+                text = stringResource(Res.string.home_button_open_repository),
+                onClick = onOpenRepository,
+                modifier = Modifier.height(40.dp),
+            )
+            GhostButton(
+                text = stringResource(Res.string.home_button_clone_repository),
+                onClick = onShowCloneView,
+                modifier = Modifier.height(40.dp),
+            )
+            GhostButton(
+                text = stringResource(Res.string.home_button_start_repository),
+                onClick = onStartRepository,
+                modifier = Modifier.height(40.dp),
+            )
+        }
 
-        ButtonTile(
-            modifier = Modifier.padding(bottom = 8.dp),
-            title = stringResource(Res.string.home_button_clone_repository),
-            painter = painterResource(Res.drawable.download),
-            onClick = onShowCloneView
-        )
-
-        ButtonTile(
-            modifier = Modifier.padding(bottom = 8.dp),
-            title = stringResource(Res.string.home_button_start_repository),
-            painter = painterResource(Res.drawable.open),
-            onClick = onStartRepository
-        )
-
-        Text(
-            stringResource(Res.string.home_button_additional_information),
-            style = MaterialTheme.typography.h3,
-            modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
-        )
-
-        IconTextButton(
-            title = stringResource(Res.string.home_button_source_code),
-            painter = painterResource(Res.drawable.code),
-            onClick = {
-                onOpenUrlInBrowser("https://github.com/JetpackDuba/Gitnuro")
-            }
-        )
-
-        IconTextButton(
-            title = stringResource(Res.string.home_button_report_bug),
-            painter = painterResource(Res.drawable.bug),
-            onClick = {
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            LinkText(stringResource(Res.string.home_button_settings), onShowSettings)
+            LinkText(stringResource(Res.string.home_button_additional_information), onShowAdditionalInfo)
+            LinkText(stringResource(Res.string.home_button_report_bug)) {
                 onOpenUrlInBrowser("https://github.com/JetpackDuba/Gitnuro/issues")
             }
-        )
-
-        IconTextButton(
-            title = stringResource(Res.string.home_button_additional_information),
-            painter = painterResource(Res.drawable.info),
-            onClick = onShowAdditionalInfo
-        )
-
-        IconTextButton(
-            title = stringResource(Res.string.home_button_settings),
-            painter = painterResource(Res.drawable.settings),
-            onClick = onShowSettings
-        )
+            LinkText(stringResource(Res.string.home_button_source_code)) {
+                onOpenUrlInBrowser("https://github.com/JetpackDuba/Gitnuro")
+            }
+        }
     }
+}
+
+@Composable
+private fun LinkText(text: String, onClick: () -> Unit) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.caption,
+        color = MaterialTheme.colors.onBackgroundSecondary,
+        modifier = Modifier
+            .clip(MaterialTheme.shapes.small)
+            .handMouseClickable(onClick = onClick)
+            .padding(vertical = 4.dp),
+    )
 }
 
 @Composable
@@ -292,12 +277,7 @@ fun RecentRepositories(
     onOpenKnownRepository: (String) -> Unit,
     searchFieldFocusRequester: FocusRequester,
 ) {
-    Column(
-        modifier = Modifier
-            .padding(start = 32.dp)
-            .width(600.dp)
-            .height(400.dp),
-    ) {
+    Column(modifier = Modifier.fillMaxWidth().heightIn(max = 340.dp)) {
         if (recentlyOpenedRepositories.isEmpty()) {
             Text(
                 stringResource(Res.string.home_recent_repositories_list_empty),
@@ -431,10 +411,18 @@ fun RecentRepositoriesList(
             }
         }
 
+        Text(
+            text = "RECENT",
+            style = MaterialTheme.typography.caption,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colors.onBackgroundSecondary,
+            modifier = Modifier.padding(start = 8.dp, top = 14.dp, bottom = 6.dp),
+        )
+
         Box(modifier = Modifier.padding(top = 4.dp)) {
             LazyColumn(
                 state = listState,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxWidth(),
             ) {
                 itemsIndexed(items = filteredRepositories) { index, repo ->
                     val repoDirName = repo.dirName
@@ -450,20 +438,21 @@ fun RecentRepositoriesList(
 
                     Row(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
+                            .clip(MaterialTheme.shapes.small)
                             .fillMaxWidth()
                             .hoverable(hoverInteraction)
                             .handMouseClickable { onOpenKnownRepository(repo) }
                             .backgroundIf(
                                 isSearchFocused && index == focusedItemIndex,
-                                MaterialTheme.colors.backgroundSelected
+                                MaterialTheme.colors.primary.copy(alpha = 0.10f)
                             )
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                            .height(44.dp)
+                            .padding(horizontal = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
                             modifier = Modifier.weight(1f),
                         ) {
                             Text(
@@ -471,7 +460,7 @@ fun RecentRepositoriesList(
                                 style = MaterialTheme.typography.body2,
                                 maxLines = 1,
                                 fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colors.primaryVariant,
+                                color = MaterialTheme.colors.onBackground,
                                 overflow = TextOverflow.Ellipsis,
                             )
 
@@ -482,7 +471,8 @@ fun RecentRepositoriesList(
                                     } else {
                                         repoDirPath
                                     },
-                                    style = MaterialTheme.typography.body2,
+                                    style = MaterialTheme.typography.caption,
+                                    fontFamily = com.hugodehu.gitmiro.theme.monoTypography(),
                                     overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier,
                                     maxLines = 1,
@@ -528,77 +518,3 @@ fun RecentRepositoriesList(
         }
     }
 }
-
-@Composable
-fun ButtonTile(
-    modifier: Modifier = Modifier,
-    title: String,
-    painter: Painter,
-    onClick: () -> Unit,
-) {
-    OutlinedButton(
-        onClick = onClick,
-        modifier = modifier
-            .size(width = 280.dp, height = 56.dp)
-            .handOnHover(),
-        colors = ButtonDefaults.outlinedButtonColors(backgroundColor = MaterialTheme.colors.primary)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxSize(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Image(
-                modifier = Modifier
-                    .padding(end = 8.dp)
-                    .size(24.dp),
-                painter = painter,
-                contentDescription = null,
-                colorFilter = ColorFilter.tint(MaterialTheme.colors.onPrimary),
-            )
-
-            Text(
-                text = title,
-                maxLines = 1,
-                style = MaterialTheme.typography.body1,
-                color = MaterialTheme.colors.onPrimary,
-            )
-        }
-    }
-}
-
-@Composable
-fun IconTextButton(
-    modifier: Modifier = Modifier,
-    title: String,
-    painter: Painter,
-    iconColor: Color = MaterialTheme.colors.primaryVariant,
-    onClick: () -> Unit,
-) {
-    TextButton(
-        onClick = onClick,
-        modifier = modifier
-            .size(width = 280.dp, height = 40.dp)
-            .handOnHover(),
-        colors = textButtonColors(),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxSize(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Image(
-                modifier = Modifier
-                    .padding(end = 8.dp)
-                    .size(24.dp),
-                painter = painter,
-                contentDescription = null,
-                colorFilter = ColorFilter.tint(iconColor),
-            )
-
-            Text(
-                text = title,
-                maxLines = 1,
-            )
-        }
-    }
-}
-

@@ -1,5 +1,7 @@
 package com.hugodehu.gitmiro.ui
 
+import com.hugodehu.gitmiro.extensions.handOnHover
+import com.hugodehu.gitmiro.ui.components.AppSpinner
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -30,6 +32,17 @@ import com.hugodehu.gitmiro.theme.backgroundSelected
 import com.hugodehu.gitmiro.theme.onBackgroundSecondary
 import com.hugodehu.gitmiro.ui.components.AdjustableOutlinedTextField
 import com.hugodehu.gitmiro.ui.components.PrimaryButton
+import com.hugodehu.gitmiro.ui.components.GhostButton
+import com.hugodehu.gitmiro.ui.components.PanelDivider
+import com.hugodehu.gitmiro.theme.addFile
+import com.hugodehu.gitmiro.theme.graphColors
+import com.hugodehu.gitmiro.theme.monoTypography
+import com.hugodehu.gitmiro.theme.secondarySurface
+import com.hugodehu.gitmiro.extensions.handMouseClickable
+import com.hugodehu.gitmiro.ui.context_menu.DropDownMenu
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import com.hugodehu.gitmiro.ui.components.ScrollableLazyColumn
 import com.hugodehu.gitmiro.ui.context_menu.ContextMenuElement
 import com.hugodehu.gitmiro.ui.context_menu.DropDownMenu
@@ -74,7 +87,7 @@ fun RebaseInteractive(
                 }
             )
 
-            DataState.Loading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            DataState.Loading -> AppSpinner(modifier = Modifier.align(Alignment.Center), size = 32.dp)
             is RebaseInteractiveState.ProcessingCommits, RebaseInteractiveState.None -> {}
         }
     }
@@ -92,15 +105,59 @@ fun RebaseStateLoaded(
 ) {
     Column(
         modifier = Modifier.fillMaxSize()
-            .clip(RoundedCornerShape(4.dp))
+            .clip(MaterialTheme.shapes.small)
             .background(MaterialTheme.colors.background)
     ) {
-        Text(
-            text = stringResource(Res.string.rebase_interactive_view_title),
-            color = MaterialTheme.colors.onBackground,
-            modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp),
-            fontSize = 20.sp,
-        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(60.dp)
+                .background(MaterialTheme.colors.secondarySurface)
+                .padding(horizontal = 18.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = stringResource(Res.string.rebase_interactive_view_title),
+                    color = MaterialTheme.colors.onBackground,
+                    style = MaterialTheme.typography.body1,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = "Reorder the commits by dragging, and pick what happens to each one.",
+                    color = MaterialTheme.colors.onBackgroundSecondary,
+                    style = MaterialTheme.typography.body2,
+                )
+            }
+
+            GhostButton(
+                text = stringResource(Res.string.generic_button_cancel),
+                onClick = onCancel,
+                modifier = Modifier.height(36.dp),
+            )
+
+            PrimaryButton(
+                enabled = true, // TODO Moving commits may also affect stepsList.any { it.rebaseAction != RebaseAction.PICK },
+                onClick = {
+                    viewModel.continueRebaseInteractive()
+                },
+                text = stringResource(Res.string.rebase_interactive_view_button_complete_rebase)
+            )
+        }
+        PanelDivider()
+
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(start = 32.dp, end = 30.dp, top = 16.dp, bottom = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            val labelStyle = MaterialTheme.typography.caption
+            val labelColor = MaterialTheme.colors.onBackgroundSecondary
+
+            Text("ACTION", style = labelStyle, fontWeight = FontWeight.SemiBold, color = labelColor, modifier = Modifier.width(96.dp))
+            Text("COMMIT", style = labelStyle, fontWeight = FontWeight.SemiBold, color = labelColor, modifier = Modifier.weight(1f))
+            Text("HASH", style = labelStyle, fontWeight = FontWeight.SemiBold, color = labelColor)
+        }
 
         val listState = rememberLazyListState()
         val state = rememberVerticalDragDropState(listState) { fromIndex, toIndex ->
@@ -138,30 +195,6 @@ fun RebaseStateLoaded(
                 }
             }
         }
-
-        Row(
-            modifier = Modifier.padding(bottom = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Spacer(modifier = Modifier.weight(1f))
-
-            PrimaryButton(
-                text = stringResource(Res.string.generic_button_cancel),
-                modifier = Modifier.padding(end = 8.dp),
-                onClick = onCancel,
-                backgroundColor = Color.Transparent,
-                textColor = MaterialTheme.colors.onBackground,
-            )
-
-            PrimaryButton(
-                modifier = Modifier.padding(end = 16.dp),
-                enabled = true, // TODO Moving commits may also affect stepsList.any { it.rebaseAction != RebaseAction.PICK },
-                onClick = {
-                    viewModel.continueRebaseInteractive()
-                },
-                text = stringResource(Res.string.rebase_interactive_view_button_complete_rebase)
-            )
-        }
     }
 }
 
@@ -190,14 +223,17 @@ fun RebaseCommit(
 
     Row(
         modifier = Modifier
-            .height(IntrinsicSize.Min)
+            .padding(horizontal = 18.dp)
+            .clip(MaterialTheme.shapes.medium)
+            .heightIn(min = 48.dp)
             .fillMaxWidth()
             .clickable {
                 onFocusLine()
             }
-            .backgroundIf(isSelected, MaterialTheme.colors.backgroundSelected)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .backgroundIf(isSelected, MaterialTheme.colors.primary.copy(alpha = 0.10f))
+            .padding(horizontal = 14.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         ActionDropdown(
             action,
@@ -206,32 +242,48 @@ fun RebaseCommit(
             onActionChanged = { onActionChanged(it) },
         )
 
-        AdjustableOutlinedTextField(
-            modifier = Modifier
-                .padding(start = 8.dp)
-                .weight(1f)
-                .heightIn(min = 40.dp)
-                .focusRequester(focusRequester)
-                .onFocusChanged {
-                    if (it.hasFocus && !isSelected) {
-                        onFocusLine()
-                    }
+        if (action == RebaseLine.Action.REWORD) {
+            AdjustableOutlinedTextField(
+                modifier = Modifier
+                    .weight(1f)
+                    .heightIn(min = 40.dp)
+                    .focusRequester(focusRequester)
+                    .onFocusChanged {
+                        if (it.hasFocus && !isSelected) {
+                            onFocusLine()
+                        }
+                    },
+                value = newMessage,
+                onValueChange = {
+                    newMessage = it
+                    onMessageChanged(it)
                 },
-            enabled = action == RebaseLine.Action.REWORD,
-            value = newMessage,
-            onValueChange = {
-                newMessage = it
-                onMessageChanged(it)
-            },
-            textStyle = MaterialTheme.typography.body2,
-            backgroundColor = if (action == RebaseLine.Action.REWORD) {
-                MaterialTheme.colors.background
-            } else
-                MaterialTheme.colors.surface
+                textStyle = MaterialTheme.typography.body2,
+            )
+        } else {
+            Text(
+                text = rebaseLine.shortMessage,
+                style = MaterialTheme.typography.body2,
+                color = if (action == RebaseLine.Action.DROP) {
+                    MaterialTheme.colors.onBackgroundSecondary
+                } else {
+                    MaterialTheme.colors.onBackground
+                },
+                textDecoration = if (action == RebaseLine.Action.DROP) TextDecoration.LineThrough else null,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+        }
+
+        Text(
+            text = rebaseLine.commit.take(7),
+            fontFamily = monoTypography(),
+            style = MaterialTheme.typography.caption,
+            color = MaterialTheme.colors.onBackgroundSecondary,
         )
     }
 }
-
 
 @Composable
 fun ActionDropdown(
@@ -240,48 +292,51 @@ fun ActionDropdown(
     onActionDropDownClicked: () -> Unit,
     onActionChanged: (RebaseLine.Action) -> Unit,
 ) {
-    var showDropDownMenu by remember { mutableStateOf(false) }
-    Box(
-        modifier = Modifier
-            .border(
-                width = 2.dp,
-                color = MaterialTheme.colors.onBackgroundSecondary.copy(alpha = 0.2f),
-                shape = RoundedCornerShape(4.dp),
-            )
-    ) {
-        TextButton(
-            onClick = {
-                showDropDownMenu = true
-                onActionDropDownClicked()
-            },
-            modifier = Modifier
-                .width(120.dp)
-                .height(40.dp),
-        ) {
-            Text(
-                getActionDisplayName(action),
-                color = MaterialTheme.colors.onBackground,
-                style = MaterialTheme.typography.body1,
-                modifier = Modifier.weight(1f)
-            )
-        }
+    val color = when (action) {
+        RebaseLine.Action.PICK -> MaterialTheme.colors.addFile
+        RebaseLine.Action.REWORD -> MaterialTheme.colors.graphColors[4]
+        RebaseLine.Action.SQUASH, RebaseLine.Action.FIXUP -> MaterialTheme.colors.graphColors[3]
+        RebaseLine.Action.EDIT -> MaterialTheme.colors.primaryVariant
+        RebaseLine.Action.DROP -> MaterialTheme.colors.error
+        RebaseLine.Action.COMMENT -> MaterialTheme.colors.onBackgroundSecondary
+    }
+    val dropDownItems = if (isFirst) firstItemActions else actions
 
-        val dropDownItems = if (isFirst) {
-            firstItemActions
-        } else {
-            actions
-        }
-
-
-        DropDownMenuText(
+    // The popup of the dropdown is emitted next to its anchor, the Box keeps it out of the parent Row spacing
+    Box {
+        DropDownMenu(
             showIcons = false,
-            currentValue = getActionDisplayName(action),
+            shape = MaterialTheme.shapes.small,
             items = {
                 dropDownItems.map {
                     ContextMenuElement.ContextTextEntry(it.displayName, onClick = { onActionChanged(it.value) })
                 }
             }
-        )
+        ) {
+            Row(
+                modifier = Modifier
+                    .width(96.dp)
+                    .height(28.dp)
+                    .clip(MaterialTheme.shapes.small)
+                    .border(1.dp, MaterialTheme.colors.onBackground.copy(alpha = 0.16f), MaterialTheme.shapes.small)
+                    .handOnHover(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+            ) {
+                Text(
+                    text = getActionDisplayName(action).lowercase(),
+                    color = color,
+                    style = MaterialTheme.typography.body2,
+                    fontWeight = FontWeight.Medium,
+                )
+                Icon(
+                    painter = painterResource(Res.drawable.dropdown),
+                    contentDescription = null,
+                    tint = MaterialTheme.colors.onBackgroundSecondary,
+                    modifier = Modifier.padding(start = 4.dp).size(14.dp),
+                )
+            }
+        }
     }
 }
 

@@ -18,8 +18,17 @@ fun statusEntryContextMenuItems(
     onCopyFilePath: (relative: Boolean) -> Unit,
     onOpenFileInFolder: () -> Unit,
     onResolveConflict: (ConflictSide) -> Unit,
+    onToggleStage: () -> Unit,
 ): List<ContextMenuElement> {
     return mutableListOf<ContextMenuElement>().apply {
+        addContextMenu(
+            composableLabel = { if (entryType == EntryType.STAGED) "Unstage file" else "Stage file" },
+            icon = { painterResource(if (entryType == EntryType.STAGED) Res.drawable.remove_done else Res.drawable.done) },
+            onClick = onToggleStage,
+        )
+
+        add(ContextMenuElement.ContextSeparator)
+
         if (statusEntry.statusType == StatusType.CONFLICTING) {
             addContextMenu(
                 composableLabel = { stringResource(Res.string.status_entries_context_menu_keep_current) },
@@ -41,6 +50,7 @@ fun statusEntryContextMenuItems(
                 composableLabel = { stringResource(Res.string.status_entries_context_menu_discard_file_changes) },
                 icon = { painterResource(Res.drawable.undo) },
                 onClick = onReset,
+                isDanger = true,
             )
 
             if (statusEntry.statusType != StatusType.REMOVED) {
@@ -66,6 +76,7 @@ fun statusEntryContextMenuItems(
                 composableLabel = { stringResource(Res.string.status_entries_context_menu_delete_file) },
                 icon = { painterResource(Res.drawable.delete) },
                 onClick = onDelete,
+                isDanger = true,
             )
         }
 
@@ -139,6 +150,7 @@ fun statusEntriesContextMenuItems(
             },
             icon = { painterResource(Res.drawable.undo) },
             onClick = onDiscard,
+            isDanger = true,
         )
 
         add(ContextMenuElement.ContextSeparator)
