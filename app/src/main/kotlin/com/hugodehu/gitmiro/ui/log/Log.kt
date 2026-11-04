@@ -1113,6 +1113,7 @@ private fun CommitLine(
                         .padding(end = 4.dp),
                 ) {
                     CommitMessage(
+                        isSelected = isSelected,
                         graphCommit = graphNode,
                         nodeColor = nodeColor,
                         matchesSearchFilter = matchesSearchFilter,
@@ -1142,12 +1143,22 @@ private fun CommitLine(
                     )
                 }
             }
+
+            if (isSelected) {
+                Box(
+                    modifier = Modifier
+                        .width(2.dp)
+                        .fillMaxHeight()
+                        .background(MaterialTheme.colors.primary)
+                )
+            }
         }
     }
 }
 
 @Composable
 fun CommitMessage(
+    isSelected: Boolean,
     graphCommit: GraphCommit,
     currentBranch: Branch?,
     isStash: Boolean,
@@ -1240,15 +1251,12 @@ fun CommitMessage(
             graphCommit.commit.shortMessage
         }
 
-        // The commit the current branch points to is shown in bold, which tells where the repository is
-        val isCurrentCommit = currentBranch?.hash == graphCommit.hash
-
         Text(
             text = message,
             modifier = Modifier
                 .padding(start = 8.dp, end = 12.dp)
                 .weight(1f),
-            fontWeight = if (isCurrentCommit) FontWeight.SemiBold else FontWeight.Normal,
+            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
             style = MaterialTheme.typography.body2,
             color = if (matchesSearchFilter == false) MaterialTheme.colors.onBackgroundSecondary else MaterialTheme.colors.onBackground,
             maxLines = 1,
