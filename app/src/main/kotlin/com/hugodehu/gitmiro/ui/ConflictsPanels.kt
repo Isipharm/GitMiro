@@ -28,7 +28,9 @@ import com.hugodehu.gitmiro.theme.addFile
 import com.hugodehu.gitmiro.theme.graphColors
 import com.hugodehu.gitmiro.theme.onBackgroundSecondary
 import com.hugodehu.gitmiro.theme.secondarySurface
+import com.hugodehu.gitmiro.ui.components.AdjustableOutlinedTextField
 import com.hugodehu.gitmiro.ui.components.PrimaryButton
+import androidx.compose.ui.text.input.TextFieldValue
 import org.jetbrains.compose.resources.painterResource
 
 /**
@@ -129,6 +131,9 @@ fun ConflictsAttentionPanel(
     resolvedCount: Int,
     isRebasing: Boolean,
     onOpen: (StatusEntry) -> Unit,
+    // Only asked for operations that create a commit from a message the user has to write, like a revert
+    commitMessage: TextFieldValue? = null,
+    onCommitMessageChange: (TextFieldValue) -> Unit = {},
 ) {
     val amber = MaterialTheme.colors.graphColors[3]
 
@@ -220,6 +225,18 @@ fun ConflictsAttentionPanel(
             style = MaterialTheme.typography.body2,
             color = MaterialTheme.colors.onBackgroundSecondary.copy(alpha = 0.9f),
         )
+
+        if (commitMessage != null) {
+            PanelLabel("COMMIT MESSAGE", Modifier.padding(top = 6.dp))
+
+            AdjustableOutlinedTextField(
+                value = commitMessage,
+                onValueChange = onCommitMessageChange,
+                hint = "Message of the commit this creates",
+                modifier = Modifier.fillMaxWidth().heightIn(min = 96.dp),
+                textStyle = MaterialTheme.typography.body2.copy(color = MaterialTheme.colors.onBackground),
+            )
+        }
 
         if (resolvedCount > 0) {
             Text(

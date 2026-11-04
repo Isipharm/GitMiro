@@ -496,6 +496,8 @@ fun MainContentView(
                         unresolved = conflicting,
                         resolvedCount = conflictRows.count { it.isResolved },
                         isRebasing = repositoryState.isRebasing,
+                        commitMessage = if (repositoryState.isReverting) statusState.commitMessage else null,
+                        onCommitMessageChange = { viewModel.onAction(StatusAction.UpdateCommitMessage(it)) },
                         onOpen = { entry ->
                             // Skips the file that is already open, so the button always goes somewhere new
                             openConflict(conflicting.firstOrNull { it.filePath != diffSelected?.entries?.firstOrNull()?.filePath } ?: entry)
