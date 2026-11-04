@@ -1,5 +1,6 @@
 package com.hugodehu.gitmiro.ui
 
+import com.hugodehu.gitmiro.extensions.handOnHover
 import com.hugodehu.gitmiro.ui.components.AppSpinner
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -315,7 +316,7 @@ fun ActionDropdown(
                 .height(28.dp)
                 .clip(MaterialTheme.shapes.small)
                 .border(1.dp, MaterialTheme.colors.onBackground.copy(alpha = 0.16f), MaterialTheme.shapes.small)
-                .handMouseClickable { onActionDropDownClicked() },
+                .handOnHover(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center,
         ) {

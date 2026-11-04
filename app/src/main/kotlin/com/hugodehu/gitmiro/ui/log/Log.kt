@@ -863,7 +863,8 @@ private fun FilterPill(
                     else MaterialTheme.colors.onBackground.copy(alpha = 0.12f),
                     RoundedCornerShape(percent = 50),
                 )
-                .handMouseClickable { }
+                // The dropdown wrapping the pill handles the click, a clickable here would swallow it
+                .handOnHover()
                 .padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
