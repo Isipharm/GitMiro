@@ -76,9 +76,13 @@ fun CommitChanges(
     CommitChangesView(
         stats = stats,
         branchName = branchName,
+        isStash = logState.stashes.contains(commit.hash),
         onCheckout = { viewModel.onAction(LogAction.CheckoutCommit(commit)) },
         onCherryPick = { viewModel.onAction(LogAction.CherryPickCommit(commit)) },
         onRevert = { viewModel.onAction(LogAction.RevertCommit(commit)) },
+        onApplyStash = { viewModel.onAction(LogAction.ApplyStash(commit)) },
+        onPopStash = { viewModel.onAction(LogAction.PopStash(commit)) },
+        onDropStash = { viewModel.onAction(LogAction.DeleteStash(commit)) },
         diffSelected = diffSelected,
         commitChangesState = commitChangesState,
         onBlame = onBlame,
@@ -105,9 +109,13 @@ fun CommitChanges(
 private fun CommitChangesView(
     stats: CommitStats?,
     branchName: String?,
+    isStash: Boolean,
     onCheckout: () -> Unit,
     onCherryPick: () -> Unit,
     onRevert: () -> Unit,
+    onApplyStash: () -> Unit,
+    onPopStash: () -> Unit,
+    onDropStash: () -> Unit,
     commitChangesState: CommitChangesState,
     diffSelected: DiffSelected.CommitedChanges?,
     onBlame: (String) -> Unit,
@@ -223,23 +231,42 @@ private fun CommitChangesView(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            PrimaryButton(
-                text = "Checkout",
-                onClick = onCheckout,
-                modifier = Modifier.weight(1f).height(34.dp),
-            )
-            GhostButton(text = "Cherry-pick", onClick = onCherryPick, modifier = Modifier.height(34.dp))
+            if (isStash) {
+                // A stash isn't part of the history: it is applied back to the working directory, not checked out
+                PrimaryButton(
+                    text = "Apply stash",
+                    onClick = onApplyStash,
+                    modifier = Modifier.weight(1f).height(34.dp),
+                )
+                GhostButton(text = "Pop stash", onClick = onPopStash, modifier = Modifier.height(34.dp))
+            } else {
+                PrimaryButton(
+                    text = "Checkout",
+                    onClick = onCheckout,
+                    modifier = Modifier.weight(1f).height(34.dp),
+                )
+                GhostButton(text = "Cherry-pick", onClick = onCherryPick, modifier = Modifier.height(34.dp))
+            }
 
             DropDownMenu(
                 showIcons = false,
                 items = {
-                    listOf(
-                        ContextMenuElement.ContextTextEntry(label = "Revert commit", onClick = onRevert, isDanger = true),
-                        ContextMenuElement.ContextTextEntry(
-                            label = "Copy commit hash",
-                            onClick = { clipboard.setText(AnnotatedString(commit.hash)) },
-                        ),
+                    val copyHash = ContextMenuElement.ContextTextEntry(
+                        label = "Copy commit hash",
+                        onClick = { clipboard.setText(AnnotatedString(commit.hash)) },
                     )
+
+                    if (isStash) {
+                        listOf(
+                            copyHash,
+                            ContextMenuElement.ContextTextEntry(label = "Drop stash", onClick = onDropStash, isDanger = true),
+                        )
+                    } else {
+                        listOf(
+                            ContextMenuElement.ContextTextEntry(label = "Revert commit", onClick = onRevert, isDanger = true),
+                            copyHash,
+                        )
+                    }
                 },
             ) {
                 Box(

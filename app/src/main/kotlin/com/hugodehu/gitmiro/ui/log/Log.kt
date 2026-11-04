@@ -1156,6 +1156,41 @@ private fun CommitLine(
     }
 }
 
+/**
+ * Marks the stashes of the log, which are not commits of the history.
+ */
+@Composable
+private fun StashBadge() {
+    val accent = MaterialTheme.colors.secondary
+    val shape = RoundedCornerShape(6.dp)
+
+    Row(
+        modifier = Modifier
+            .padding(horizontal = 3.dp)
+            .height(22.dp)
+            .clip(shape)
+            .background(accent.copy(alpha = 0.14f))
+            .border(1.dp, accent.copy(alpha = 0.4f), shape)
+            .padding(horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            modifier = Modifier.size(12.dp),
+            painter = painterResource(Res.drawable.stash),
+            contentDescription = null,
+            tint = accent,
+        )
+        Text(
+            text = "stash",
+            fontSize = 11.5.sp,
+            fontWeight = FontWeight.Medium,
+            color = accent,
+            maxLines = 1,
+            modifier = Modifier.padding(start = 5.dp),
+        )
+    }
+}
+
 @Composable
 fun CommitMessage(
     isSelected: Boolean,
@@ -1191,6 +1226,10 @@ fun CommitMessage(
         Row(
             modifier = Modifier.padding(start = 16.dp)
         ) {
+            if (isStash) {
+                StashBadge()
+            }
+
             if (!isStash) {
                 // TODO Enable this once commits list is migrated to new structure
                 for (tag in tags) {
