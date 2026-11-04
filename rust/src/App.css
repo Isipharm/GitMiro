@@ -19,3 +19,138 @@
   font-weight: 600;
   letter-spacing: -0.01em;
 }
+
+.welcome-panel {
+  width: min(520px, calc(100vw - 48px));
+  margin: 0 auto;
+  padding-top: 112px;
+}
+
+.welcome-panel h1,
+.repository-view h1 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+
+.welcome-panel p {
+  margin: 8px 0 22px;
+  color: var(--ink-muted);
+}
+
+.button {
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.button:disabled {
+  opacity: 0.65;
+  cursor: progress;
+}
+
+.button-primary {
+  color: var(--on-accent);
+  background: var(--accent);
+}
+
+.button-primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.button-secondary {
+  color: var(--ink);
+  background: var(--surface);
+  border-color: var(--border);
+}
+
+.button-secondary:hover {
+  background: var(--surface-hover);
+}
+
+.error-message {
+  color: var(--error);
+}
+
+.repository-view {
+  width: min(900px, calc(100vw - 48px));
+  margin: 34px auto 48px;
+}
+
+.repository-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+}
+
+.repository-path,
+.muted,
+.commit-meta {
+  color: var(--ink-muted);
+}
+
+.repository-path {
+  margin: 8px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.branch-label {
+  display: inline-flex;
+  margin: 24px 0 30px;
+  padding: 5px 9px;
+  border-radius: 6px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  font-family: "Geist Mono", monospace;
+  font-size: 12px;
+}
+
+.repository-view h2 {
+  margin: 0 0 12px;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.commit-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.commit-list li {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 5px 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+
+.commit-list code {
+  color: var(--ink-muted);
+  font: 12px "Geist Mono", monospace;
+}
+
+.commit-subject {
+  overflow: hidden;
+  color: var(--ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.commit-meta {
+  grid-column: 2;
+  font-size: 12px;
+}

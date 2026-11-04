@@ -9,6 +9,16 @@ npm install
 npm run tauri dev
 ```
 
+The current slice opens an existing repository, then shows its current branch and the latest 20 commits. It does not persist recent repositories yet.
+
+## Checks
+
+```powershell
+cargo fmt --check
+cargo clippy -- -D warnings
+cargo test
+```
+
 ## Build
 
 ```powershell
