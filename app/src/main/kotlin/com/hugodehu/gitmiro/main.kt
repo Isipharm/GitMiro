@@ -35,10 +35,7 @@ private fun ignoreDisposedComposeSceneErrors() {
     val previousHandler = Thread.getDefaultUncaughtExceptionHandler()
 
     Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
-        val isDisposedScene = throwable is IllegalArgumentException &&
-                throwable.message?.contains("RootNodeOwner is already disposed") == true
-
-        if (!isDisposedScene) {
+        if (!isDisposedComposeSceneError(throwable)) {
             if (previousHandler != null) {
                 previousHandler.uncaughtException(thread, throwable)
             } else {
@@ -47,3 +44,6 @@ private fun ignoreDisposedComposeSceneErrors() {
         }
     }
 }
+
+fun isDisposedComposeSceneError(throwable: Throwable) = throwable is IllegalArgumentException &&
+        throwable.message?.contains("RootNodeOwner is already disposed") == true
