@@ -1240,11 +1240,15 @@ fun CommitMessage(
             graphCommit.commit.shortMessage
         }
 
+        // The commit the current branch points to is shown in bold, which tells where the repository is
+        val isCurrentCommit = currentBranch?.hash == graphCommit.hash
+
         Text(
             text = message,
             modifier = Modifier
                 .padding(start = 8.dp, end = 12.dp)
                 .weight(1f),
+            fontWeight = if (isCurrentCommit) FontWeight.SemiBold else FontWeight.Normal,
             style = MaterialTheme.typography.body2,
             color = if (matchesSearchFilter == false) MaterialTheme.colors.onBackgroundSecondary else MaterialTheme.colors.onBackground,
             maxLines = 1,
@@ -1612,17 +1616,7 @@ fun BranchChip(
     }
 
     val endingContent: @Composable RowScope.() -> Unit = {
-        val sizeMultiplierCurrentBranch by animateFloatAsState(if (isCurrentBranch) 1f else 0f)
         val sizeMultiplierTrackingRemoteBranch by animateFloatAsState(if (trackingRemoteBranch != null) 1f else 0f)
-
-        Icon(
-            painter = painterResource(Res.drawable.location),
-            contentDescription = null,
-            modifier = Modifier
-                .padding(start = (4 * sizeMultiplierCurrentBranch).dp)
-                .size((14 * sizeMultiplierCurrentBranch).dp),
-            tint = MaterialTheme.colors.primaryVariant,
-        )
 
         if (trackingRemoteBranch != null) {
             val tooltipText = buildAnnotatedString {
