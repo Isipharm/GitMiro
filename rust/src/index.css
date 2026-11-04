@@ -1,0 +1,56 @@
+@font-face {
+  font-family: Geist;
+  src: url("../../app/src/main/composeResources/font/Geist-Regular.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: Geist;
+  src: url("../../app/src/main/composeResources/font/Geist-SemiBold.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+}
+
+:root {
+  font-family: Geist, "Segoe UI", sans-serif;
+  font-size: 13px;
+  color: #e7e8ec;
+  background: #0e0f13;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  --ink: #e7e8ec;
+  --surface-window: #0e0f13;
+  --surface: #14151a;
+  --border: #292b33;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color: #15161a;
+    background: #ffffff;
+
+    --ink: #15161a;
+    --surface-window: #ffffff;
+    --surface: #eceef2;
+    --border: #d7d9e1;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  min-width: 800px;
+  min-height: 100%;
+  margin: 0;
+}
