@@ -31,7 +31,9 @@ import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.hugodehu.gitmiro.domain.DiffMatchPatch
 import com.hugodehu.gitmiro.domain.models.ConflictChoice
+import com.hugodehu.gitmiro.domain.models.MatchLine
 import com.hugodehu.gitmiro.domain.models.ConflictChunk
 import com.hugodehu.gitmiro.domain.models.ConflictFile
 import com.hugodehu.gitmiro.domain.models.ConflictLine
@@ -253,6 +255,8 @@ fun ConflictResolver(
                         Row(modifier = Modifier.padding(vertical = 2.dp).height(IntrinsicSize.Min)) {
                             ConflictSide(
                                 lines = chunk.current,
+                                otherLines = chunk.incoming,
+                                isCurrent = true,
                                 firstLineNumber = lineNumbers.current,
                                 lineNumberDigits = lineNumberDigits,
                                 syntaxHighlighter = syntaxHighlighter,
@@ -265,6 +269,8 @@ fun ConflictResolver(
                             )
                             ConflictSide(
                                 lines = chunk.incoming,
+                                otherLines = chunk.current,
+                                isCurrent = false,
                                 firstLineNumber = lineNumbers.incoming,
                                 lineNumberDigits = lineNumberDigits,
                                 syntaxHighlighter = syntaxHighlighter,
@@ -515,6 +521,8 @@ private fun SectionTitle(text: String, modifier: Modifier = Modifier) {
 @Composable
 private fun ConflictSide(
     lines: List<ConflictLine>,
+    otherLines: List<ConflictLine>,
+    isCurrent: Boolean,
     firstLineNumber: Int,
     lineNumberDigits: Int,
     syntaxHighlighter: SyntaxHighlighter,
@@ -553,9 +561,30 @@ private fun ConflictSide(
                 modifier = Modifier.padding(vertical = 4.dp),
             )
         } else {
-            CodeLines(lines, firstLineNumber, lineNumberDigits, syntaxHighlighter)
+            CodeLines(lines, firstLineNumber, lineNumberDigits, syntaxHighlighter, otherLines = otherLines, isCurrent = isCurrent)
         }
     }
+}
+
+/**
+ * Parts of a line that differ from the line at the same position on the other side, so only what changed stands out
+ * ("1.0.8" against "1.0.9" highlights the 8 and the 9).
+ */
+private fun changedParts(rawLine: String, rawOther: String?, isCurrent: Boolean): MatchLine? {
+    val line = rawLine.trimEnd { it == '\n' || it == '\r' }
+    val other = rawOther?.trimEnd { it == '\n' || it == '\r' }
+
+    if (other == null || other == line) return null
+
+    val dmp = DiffMatchPatch()
+    // The current side is the old text, the incoming side the new one
+    val diffs = if (isCurrent) dmp.diffMain(line, other, false) else dmp.diffMain(other, line, false)
+
+    dmp.diffCleanupSemantic(diffs)
+
+    val own = if (isCurrent) DiffMatchPatch.Operation.DELETE else DiffMatchPatch.Operation.INSERT
+
+    return MatchLine(diffs.filter { it.operation == DiffMatchPatch.Operation.EQUAL || it.operation == own })
 }
 
 @Composable
@@ -565,6 +594,8 @@ private fun CodeLines(
     lineNumberDigits: Int,
     syntaxHighlighter: SyntaxHighlighter,
     modifier: Modifier = Modifier,
+    otherLines: List<ConflictLine>? = null,
+    isCurrent: Boolean = true,
 ) {
     SelectionContainer(modifier = modifier) {
         Column {
@@ -576,7 +607,13 @@ private fun CodeLines(
                             remarked = false,
                         )
                     }
-                    DiffText(text = line.text, matchLine = null, syntaxHighlighter = syntaxHighlighter)
+                    DiffText(
+                        text = line.text,
+                        matchLine = remember(line, otherLines) {
+                            changedParts(line.text, otherLines?.getOrNull(index)?.text, isCurrent)
+                        },
+                        syntaxHighlighter = syntaxHighlighter,
+                    )
                 }
             }
         }
