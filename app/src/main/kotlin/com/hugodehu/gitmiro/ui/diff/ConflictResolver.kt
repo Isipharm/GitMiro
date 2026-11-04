@@ -136,8 +136,10 @@ fun ConflictResolver(
         choices[it.index] = (choices[it.index] ?: ConflictChoice()).withIncoming(keep)
     }
 
-    val keptCurrentCount = conflicts.count { choices[it.index]?.keepCurrent == true }
-    val keptIncomingCount = conflicts.count { choices[it.index]?.keepIncoming == true }
+    val keptCurrentCount = conflicts.count { choices[it.index]?.let { choice -> choice.keepCurrent && !choice.isCurrentPartial } == true }
+    val keptIncomingCount = conflicts.count { choices[it.index]?.let { choice -> choice.keepIncoming && !choice.isIncomingPartial } == true }
+    val anyCurrentCount = conflicts.count { choices[it.index]?.keepCurrent == true }
+    val anyIncomingCount = conflicts.count { choices[it.index]?.keepIncoming == true }
 
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
@@ -218,6 +220,7 @@ fun ConflictResolver(
                 title = "Current · $currentLabel",
                 tint = MaterialTheme.colors.graphColors[1],
                 keptCount = keptCurrentCount,
+                anyKeptCount = anyCurrentCount,
                 totalCount = conflicts.size,
                 isLocked = isEditedByHand,
                 onKeepAllChanged = ::keepAllCurrent,
@@ -228,6 +231,7 @@ fun ConflictResolver(
                 title = "Incoming · $incomingLabel",
                 tint = MaterialTheme.colors.addFile,
                 keptCount = keptIncomingCount,
+                anyKeptCount = anyIncomingCount,
                 totalCount = conflicts.size,
                 isLocked = isEditedByHand,
                 onKeepAllChanged = ::keepAllIncoming,
@@ -260,10 +264,12 @@ fun ConflictResolver(
                                 firstLineNumber = lineNumbers.current,
                                 lineNumberDigits = lineNumberDigits,
                                 syntaxHighlighter = syntaxHighlighter,
-                                isKept = choice.keepCurrent,
+                                isKept = { choice.keepsCurrentLine(it) },
                                 isLocked = isEditedByHand,
                                 color = MaterialTheme.colors.graphColors[1],
-                                onKeptChanged = { choices[chunk.index] = choice.withCurrent(it) },
+                                onKeptChanged = { line, keep ->
+                                    choices[chunk.index] = choice.withCurrentLine(line, keep, chunk.current.size)
+                                },
                                 onLockedClick = onLockedClick,
                                 modifier = Modifier.weight(1f).fillMaxHeight(),
                             )
@@ -274,10 +280,12 @@ fun ConflictResolver(
                                 firstLineNumber = lineNumbers.incoming,
                                 lineNumberDigits = lineNumberDigits,
                                 syntaxHighlighter = syntaxHighlighter,
-                                isKept = choice.keepIncoming,
+                                isKept = { choice.keepsIncomingLine(it) },
                                 isLocked = isEditedByHand,
                                 color = MaterialTheme.colors.addFile,
-                                onKeptChanged = { choices[chunk.index] = choice.withIncoming(it) },
+                                onKeptChanged = { line, keep ->
+                                    choices[chunk.index] = choice.withIncomingLine(line, keep, chunk.incoming.size)
+                                },
                                 onLockedClick = onLockedClick,
                                 modifier = Modifier.weight(1f).fillMaxHeight(),
                             )
@@ -460,15 +468,16 @@ private fun SideHeader(
     title: String,
     tint: Color,
     keptCount: Int,
+    anyKeptCount: Int,
     totalCount: Int,
     isLocked: Boolean,
     onKeepAllChanged: (Boolean) -> Unit,
     onLockedClick: () -> Unit,
     modifier: Modifier,
 ) {
-    val state = when (keptCount) {
-        0 -> ToggleableState.Off
-        totalCount -> ToggleableState.On
+    val state = when {
+        keptCount == totalCount -> ToggleableState.On
+        anyKeptCount == 0 -> ToggleableState.Off
         else -> ToggleableState.Indeterminate
     }
     // Partially kept goes to fully kept, as it's the most common reason to click it
@@ -515,8 +524,7 @@ private fun SectionTitle(text: String, modifier: Modifier = Modifier) {
 }
 
 /**
- * One side of a conflicting block. The checkbox gutter is clickable on the whole height of the block, not only on the
- * checkbox itself.
+ * One side of a conflicting block. Every line has its own checkbox, so lines can be picked from both sides one by one.
  */
 @Composable
 private fun ConflictSide(
@@ -526,42 +534,64 @@ private fun ConflictSide(
     firstLineNumber: Int,
     lineNumberDigits: Int,
     syntaxHighlighter: SyntaxHighlighter,
-    isKept: Boolean,
+    isKept: (Int) -> Boolean,
     isLocked: Boolean,
     color: Color,
-    onKeptChanged: (Boolean) -> Unit,
+    onKeptChanged: (line: Int, keep: Boolean) -> Unit,
     onLockedClick: () -> Unit,
     modifier: Modifier,
 ) {
-    Row(modifier = modifier.background(color.copy(alpha = if (isKept) 0.28f else 0.12f))) {
-        Box(
-            contentAlignment = Alignment.TopCenter,
-            modifier = Modifier
-                .width(CHECKBOX_GUTTER_WIDTH)
-                .fillMaxHeight()
-                .handMouseClickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = { if (isLocked) onLockedClick() else onKeptChanged(!isKept) },
-                ),
-        ) {
-            AppCheckbox(
-                checked = isKept,
-                onCheckedChange = onKeptChanged,
-                enabled = !isLocked,
-                modifier = Modifier.padding(top = 4.dp),
-            )
-        }
-
+    Column(modifier = modifier) {
         if (lines.isEmpty()) {
             Text(
                 text = "No lines",
                 style = MaterialTheme.typography.caption,
                 color = MaterialTheme.colors.onBackgroundSecondary,
-                modifier = Modifier.padding(vertical = 4.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(color.copy(alpha = 0.12f))
+                    .padding(start = CHECKBOX_GUTTER_WIDTH, top = 4.dp, bottom = 4.dp),
             )
-        } else {
-            CodeLines(lines, firstLineNumber, lineNumberDigits, syntaxHighlighter, otherLines = otherLines, isCurrent = isCurrent)
+        }
+
+        lines.forEachIndexed { index, line ->
+            val kept = isKept(index)
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(color.copy(alpha = if (kept) 0.28f else 0.12f)),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .width(CHECKBOX_GUTTER_WIDTH)
+                        .height(26.dp)
+                        .handMouseClickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { if (isLocked) onLockedClick() else onKeptChanged(index, !kept) },
+                        ),
+                ) {
+                    AppCheckbox(
+                        checked = kept,
+                        onCheckedChange = { if (isLocked) onLockedClick() else onKeptChanged(index, it) },
+                        enabled = !isLocked,
+                    )
+                }
+
+                CodeLines(
+                    listOf(line),
+                    firstLineNumber + index,
+                    lineNumberDigits,
+                    syntaxHighlighter,
+                    modifier = Modifier.weight(1f),
+                    otherLines = otherLines,
+                    isCurrent = isCurrent,
+                    positionOffset = index,
+                )
+            }
         }
     }
 }
@@ -596,6 +626,7 @@ private fun CodeLines(
     modifier: Modifier = Modifier,
     otherLines: List<ConflictLine>? = null,
     isCurrent: Boolean = true,
+    positionOffset: Int = 0,
 ) {
     SelectionContainer(modifier = modifier) {
         Column {
@@ -609,8 +640,8 @@ private fun CodeLines(
                     }
                     DiffText(
                         text = line.text,
-                        matchLine = remember(line, otherLines) {
-                            changedParts(line.text, otherLines?.getOrNull(index)?.text, isCurrent)
+                        matchLine = remember(line, otherLines, positionOffset) {
+                            changedParts(line.text, otherLines?.getOrNull(positionOffset + index)?.text, isCurrent)
                         },
                         syntaxHighlighter = syntaxHighlighter,
                     )

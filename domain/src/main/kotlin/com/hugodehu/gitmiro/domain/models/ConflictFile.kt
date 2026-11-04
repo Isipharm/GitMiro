@@ -21,8 +21,16 @@ sealed interface ConflictChunk {
     data class Conflict(val index: Int, val current: List<ConflictLine>, val incoming: List<ConflictLine>) : ConflictChunk {
         /** Lines kept for this conflict. When both sides are kept, they follow the order in which they were chosen */
         fun linesFor(choice: ConflictChoice?): List<ConflictLine> {
-            val currentLines = if (choice?.keepCurrent == true) current else emptyList()
-            val incomingLines = if (choice?.keepIncoming == true) incoming else emptyList()
+            val currentLines = if (choice?.keepCurrent == true) {
+                current.filterIndexed { index, _ -> index !in choice.excludedCurrent }
+            } else {
+                emptyList()
+            }
+            val incomingLines = if (choice?.keepIncoming == true) {
+                incoming.filterIndexed { index, _ -> index !in choice.excludedIncoming }
+            } else {
+                emptyList()
+            }
 
             return if (choice?.incomingFirst == true) incomingLines + currentLines else currentLines + incomingLines
         }
@@ -31,25 +39,57 @@ sealed interface ConflictChunk {
 
 /**
  * Use [withCurrent] and [withIncoming] to change it, so the side kept last goes after the other one.
+ *
+ * A kept side can lose some of its lines, listed in [excludedCurrent] and [excludedIncoming] by position, so lines can
+ * be picked one by one from both sides. Use [withCurrentLine] and [withIncomingLine] for that.
  */
 data class ConflictChoice(
     val keepCurrent: Boolean = false,
     val keepIncoming: Boolean = false,
     val incomingFirst: Boolean = false,
+    val excludedCurrent: Set<Int> = emptySet(),
+    val excludedIncoming: Set<Int> = emptySet(),
 ) {
     val isDecided: Boolean get() = keepCurrent || keepIncoming
 
-    // Keeping a side that is already kept must not change the order (e.g. from the "keep all" checkbox)
+    val isCurrentPartial: Boolean get() = keepCurrent && excludedCurrent.isNotEmpty()
+    val isIncomingPartial: Boolean get() = keepIncoming && excludedIncoming.isNotEmpty()
+
+    // Keeping a side that is already kept must not change the order (e.g. from the "keep all" checkbox), but it
+    // brings back the lines that were taken out of it
     fun withCurrent(keep: Boolean) = when {
-        keep == keepCurrent -> this
-        keep -> copy(keepCurrent = true, incomingFirst = keepIncoming)
-        else -> copy(keepCurrent = false)
+        keep == keepCurrent -> if (keep) copy(excludedCurrent = emptySet()) else this
+        keep -> copy(keepCurrent = true, incomingFirst = keepIncoming, excludedCurrent = emptySet())
+        else -> copy(keepCurrent = false, excludedCurrent = emptySet())
     }
 
     fun withIncoming(keep: Boolean) = when {
-        keep == keepIncoming -> this
-        keep -> copy(keepIncoming = true, incomingFirst = !keepCurrent)
-        else -> copy(keepIncoming = false)
+        keep == keepIncoming -> if (keep) copy(excludedIncoming = emptySet()) else this
+        keep -> copy(keepIncoming = true, incomingFirst = !keepCurrent, excludedIncoming = emptySet())
+        else -> copy(keepIncoming = false, excludedIncoming = emptySet())
+    }
+
+    /** Whether the line at [index] of the current side ends up in the result */
+    fun keepsCurrentLine(index: Int) = keepCurrent && index !in excludedCurrent
+
+    fun keepsIncomingLine(index: Int) = keepIncoming && index !in excludedIncoming
+
+    /**
+     * Keeps or drops one line of the current side, which has [total] lines. Dropping the last kept line drops the side.
+     */
+    fun withCurrentLine(index: Int, keep: Boolean, total: Int): ConflictChoice {
+        // The first line picked from a side that wasn't kept starts from no lines at all
+        val base = if (keepCurrent) this else withCurrent(true).copy(excludedCurrent = (0 until total).toSet())
+        val excluded = if (keep) base.excludedCurrent - index else base.excludedCurrent + index
+
+        return if (excluded.size >= total) base.withCurrent(false) else base.copy(excludedCurrent = excluded)
+    }
+
+    fun withIncomingLine(index: Int, keep: Boolean, total: Int): ConflictChoice {
+        val base = if (keepIncoming) this else withIncoming(true).copy(excludedIncoming = (0 until total).toSet())
+        val excluded = if (keep) base.excludedIncoming - index else base.excludedIncoming + index
+
+        return if (excluded.size >= total) base.withIncoming(false) else base.copy(excludedIncoming = excluded)
     }
 }
 
