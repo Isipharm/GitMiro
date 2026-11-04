@@ -27,6 +27,7 @@ import com.hugodehu.gitmiro.app.generated.resources.list
 import com.hugodehu.gitmiro.app.generated.resources.more_vert
 import androidx.compose.foundation.shape.CircleShape
 import com.hugodehu.gitmiro.theme.monoTypography
+import com.hugodehu.gitmiro.theme.addFile
 import com.hugodehu.gitmiro.theme.onBackgroundSecondary
 import com.hugodehu.gitmiro.ui.context_menu.ContextMenuElement
 import com.hugodehu.gitmiro.ui.context_menu.DropDownMenu
@@ -54,6 +55,7 @@ fun FilesChangedHeader(
     showActionForSelected: Boolean,
     actionInfo: ActionInfo? = null,
     count: Int? = null,
+    stats: Pair<Int, Int>? = null,
     extraItems: List<ContextMenuElement> = emptyList(),
     onAllAction: (() -> Unit)? = null,
     onDiscardAll: (() -> Unit)? = null,
@@ -80,29 +82,55 @@ fun FilesChangedHeader(
                 .hoverable(headerHoverInteraction),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                modifier = Modifier.padding(start = 14.dp),
-                text = title,
-                fontWeight = FontWeight.SemiBold,
-                textAlign = TextAlign.Left,
-                color = MaterialTheme.colors.onBackground,
-                style = MaterialTheme.typography.body2,
-                maxLines = 1,
-            )
-
-            if (count != null) {
+            if (stats != null && count != null) {
+                // Commit summary: "14 files +1,204 -18"
                 Text(
-                    modifier = Modifier
-                        .padding(start = 8.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colors.onBackground.copy(alpha = 0.08f))
-                        .padding(horizontal = 7.dp, vertical = 1.dp),
-                    text = count.toString(),
-                    fontFamily = monoTypography(),
-                    color = MaterialTheme.colors.onBackgroundSecondary,
+                    modifier = Modifier.padding(start = 18.dp),
+                    text = if (count == 1) "1 file" else "$count files",
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colors.onBackground,
                     style = MaterialTheme.typography.caption,
                     maxLines = 1,
                 )
+                Text(
+                    modifier = Modifier.padding(start = 10.dp),
+                    text = "+%,d".format(stats.first),
+                    color = MaterialTheme.colors.addFile,
+                    style = MaterialTheme.typography.caption,
+                    maxLines = 1,
+                )
+                Text(
+                    modifier = Modifier.padding(start = 6.dp),
+                    text = "-%,d".format(stats.second),
+                    color = MaterialTheme.colors.error,
+                    style = MaterialTheme.typography.caption,
+                    maxLines = 1,
+                )
+            } else {
+                Text(
+                    modifier = Modifier.padding(start = 14.dp),
+                    text = title,
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Left,
+                    color = MaterialTheme.colors.onBackground,
+                    style = MaterialTheme.typography.body2,
+                    maxLines = 1,
+                )
+
+                if (count != null) {
+                    Text(
+                        modifier = Modifier
+                            .padding(start = 8.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colors.onBackground.copy(alpha = 0.08f))
+                            .padding(horizontal = 7.dp, vertical = 1.dp),
+                        text = count.toString(),
+                        fontFamily = monoTypography(),
+                        color = MaterialTheme.colors.onBackgroundSecondary,
+                        style = MaterialTheme.typography.caption,
+                        maxLines = 1,
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.weight(1f))

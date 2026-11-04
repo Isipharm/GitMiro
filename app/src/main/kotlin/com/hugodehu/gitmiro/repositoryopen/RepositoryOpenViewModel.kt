@@ -142,6 +142,7 @@ class RepositoryOpenViewModel @Inject constructor(
     private val openRepositoryInTerminalGitAction: OpenRepositoryInTerminalGitAction,
     private val getAheadCountUseCase: GetAheadCountUseCase,
     private val getRebaseProgressUseCase: GetRebaseProgressUseCase,
+    private val getCommitStatsUseCase: GetCommitStatsUseCase,
 ) : IVerticalSplitPaneConfig by verticalSplitPaneConfig,
     TabViewModel() {
     val completedTasks = repositoryStateRepository.completedTasks
@@ -422,6 +423,15 @@ class RepositoryOpenViewModel @Inject constructor(
     )
 
     val commitChangesState = commitChangesViewModelExtender.commitChangesState
+
+    /**
+     * Lines added and removed by the selected commit, null while loading or when no commit is selected.
+     */
+    val commitStats: StateFlow<CommitStats?> = commitChangesState
+        .map { it?.commit }
+        .distinctUntilChangedBy { it?.hash }
+        .map { commit -> commit?.let { getCommitStatsUseCase(it).okOrNull() } }
+        .stateIn(null)
 
     val statusState = statusViewModelExtender.statusState
 

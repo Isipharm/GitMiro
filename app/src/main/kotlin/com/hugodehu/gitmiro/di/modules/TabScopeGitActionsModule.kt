@@ -298,6 +298,10 @@ interface TabScopeGitActionsModule {
 
     @Binds
     @TabScope
+    fun bindsGetCommitStatsGitAction(action: GetCommitStatsGitAction): IGetCommitStatsGitAction
+
+    @Binds
+    @TabScope
     fun bindsGetTrackingBranchGitAction(action: GetTrackingBranchGitAction): IGetTrackingBranchGitAction
 
     @Binds
