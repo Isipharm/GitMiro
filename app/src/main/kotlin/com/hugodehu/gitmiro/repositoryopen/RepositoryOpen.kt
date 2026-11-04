@@ -400,12 +400,14 @@ fun MainContentView(
             .fillMaxHeight(),
         firstWidth = when {
             isRebaseInteractive -> 0f
-            inOperation -> if (showDiff) 300f else 0f
+            // Resolving a file replaces the refs by the conflicted files, the rebase overview has no left column
+            inOperation && showDiff -> 300f
+            repositoryState.isRebasing -> 0f
             else -> firstWidth
         },
         thirdWidth = if (inOperation) (if (showDiff) 0f else 372f) else thirdWidth,
         first = {
-            if (inOperation) {
+            if (inOperation && showDiff) {
                 ConflictedFilesPanel(
                     rows = conflictRows,
                     selectedPath = diffSelected?.entries?.firstOrNull()?.filePath,
@@ -526,7 +528,7 @@ fun MainContentView(
         onFirstSizeChange = {
             val newWidth = firstWidth + it / density
 
-            if (newWidth > 150 && !inOperation && rebaseInteractiveState !is RebaseInteractiveState.AwaitingInteraction) {
+            if (newWidth > 150 && !(inOperation && (showDiff || repositoryState.isRebasing)) && rebaseInteractiveState !is RebaseInteractiveState.AwaitingInteraction) {
                 firstWidth = newWidth
                 viewModel.setFirstPaneWidth(newWidth)
             }
