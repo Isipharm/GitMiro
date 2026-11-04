@@ -1,25 +1,23 @@
 package com.hugodehu.gitmiro.ui.dialogs
 
-import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.Icon
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.hugodehu.gitmiro.app.generated.resources.Res
-import com.hugodehu.gitmiro.app.generated.resources.warning
-import com.hugodehu.gitmiro.theme.outlinedTextFieldColors
+import com.hugodehu.gitmiro.theme.onBackgroundSecondary
 import com.hugodehu.gitmiro.ui.components.AdjustableOutlinedTextField
+import com.hugodehu.gitmiro.ui.components.GhostButton
+import com.hugodehu.gitmiro.ui.components.PanelDivider
 import com.hugodehu.gitmiro.ui.components.PrimaryButton
 import com.hugodehu.gitmiro.ui.dialogs.base.MaterialDialog
 import com.hugodehu.gitmiro.viewmodels.AuthorViewModel
-import org.jetbrains.compose.resources.painterResource
 
 @Composable
 fun AuthorDialog(
@@ -33,84 +31,72 @@ fun AuthorDialog(
     var name by remember(authorInfo) { mutableStateOf(authorInfo.repositoryIdentity.name) }
     var email by remember(authorInfo) { mutableStateOf(authorInfo.repositoryIdentity.email) }
 
-    MaterialDialog(
-        onCloseRequested = onDismiss,
-        background = MaterialTheme.colors.surface,
-    ) {
+    MaterialDialog(onCloseRequested = onDismiss) {
         Column(
-            modifier = Modifier
-                .padding(horizontal = 8.dp),
+            modifier = Modifier.width(500.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
-
-            Text(
-                text = "Global settings",
-                color = MaterialTheme.colors.onBackground,
-                fontSize = 16.sp,
-                modifier = Modifier.padding(vertical = 8.dp),
-            )
-
-            TextInput(
-                title = "Name",
-                value = globalName.orEmpty(),
-                onValueChange = { globalName = it },
-            )
-            TextInput(
-                title = "Email",
-                value = globalEmail.orEmpty(),
-                onValueChange = { globalEmail = it },
-            )
-
-            Text(
-                text = "Repository settings",
-                color = MaterialTheme.colors.onBackground,
-                fontSize = 16.sp,
-                modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
-            )
-
-            TextInput(
-                title = "Name",
-                value = name.orEmpty(),
-                onValueChange = { name = it },
-            )
-            TextInput(
-                title = "Email",
-                value = email.orEmpty(),
-                onValueChange = { email = it },
-            )
-
-            val visible = !name.isNullOrBlank() || !email.isNullOrBlank()
-
-            val visibilityAlpha by animateFloatAsState(targetValue = if (visible) 1f else 0f)
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.alpha(visibilityAlpha)
-            ) {
-                Icon(
-                    painterResource(Res.drawable.warning),
-                    contentDescription = null,
-                    tint = MaterialTheme.colors.onBackground,
-                    modifier = Modifier.size(16.dp)
-                )
-                Text(
-                    text = "Repository-level values will override global values",
-                    style = MaterialTheme.typography.body2,
+            Row(verticalAlignment = Alignment.Top) {
+                Box(
                     modifier = Modifier
-                        .padding(top = 8.dp, bottom = 8.dp, start = 4.dp),
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colors.primary),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = (name?.takeIf { it.isNotBlank() } ?: globalName).orEmpty().take(1).uppercase(),
+                        color = MaterialTheme.colors.onPrimary,
+                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.body1,
+                    )
+                }
+
+                Column(modifier = Modifier.padding(start = 14.dp)) {
+                    Text(
+                        text = "Git identity",
+                        color = MaterialTheme.colors.onBackground,
+                        style = MaterialTheme.typography.body1,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(bottom = 3.dp),
+                    )
+                    Text(
+                        text = "Name and e-mail written on the commits you create.",
+                        color = MaterialTheme.colors.onBackgroundSecondary,
+                        style = MaterialTheme.typography.body2,
+                    )
+                }
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                SectionTitle("Global", "all your repositories")
+                LabeledInput("Name", globalName.orEmpty(), hint = "") { globalName = it }
+                LabeledInput("E-mail", globalEmail.orEmpty(), hint = "") { globalEmail = it }
+            }
+
+            PanelDivider()
+
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                SectionTitle("This repository", "overrides the global identity")
+
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    LabeledInput("Name", name.orEmpty(), hint = globalName.orEmpty(), modifier = Modifier.weight(1f)) { name = it }
+                    LabeledInput("E-mail", email.orEmpty(), hint = globalEmail.orEmpty(), modifier = Modifier.weight(1f)) { email = it }
+                }
+
+                Text(
+                    text = "Leave empty to use the global identity (shown in grey).",
+                    style = MaterialTheme.typography.caption,
+                    color = MaterialTheme.colors.onBackgroundSecondary,
                 )
             }
+
             Row(
-                modifier = Modifier
-                    .padding(top = 16.dp)
-                    .align(Alignment.End)
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                PrimaryButton(
-                    text = "Cancel",
-                    modifier = Modifier.padding(end = 8.dp),
-                    onClick = onDismiss,
-                    backgroundColor = Color.Transparent,
-                    textColor = MaterialTheme.colors.onBackground,
-                )
+                GhostButton(text = "Cancel", onClick = onDismiss, modifier = Modifier.height(36.dp))
                 PrimaryButton(
                     onClick = {
                         viewModel.saveAuthorInfo(
@@ -121,42 +107,51 @@ fun AuthorDialog(
                         )
                         onDismiss()
                     },
-                    text = "Save data"
+                    text = "Save",
                 )
             }
         }
     }
 }
 
-
 @Composable
-private fun TextInput(
-    title: String,
-    value: String,
-    enabled: Boolean = true,
-    onValueChange: (String) -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .width(400.dp)
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
+private fun SectionTitle(title: String, subtitle: String) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             text = title,
-            style = MaterialTheme.typography.body1,
-            modifier = Modifier
-                .width(80.dp)
-                .padding(end = 16.dp),
+            color = MaterialTheme.colors.onBackground,
+            style = MaterialTheme.typography.body2,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            text = subtitle,
+            color = MaterialTheme.colors.onBackgroundSecondary,
+            style = MaterialTheme.typography.body2,
+        )
+    }
+}
+
+@Composable
+private fun LabeledInput(
+    title: String,
+    value: String,
+    hint: String,
+    modifier: Modifier = Modifier,
+    onValueChange: (String) -> Unit,
+) {
+    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.caption,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colors.onBackgroundSecondary,
         )
 
         AdjustableOutlinedTextField(
             value = value,
-            modifier = Modifier
-                .weight(1f),
-            enabled = enabled,
+            hint = hint,
+            modifier = Modifier.fillMaxWidth(),
             onValueChange = onValueChange,
-            colors = outlinedTextFieldColors(),
             singleLine = true,
         )
     }
