@@ -145,24 +145,6 @@ fun ConflictResolver(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            val dirPath = filePath.substringBeforeLast("/", "")
-
-            if (dirPath.isNotEmpty()) {
-                Text(
-                    text = "$dirPath/",
-                    style = MaterialTheme.typography.body2,
-                    color = MaterialTheme.colors.onBackgroundSecondary,
-                    maxLines = 1,
-                    modifier = Modifier.weight(1f, false),
-                )
-            }
-            Text(
-                text = filePath.substringAfterLast("/"),
-                style = MaterialTheme.typography.body2,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colors.onBackground,
-                maxLines = 1,
-            )
             Text(
                 text = "$decidedCount of ${conflicts.size} resolved",
                 style = MaterialTheme.typography.caption,

@@ -4,7 +4,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.Icon
 import androidx.compose.material.LinearProgressIndicator
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
+import com.hugodehu.gitmiro.app.generated.resources.Res
+import com.hugodehu.gitmiro.app.generated.resources.sync
+import org.jetbrains.compose.resources.painterResource
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
@@ -23,7 +30,7 @@ fun ProcessingScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colors.surface)
+            .background(MaterialTheme.colors.background)
             .onPreviewKeyEvent { true } // Disable all keyboard events
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
@@ -33,28 +40,34 @@ fun ProcessingScreen(
         contentAlignment = Alignment.Center,
     ) {
         Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.width(360.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Text(
-                getTitle(processingTask),
-                style = MaterialTheme.typography.h3,
-                color = MaterialTheme.colors.onBackground,
-                modifier = Modifier.padding(bottom = 8.dp),
-            )
-// TODO Does this need to be restored?
-//            if (processingState.subtitle.isNotEmpty()) {
-//                Text(
-//                    processingState.subtitle,
-//                    style = MaterialTheme.typography.body1,
-//                    color = MaterialTheme.colors.onBackground,
-//                    modifier = Modifier.padding(bottom = 32.dp),
-//                )
-//            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Icon(
+                    painter = painterResource(Res.drawable.sync),
+                    contentDescription = null,
+                    tint = MaterialTheme.colors.primaryVariant,
+                    modifier = Modifier.size(20.dp),
+                )
+                Text(
+                    getTitle(processingTask),
+                    style = MaterialTheme.typography.body1,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colors.onBackground,
+                )
+            }
 
             LinearProgressIndicator(
-                modifier = Modifier.width(280.dp)
-                    .padding(bottom = 32.dp),
-                color = MaterialTheme.colors.secondary,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(percent = 50)),
+                color = MaterialTheme.colors.primary,
+                backgroundColor = MaterialTheme.colors.onBackground.copy(alpha = 0.1f),
             )
         }
     }

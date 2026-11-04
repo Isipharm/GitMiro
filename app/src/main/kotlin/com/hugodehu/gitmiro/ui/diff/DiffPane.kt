@@ -952,7 +952,7 @@ private fun DiffHeader(
             modifier = Modifier.weight(1f, true),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            SelectionContainer {
+            SelectionContainer(modifier = Modifier.weight(1f, false)) {
                 Row {
                     if (dirPath.isNotEmpty()) {
                         Text(
@@ -981,6 +981,8 @@ private fun DiffHeader(
                     fontFamily = monoTypography(),
                     style = MaterialTheme.typography.caption,
                     color = MaterialTheme.colors.addFile,
+                    maxLines = 1,
+                    softWrap = false,
                     modifier = Modifier.padding(start = 12.dp),
                 )
                 Text(
@@ -988,6 +990,8 @@ private fun DiffHeader(
                     fontFamily = monoTypography(),
                     style = MaterialTheme.typography.caption,
                     color = MaterialTheme.colors.error,
+                    maxLines = 1,
+                    softWrap = false,
                     modifier = Modifier.padding(start = 6.dp),
                 )
             }
