@@ -35,6 +35,7 @@ import com.hugodehu.gitmiro.avatarproviders.GravatarAvatarProvider
 import com.hugodehu.gitmiro.avatarproviders.NoneAvatarProvider
 import com.hugodehu.gitmiro.common.OS
 import com.hugodehu.gitmiro.common.currentOs
+import com.hugodehu.gitmiro.common.printError
 import com.hugodehu.gitmiro.common.systemSeparator
 import com.hugodehu.gitmiro.data.git.signers.AppGpgSigner
 import com.hugodehu.gitmiro.data.git.signers.SshSigner
@@ -208,7 +209,9 @@ class App @Inject constructor(
                 LocalWindowExceptionHandlerFactory provides WindowExceptionHandlerFactory { window ->
                     val defaultHandler = DefaultWindowExceptionHandlerFactory.exceptionHandler(window)
                     WindowExceptionHandler { throwable ->
-                        if (!isDisposedComposeSceneError(throwable)) {
+                        if (isDisposedComposeSceneError(throwable)) {
+                            printError(TAG, "Ignored error from a disposed popup", throwable as Exception)
+                        } else {
                             defaultHandler.onException(throwable)
                         }
                     }
