@@ -1,8 +1,13 @@
 use serde::Serialize;
 use std::{
+    io::{self, Read},
     path::Path,
-    process::{Command, Output},
+    process::{Child, Command, Output, Stdio},
+    thread,
 };
+
+const MAX_GIT_STDOUT_BYTES: usize = 256 * 1024;
+const MAX_GIT_STDERR_BYTES: usize = 16 * 1024;
 
 #[derive(Serialize)]
 struct Commit {
@@ -20,13 +25,73 @@ struct RepositorySummary {
     commits: Vec<Commit>,
 }
 
-fn git(path: &Path, args: &[&str]) -> Result<Output, String> {
-    let output = Command::new("git")
+fn read_capped(mut reader: impl Read, limit: usize) -> io::Result<(Vec<u8>, bool)> {
+    let mut bytes = Vec::with_capacity(limit.min(8192));
+    let mut truncated = false;
+    let mut chunk = [0; 8192];
+    loop {
+        let read = reader.read(&mut chunk)?;
+        if read == 0 {
+            break;
+        }
+        let remaining = limit.saturating_sub(bytes.len());
+        bytes.extend_from_slice(&chunk[..read.min(remaining)]);
+        truncated |= read > remaining;
+    }
+    Ok((bytes, truncated))
+}
+
+fn collect_output(mut child: Child) -> Result<Output, String> {
+    let stdout = child.stdout.take().expect("piped stdout");
+    let stderr = child.stderr.take().expect("piped stderr");
+    let stdout_reader = thread::spawn(move || read_capped(stdout, MAX_GIT_STDOUT_BYTES));
+    let stderr_reader = thread::spawn(move || read_capped(stderr, MAX_GIT_STDERR_BYTES));
+    let status = match child.wait() {
+        Ok(status) => status,
+        Err(error) => {
+            let _ = child.kill();
+            let _ = child.wait();
+            let _ = stdout_reader.join();
+            let _ = stderr_reader.join();
+            return Err(format!("Could not wait for Git: {error}"));
+        }
+    };
+    let (stdout, stdout_truncated) = stdout_reader
+        .join()
+        .map_err(|_| "Could not read Git output".to_owned())?
+        .map_err(|error| format!("Could not read Git output: {error}"))?;
+    let (mut stderr, stderr_truncated) = stderr_reader
+        .join()
+        .map_err(|_| "Could not read Git error output".to_owned())?
+        .map_err(|error| format!("Could not read Git error output: {error}"))?;
+
+    if stdout_truncated {
+        return Err("Git output exceeded the 256 KiB limit".to_owned());
+    }
+    if stderr_truncated {
+        stderr.extend_from_slice(b"\n[Git error output truncated]");
+    }
+    Ok(Output {
+        status,
+        stdout,
+        stderr,
+    })
+}
+
+fn git_output(path: &Path, args: &[&str]) -> Result<Output, String> {
+    let child = Command::new("git")
         .arg("-C")
         .arg(path)
         .args(args)
-        .output()
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
         .map_err(|error| format!("Could not start Git: {error}"))?;
+    collect_output(child)
+}
+
+fn git(path: &Path, args: &[&str]) -> Result<Output, String> {
+    let output = git_output(path, args)?;
 
     if !output.status.success() {
         return Err(String::from_utf8_lossy(&output.stderr).trim().to_owned());
@@ -58,12 +123,7 @@ fn parse_commits(output: &str) -> Vec<Commit> {
 }
 
 fn current_branch(path: &Path) -> Result<String, String> {
-    let output = Command::new("git")
-        .arg("-C")
-        .arg(path)
-        .args(["symbolic-ref", "--quiet", "--short", "HEAD"])
-        .output()
-        .map_err(|error| format!("Could not start Git: {error}"))?;
+    let output = git_output(path, &["symbolic-ref", "--quiet", "--short", "HEAD"])?;
 
     if output.status.success() {
         return Ok(String::from_utf8_lossy(&output.stdout)
@@ -89,7 +149,12 @@ async fn open_repository(path: String) -> Result<RepositorySummary, String> {
         let branch = current_branch(root)?;
         let log = git_text(
             root,
-            &["log", "-n", "20", "--format=%h%x00%s%x00%an%x00%aI%x00"],
+            &[
+                "log",
+                "-n",
+                "20",
+                "--format=%h%x00%<(256,trunc)%s%x00%<(256,trunc)%an%x00%aI%x00",
+            ],
         )?;
 
         Ok(RepositorySummary {
@@ -118,7 +183,41 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::{current_branch, parse_commits};
+    use super::{MAX_GIT_STDERR_BYTES, collect_output, current_branch, parse_commits, read_capped};
+
+    #[test]
+    fn caps_reader_output_and_reports_truncation() {
+        let (bytes, truncated) = read_capped(&b"abcdef"[..], 4).unwrap();
+
+        assert_eq!(bytes, b"abcd");
+        assert!(truncated);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn drains_both_child_pipes_before_waiting_for_exit() {
+        use std::process::{Command, Stdio};
+
+        let child = Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                "[Console]::Out.Write('o' * 131072); [Console]::Error.Write('e' * 65536)",
+            ])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let output = collect_output(child).unwrap();
+
+        assert!(output.status.success());
+        assert_eq!(output.stdout.len(), 131072);
+        assert_eq!(
+            output.stderr.len(),
+            MAX_GIT_STDERR_BYTES + b"\n[Git error output truncated]".len()
+        );
+    }
 
     #[test]
     fn parses_nul_delimited_git_log_records() {

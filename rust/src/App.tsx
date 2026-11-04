@@ -1,7 +1,7 @@
 import "./App.css";
 import { open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 type RepositorySummary = {
   path: string;
@@ -14,8 +14,11 @@ function App() {
   const [repository, setRepository] = useState<RepositorySummary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [opening, setOpening] = useState(false);
+  const openingRef = useRef(false);
 
   async function openRepository() {
+    if (openingRef.current) return;
+    openingRef.current = true;
     setOpening(true);
     setError(null);
     try {
@@ -25,6 +28,7 @@ function App() {
     } catch (error) {
       setError(String(error));
     } finally {
+      openingRef.current = false;
       setOpening(false);
     }
   }
@@ -42,10 +46,12 @@ function App() {
               <h1>{repository.name}</h1>
               <p className="repository-path">{repository.path}</p>
             </div>
-            <button className="button button-secondary" onClick={openRepository}>Open another</button>
+            <button className="button button-secondary" onClick={openRepository} disabled={opening}>
+              {opening ? "Opening…" : "Open another"}
+            </button>
           </div>
           <div className="branch-label">{repository.branch}</div>
-          <h2>History</h2>
+          <h2>Latest 20 commits</h2>
           {error && <p className="error-message" role="alert">{error}</p>}
           {repository.commits.length ? (
             <ol className="commit-list">
