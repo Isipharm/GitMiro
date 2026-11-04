@@ -43,7 +43,9 @@ import com.hugodehu.gitmiro.extensions.handOnHover
 import com.hugodehu.gitmiro.extensions.toStringWithSpaces
 import com.hugodehu.gitmiro.repositoryopen.RepositoryOpenViewModel
 import com.hugodehu.gitmiro.theme.*
+import com.hugodehu.gitmiro.ui.components.PanelDivider
 import com.hugodehu.gitmiro.ui.components.PrimaryButton
+import com.hugodehu.gitmiro.ui.components.SegmentedControl
 import com.hugodehu.gitmiro.ui.components.ScrollableLazyColumn
 import com.hugodehu.gitmiro.ui.components.SecondaryButton
 import com.hugodehu.gitmiro.ui.components.tooltip.DelayedTooltip
@@ -66,6 +68,12 @@ import java.io.FileInputStream
 import kotlin.math.max
 
 private const val MAX_MOVES_COUNT = 5
+
+private fun DiffResult.countLines(type: LineType): Int? = when (this) {
+    is DiffResult.Text -> hunks.sumOf { hunk -> hunk.lines.count { it.lineType == type } }
+    is DiffResult.TextSplit -> hunks.sumOf { hunk -> hunk.sourceHunk.lines.count { it.lineType == type } }
+    else -> null
+}
 
 @Composable
 private fun <T> loadOrNull(key: Any, action: suspend () -> T?): T? {
@@ -131,6 +139,8 @@ fun DiffPane(
                     onCloseDiffView = { closeDiffView() },
                     textDiffViewType = textDiffType,
                     isTextDiff = diffResult is DiffResult.TextDiff,
+                    addedLines = diffResult.countLines(LineType.ADDED),
+                    removedLines = diffResult.countLines(LineType.REMOVED),
                     isDisplayFullFile = isDisplayFullFile,
                     onStageFile = { viewModel.stageFile(it) },
                     onUnstageFile = { viewModel.unstageFile(it) },
@@ -852,15 +862,17 @@ fun HunkHeader(
 ) {
     Row(
         modifier = Modifier
-            .background(MaterialTheme.colors.secondarySurface)
-            .padding(horizontal = 8.dp, vertical = 4.dp)
+            .background(MaterialTheme.colors.tertiarySurface)
+            .heightIn(min = 30.dp)
+            .padding(horizontal = 14.dp)
             .fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = header,
-            color = MaterialTheme.colors.onBackground,
-            style = MaterialTheme.typography.body1,
+            color = MaterialTheme.colors.primary,
+            fontFamily = monoTypography(),
+            style = MaterialTheme.typography.caption,
         )
 
         Spacer(modifier = Modifier.weight(1f))
@@ -913,6 +925,8 @@ private fun DiffHeader(
     textDiffViewType: DiffTextViewType,
     isDisplayFullFile: Boolean,
     isTextDiff: Boolean,
+    addedLines: Int?,
+    removedLines: Int?,
     onCloseDiffView: () -> Unit,
     onStageFile: (StatusEntry) -> Unit,
     onUnstageFile: (StatusEntry) -> Unit,
@@ -923,57 +937,65 @@ private fun DiffHeader(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(34.dp)
-            .background(MaterialTheme.colors.tertiarySurface)
-            .padding(start = 16.dp, end = 8.dp),
+            .height(52.dp)
+            .background(MaterialTheme.colors.secondarySurface)
+            .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         val fileName = diffEntry.fileName
         val dirPath: String = diffEntry.parentDirectoryPath
 
-        Box(
-            modifier = Modifier
-                .weight(1f, true)
+        BackToLogButton(onClick = onCloseDiffView)
+
+        Row(
+            modifier = Modifier.weight(1f, true),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             SelectionContainer {
                 Row {
                     if (dirPath.isNotEmpty()) {
                         Text(
-                            text = dirPath.removeSuffix("/"),
+                            text = dirPath.removeSuffix("/") + "/",
                             style = MaterialTheme.typography.body2,
                             color = MaterialTheme.colors.onBackgroundSecondary,
                             maxLines = 1,
                             softWrap = false,
                             overflow = TextOverflow.Ellipsis,
-                            fontWeight = FontWeight.Medium,
-                            modifier = Modifier
-                                .weight(1f, false),
-                        )
-
-                        Text(
-                            text = "/",
-                            maxLines = 1,
-                            softWrap = false,
-                            style = MaterialTheme.typography.body2,
-                            overflow = TextOverflow.Visible,
-                            color = MaterialTheme.colors.onBackgroundSecondary,
+                            modifier = Modifier.weight(1f, false),
                         )
                     }
                     Text(
                         text = fileName,
                         style = MaterialTheme.typography.body2,
                         color = MaterialTheme.colors.onBackground,
-                        fontWeight = FontWeight.Medium,
+                        fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
-                        modifier = Modifier.padding(end = 16.dp),
                     )
                 }
+            }
+
+            if (addedLines != null && removedLines != null) {
+                Text(
+                    text = "+$addedLines",
+                    fontFamily = monoTypography(),
+                    style = MaterialTheme.typography.caption,
+                    color = MaterialTheme.colors.addFile,
+                    modifier = Modifier.padding(start = 12.dp),
+                )
+                Text(
+                    text = "-$removedLines",
+                    fontFamily = monoTypography(),
+                    style = MaterialTheme.typography.caption,
+                    color = MaterialTheme.colors.error,
+                    modifier = Modifier.padding(start = 6.dp),
+                )
             }
         }
 
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             if (diffType.statusType != StatusType.ADDED && diffType.statusType != StatusType.REMOVED && isTextDiff && !diffType.isConflict) {
                 DiffTypeButtons(
@@ -993,50 +1015,36 @@ private fun DiffHeader(
                 )
             }
 
-            IconButton(
-                onClick = onCloseDiffView,
-                modifier = Modifier
-                    .handOnHover()
-            ) {
-                Icon(
-                    painter = painterResource(Res.drawable.close),
-                    contentDescription = "Close diff",
-                    tint = MaterialTheme.colors.onBackground,
-                    modifier = Modifier.size(24.dp),
-                )
-            }
         }
     }
+
+    PanelDivider()
 }
 
 @Composable
-fun StateIcon(
-    icon: DrawableResource,
-    tooltip: String,
-    isToggled: Boolean,
-    onClick: () -> Unit,
-) {
-    DelayedTooltip(tooltip) {
-        Box(
-            modifier = Modifier
-                .clip(MaterialTheme.shapes.small)
-                .run {
-                    if (isToggled)
-                        this.background(MaterialTheme.colors.onSurface.copy(alpha = 0.2f))
-                    else
-                        this
-                }
-                .handMouseClickable { if (!isToggled) onClick() }
-                .padding(4.dp)
-        ) {
-            Icon(
-                painterResource(icon),
-                contentDescription = null,
-                tint = MaterialTheme.colors.onSurface,
-                modifier = Modifier
-                    .size(24.dp),
-            )
-        }
+private fun BackToLogButton(onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .height(32.dp)
+            .clip(MaterialTheme.shapes.small)
+            .border(1.dp, MaterialTheme.colors.onBackground.copy(alpha = 0.1f), MaterialTheme.shapes.small)
+            .handMouseClickable(onClick = onClick)
+            .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Icon(
+            painter = painterResource(Res.drawable.arrow_back),
+            contentDescription = null,
+            tint = MaterialTheme.colors.onBackground,
+            modifier = Modifier.size(15.dp),
+        )
+        Text(
+            text = "Back to log",
+            style = MaterialTheme.typography.body2,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colors.onBackground,
+        )
     }
 }
 
@@ -1049,44 +1057,19 @@ fun DiffTypeButtons(
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        SegmentedControl(
+            options = listOf(DiffTextViewType.Unified to "Unified", DiffTextViewType.Split to "Split"),
+            current = diffType,
+            onSelected = onChangeDiffType,
+        )
 
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(end = 16.dp)
-        ) {
-            StateIcon(
-                icon = Res.drawable.horizontal_split,
-                tooltip = "Divide by hunks",
-                isToggled = !isDisplayFullFile,
-                onClick = { onDisplayFullFile(false) },
-            )
-
-            StateIcon(
-                icon = Res.drawable.description,
-                tooltip = "View the complete file",
-                isToggled = isDisplayFullFile,
-                onClick = { onDisplayFullFile(true) },
-            )
-        }
-
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            StateIcon(
-                icon = Res.drawable.unified,
-                tooltip = "Unified diff",
-                isToggled = diffType == DiffTextViewType.Unified,
-                onClick = { onChangeDiffType(DiffTextViewType.Unified) },
-            )
-
-            StateIcon(
-                icon = Res.drawable.vertical_split,
-                tooltip = "Split diff",
-                isToggled = diffType == DiffTextViewType.Split,
-                onClick = { onChangeDiffType(DiffTextViewType.Split) },
-            )
-        }
+        SegmentedControl(
+            options = listOf(false to "Changes only", true to "Whole file"),
+            current = isDisplayFullFile,
+            onSelected = onDisplayFullFile,
+        )
     }
 }
 
@@ -1143,33 +1126,22 @@ private fun PathOnlyDiffHeader(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(40.dp)
-            .background(MaterialTheme.colors.tertiarySurface)
-            .padding(start = 8.dp, end = 8.dp),
+            .height(52.dp)
+            .background(MaterialTheme.colors.secondarySurface)
+            .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        BackToLogButton(onClick = onCloseDiffView)
+
         Text(
             text = filePath,
             style = MaterialTheme.typography.body2,
             color = MaterialTheme.colors.onBackground,
             maxLines = 1,
-            modifier = Modifier.padding(horizontal = 16.dp),
         )
-
-        Spacer(modifier = Modifier.weight(1f))
-
-        IconButton(
-            onClick = onCloseDiffView,
-            modifier = Modifier
-                .handOnHover()
-        ) {
-            Image(
-                painter = painterResource(Res.drawable.close),
-                contentDescription = "Close diff",
-                colorFilter = ColorFilter.tint(MaterialTheme.colors.onBackground),
-            )
-        }
     }
+    PanelDivider()
 }
 
 @Composable
@@ -1188,7 +1160,9 @@ fun DiffLine(
     Row(
         modifier = Modifier
             .background(backgroundColor)
+            .heightIn(min = 26.dp)
             .height(IntrinsicSize.Min),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         val oldLineText = if (line.lineType == LineType.REMOVED || line.lineType == LineType.CONTEXT) {
             line.displayOldLineNumber.toStringWithSpaces(highestLineNumberLength)
@@ -1232,7 +1206,9 @@ fun SplitDiffLine(
     Row(
         modifier = Modifier
             .background(backgroundColor)
+            .heightIn(min = 26.dp)
             .fillMaxHeight(),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         DisableSelection {
             LineNumber(
@@ -1333,10 +1309,10 @@ fun LineNumber(text: String, remarked: Boolean) {
     Text(
         text = text,
         modifier = Modifier
-            .padding(start = 8.dp, end = 4.dp),
+            .padding(start = 10.dp, end = 6.dp),
         fontFamily = monoTypography(),
-        style = MaterialTheme.typography.body2,
-        color = if (remarked) MaterialTheme.colors.onBackground else MaterialTheme.colors.onBackgroundSecondary,
+        style = MaterialTheme.typography.caption,
+        color = MaterialTheme.colors.onBackgroundSecondary.copy(alpha = if (remarked) 0.9f else 0.6f),
     )
 }
 

@@ -52,6 +52,7 @@ import com.hugodehu.gitmiro.ui.components.*
 import com.hugodehu.gitmiro.ui.context_menu.ContextMenuElement
 import com.hugodehu.gitmiro.theme.onBackgroundSecondary
 import androidx.compose.foundation.border
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.text.BasicTextField
@@ -891,12 +892,13 @@ fun AbortButton(modifier: Modifier, onClick: () -> Unit) {
             .handMouseClickable { onClick() }
             .focusable(false)
             .clip(MaterialTheme.shapes.small)
-            .background(MaterialTheme.colors.abortButton),
+            .border(1.dp, MaterialTheme.colors.error.copy(alpha = 0.5f), MaterialTheme.shapes.small),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             text = stringResource(Res.string.uncommited_changes_secondary_button_abort),
-            style = MaterialTheme.typography.body1.copy(color = MaterialTheme.colors.onError),
+            style = MaterialTheme.typography.body1.copy(color = MaterialTheme.colors.error),
+            fontWeight = FontWeight.Medium,
         )
     }
 }

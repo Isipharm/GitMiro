@@ -1,7 +1,13 @@
 package com.hugodehu.gitmiro.ui.diff
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.lerp
+import com.hugodehu.gitmiro.ui.components.PanelDivider
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -133,27 +139,56 @@ fun ConflictResolver(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(MaterialTheme.colors.surface)
-                .padding(horizontal = 16.dp, vertical = 6.dp),
+                .height(52.dp)
+                .background(MaterialTheme.colors.secondarySurface)
+                .padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            val dirPath = filePath.substringBeforeLast("/", "")
+
+            if (dirPath.isNotEmpty()) {
+                Text(
+                    text = "$dirPath/",
+                    style = MaterialTheme.typography.body2,
+                    color = MaterialTheme.colors.onBackgroundSecondary,
+                    maxLines = 1,
+                    modifier = Modifier.weight(1f, false),
+                )
+            }
             Text(
-                text = "$decidedCount of ${conflicts.size} conflicts resolved",
+                text = filePath.substringAfterLast("/"),
                 style = MaterialTheme.typography.body2,
+                fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colors.onBackground,
-                modifier = Modifier.weight(1f),
+                maxLines = 1,
             )
-            PrimaryButton(
-                text = "Mark as resolved",
-                enabled = canResolve,
-                onClick = {
-                    // The checkboxes result keeps the exact original bytes, the edited text is encoded like the file
-                    val content = editedText?.let { conflictFile.encode(it) } ?: conflictFile.resolve(choices)
-                    onResolve(content)
-                },
+            Text(
+                text = "$decidedCount of ${conflicts.size} resolved",
+                style = MaterialTheme.typography.caption,
+                color = MaterialTheme.colors.modifyFile,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(percent = 50))
+                    .background(MaterialTheme.colors.modifyFile.copy(alpha = 0.14f))
+                    .padding(horizontal = 8.dp, vertical = 2.dp),
             )
+
+            Spacer(Modifier.weight(1f))
+
+            ResolverGhostButton("Use current", enabled = !isEditedByHand) {
+                keepAllCurrent(true)
+                keepAllIncoming(false)
+            }
+            ResolverGhostButton("Use incoming", enabled = !isEditedByHand) {
+                keepAllCurrent(false)
+                keepAllIncoming(true)
+            }
+            ResolverGhostButton("Use both", enabled = !isEditedByHand) {
+                keepAllCurrent(true)
+                keepAllIncoming(true)
+            }
         }
+        PanelDivider()
 
         if (showLockedWarning) {
             Text(
@@ -168,13 +203,10 @@ fun ConflictResolver(
             )
         }
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(MaterialTheme.colors.surface),
-        ) {
+        Row(modifier = Modifier.fillMaxWidth()) {
             SideHeader(
                 title = "Current (HEAD)",
+                tint = MaterialTheme.colors.graphColors[1],
                 keptCount = keptCurrentCount,
                 totalCount = conflicts.size,
                 isLocked = isEditedByHand,
@@ -184,6 +216,7 @@ fun ConflictResolver(
             )
             SideHeader(
                 title = "Incoming",
+                tint = MaterialTheme.colors.addFile,
                 keptCount = keptIncomingCount,
                 totalCount = conflicts.size,
                 isLocked = isEditedByHand,
@@ -217,7 +250,7 @@ fun ConflictResolver(
                                 syntaxHighlighter = syntaxHighlighter,
                                 isKept = choice.keepCurrent,
                                 isLocked = isEditedByHand,
-                                color = MaterialTheme.colors.diffLineRemoved,
+                                color = MaterialTheme.colors.graphColors[1],
                                 onKeptChanged = { choices[chunk.index] = choice.withCurrent(it) },
                                 onLockedClick = onLockedClick,
                                 modifier = Modifier.weight(1f).fillMaxHeight(),
@@ -229,7 +262,7 @@ fun ConflictResolver(
                                 syntaxHighlighter = syntaxHighlighter,
                                 isKept = choice.keepIncoming,
                                 isLocked = isEditedByHand,
-                                color = MaterialTheme.colors.diffLineAdded,
+                                color = MaterialTheme.colors.addFile,
                                 onKeptChanged = { choices[chunk.index] = choice.withIncoming(it) },
                                 onLockedClick = onLockedClick,
                                 modifier = Modifier.weight(1f).fillMaxHeight(),
@@ -240,11 +273,13 @@ fun ConflictResolver(
             }
         }
 
+        PanelDivider()
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(MaterialTheme.colors.surface)
-                .padding(horizontal = 16.dp, vertical = 2.dp),
+                .height(36.dp)
+                .background(MaterialTheme.colors.secondarySurface)
+                .padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
@@ -264,7 +299,18 @@ fun ConflictResolver(
             if (isEditedByHand) {
                 SecondaryButton(text = "Discard edits", onClick = { editedText = null })
             }
+
+            PrimaryButton(
+                text = "Mark as resolved",
+                enabled = canResolve,
+                onClick = {
+                    // The checkboxes result keeps the exact original bytes, the edited text is encoded like the file
+                    val content = editedText?.let { conflictFile.encode(it) } ?: conflictFile.resolve(choices)
+                    onResolve(content)
+                },
+            )
         }
+        PanelDivider()
 
         val resultModifier = Modifier.weight(0.4f).fillMaxWidth()
 
@@ -397,6 +443,7 @@ private fun EditableResult(
 @Composable
 private fun SideHeader(
     title: String,
+    tint: Color,
     keptCount: Int,
     totalCount: Int,
     isLocked: Boolean,
@@ -414,22 +461,46 @@ private fun SideHeader(
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = modifier.handMouseClickable(
-            interactionSource = remember { MutableInteractionSource() },
-            indication = null,
-            onClick = onClick,
-        ),
+        modifier = modifier
+            .height(36.dp)
+            .background(tint.copy(alpha = 0.10f))
+            .handMouseClickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            ),
     ) {
         Box(contentAlignment = Alignment.Center, modifier = Modifier.width(CHECKBOX_GUTTER_WIDTH)) {
             TriStateCheckbox(
                 state = state,
                 onClick = onClick,
                 enabled = !isLocked,
-                modifier = Modifier.padding(vertical = 4.dp).size(16.dp),
+                modifier = Modifier.size(16.dp),
             )
         }
-        SectionTitle(title)
+        Box(Modifier.padding(end = 8.dp).size(8.dp).clip(CircleShape).background(tint))
+        Text(
+            text = title,
+            style = MaterialTheme.typography.body2,
+            fontWeight = FontWeight.Medium,
+            color = lerp(tint, MaterialTheme.colors.onBackground, 0.4f),
+        )
     }
+}
+
+@Composable
+private fun ResolverGhostButton(text: String, enabled: Boolean, onClick: () -> Unit) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.body2,
+        fontWeight = FontWeight.Medium,
+        color = MaterialTheme.colors.onBackground.copy(alpha = if (enabled) 1f else 0.4f),
+        modifier = Modifier
+            .clip(MaterialTheme.shapes.small)
+            .border(1.dp, MaterialTheme.colors.onBackground.copy(alpha = 0.16f), MaterialTheme.shapes.small)
+            .handMouseClickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 7.dp),
+    )
 }
 
 @Composable
@@ -460,7 +531,7 @@ private fun ConflictSide(
     onLockedClick: () -> Unit,
     modifier: Modifier,
 ) {
-    Row(modifier = modifier.background(color.copy(alpha = if (isKept) 0.6f else 0.25f))) {
+    Row(modifier = modifier.background(color.copy(alpha = if (isKept) 0.28f else 0.12f))) {
         Box(
             contentAlignment = Alignment.TopCenter,
             modifier = Modifier
