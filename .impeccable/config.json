@@ -115,13 +115,13 @@
         "rule": "overused-font",
         "value": "geist mono",
         "createdAt": "2026-11-04T22:22:23.930Z",
-        "reason": "Existing GitMiro Kotlin theme and Claude design artifact use Geist Mono for code and commit metadata; retain visual parity."
+        "reason": "Existing Graphite theme keeps Geist Mono for code and commit metadata to preserve GitMiro visual parity."
       },
       {
         "rule": "overused-font",
         "value": "geist",
         "createdAt": "2026-11-04T22:22:24.680Z",
-        "reason": "Existing GitMiro Kotlin theme and Claude design artifact use Geist for application UI; retain visual parity."
+        "reason": "Existing Graphite theme keeps Geist for application UI to preserve GitMiro visual parity."
       }
     ]
   }
