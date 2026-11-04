@@ -33,6 +33,11 @@ import com.hugodehu.gitmiro.theme.outlinedTextFieldColors
 import com.hugodehu.gitmiro.theme.textButtonColors
 import com.hugodehu.gitmiro.ui.components.AdjustableOutlinedTextField
 import com.hugodehu.gitmiro.ui.components.CheckboxText
+import com.hugodehu.gitmiro.ui.components.GhostButton
+import com.hugodehu.gitmiro.ui.components.AppProgressBar
+import com.hugodehu.gitmiro.ui.dialogs.base.DialogHeader
+import com.hugodehu.gitmiro.app.generated.resources.download
+import com.hugodehu.gitmiro.theme.onBackgroundSecondary
 import com.hugodehu.gitmiro.ui.components.PrimaryButton
 import com.hugodehu.gitmiro.ui.dialogs.base.MaterialDialog
 import com.hugodehu.gitmiro.ui.getErrorText
@@ -121,17 +126,14 @@ private fun CloneDialogView(
         modifier = Modifier.fillMaxWidth()
             .padding(horizontal = 8.dp)
     ) {
-        Text(
-            "Clone a new repository",
-            style = MaterialTheme.typography.h4,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp),
-            fontWeight = FontWeight.SemiBold,
+        DialogHeader(
+            icon = painterResource(Res.drawable.download),
+            title = "Clone a repository",
+            subtitle = "Download a repository and open it in a new tab.",
         )
 
         TextInput(
-            modifier = Modifier.padding(top = 8.dp).onFocusChanged {
+            modifier = Modifier.padding(top = 18.dp).onFocusChanged {
                 if (!it.hasFocus) {
                     onFolderChange(TextFieldValue(cloneViewModel.repoName(url.text)))
                 }
@@ -231,9 +233,7 @@ private fun CloneDialogView(
                 onCheckedChange = {
                     onCloneSubmodulesChange(it)
                 },
-                modifier = Modifier
-                    .padding(all = 8.dp)
-                    .size(12.dp)
+                modifier = Modifier.padding(all = 8.dp),
             )
 
             Text(
@@ -249,14 +249,15 @@ private fun CloneDialogView(
                     .fillMaxWidth()
                     .padding(vertical = 4.dp)
                     .clip(MaterialTheme.shapes.small)
-                    .background(MaterialTheme.colors.error)
+                    .background(MaterialTheme.colors.error.copy(alpha = 0.14f))
             ) {
                 Text(
                     error?.toUiString().orEmpty(),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 4.dp, horizontal = 8.dp),
-                    color = MaterialTheme.colors.onError,
+                        .padding(vertical = 8.dp, horizontal = 12.dp),
+                    style = MaterialTheme.typography.body2,
+                    color = MaterialTheme.colors.error,
                 )
             }
         }
@@ -266,17 +267,15 @@ private fun CloneDialogView(
                 .padding(top = 16.dp)
                 .align(Alignment.End)
         ) {
-            PrimaryButton(
+            GhostButton(
                 text = "Cancel",
-                modifier = Modifier.padding(end = 8.dp)
+                modifier = Modifier.padding(end = 10.dp).height(36.dp)
                     .focusRequester(cancelButtonFocusRequester)
                     .focusProperties {
                         previous = cloneButtonFocusRequester
                         next = urlFocusRequester
                     },
                 onClick = onClose,
-                backgroundColor = Color.Transparent,
-                textColor = MaterialTheme.colors.onBackground,
             )
             PrimaryButton(
                 onClick = {
@@ -324,33 +323,22 @@ private fun Cloning(cloneViewModel: CloneViewModel, cloneStateValue: CloneState.
         }
 
         Column(
-            modifier = Modifier
-                .align(Alignment.Center),
-            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
+            DialogHeader(
+                icon = painterResource(Res.drawable.download),
+                title = "Cloning",
+                subtitle = cloneStateValue.taskName,
+            )
 
-            Text(cloneStateValue.taskName, color = MaterialTheme.colors.onBackground)
+            // Show indeterminate if we do not know the total (aka total == 0 or progress == -1)
+            AppProgressBar(progress = progress.takeIf { it >= 0f })
 
-            if (progress >= 0f)
-                AppSpinner(modifier = Modifier.padding(vertical = 16.dp), size = 32.dp)
-            else // Show indeterminate if we do not know the total (aka total == 0 or progress == -1)
-                AppSpinner(modifier = Modifier.padding(vertical = 16.dp), size = 32.dp)
-
-        }
-
-        TextButton(
-            modifier = Modifier
-                .padding(end = 8.dp)
-                .align(Alignment.BottomEnd),
-            colors = textButtonColors(),
-            onClick = {
-                cloneViewModel.cancelClone()
-            }
-        ) {
-            Text(
+            GhostButton(
                 text = "Cancel",
-                color = MaterialTheme.colors.onBackground,
-                style = MaterialTheme.typography.body1,
+                modifier = Modifier.align(Alignment.End).height(36.dp),
+                onClick = { cloneViewModel.cancelClone() },
             )
         }
     }
@@ -391,9 +379,11 @@ private fun TextInput(
     ) {
         Text(
             text = title,
-            style = MaterialTheme.typography.body1,
+            style = MaterialTheme.typography.caption,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colors.onBackgroundSecondary,
             modifier = Modifier
-                .padding(bottom = 8.dp),
+                .padding(bottom = 7.dp),
         )
 
         AdjustableOutlinedTextField(

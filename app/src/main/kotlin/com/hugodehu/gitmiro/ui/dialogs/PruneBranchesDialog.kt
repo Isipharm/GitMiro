@@ -19,6 +19,11 @@ import com.hugodehu.gitmiro.app.generated.resources.generic_button_cancel
 import com.hugodehu.gitmiro.domain.models.Branch
 import com.hugodehu.gitmiro.extensions.handMouseClickable
 import com.hugodehu.gitmiro.theme.onBackgroundSecondary
+import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
+import com.hugodehu.gitmiro.theme.monoTypography
+import com.hugodehu.gitmiro.ui.components.GhostButton
+import com.hugodehu.gitmiro.ui.dialogs.base.DialogHeader
 import com.hugodehu.gitmiro.ui.components.PrimaryButton
 import com.hugodehu.gitmiro.ui.components.ScrollableLazyColumn
 import com.hugodehu.gitmiro.ui.dialogs.base.MaterialDialog
@@ -37,44 +42,22 @@ fun PruneBranchesDialog(
     var selected by remember(branches) { mutableStateOf(branches.toSet()) }
 
     MaterialDialog(onCloseRequested = onDismiss) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.width(480.dp),
-        ) {
-            Icon(
-                painterResource(Res.drawable.cut),
-                contentDescription = null,
-                modifier = Modifier
-                    .padding(bottom = 16.dp)
-                    .size(64.dp),
-                tint = MaterialTheme.colors.onBackground,
-            )
-
-            Text(
-                text = if (branches.isEmpty()) "Nothing to prune" else "Prune local branches",
-                modifier = Modifier.padding(bottom = 8.dp),
-                color = MaterialTheme.colors.onBackground,
-                style = MaterialTheme.typography.body1,
-                fontWeight = FontWeight.SemiBold,
-            )
-
-            Text(
-                text = if (branches.isEmpty()) {
+        Column(modifier = Modifier.width(500.dp)) {
+            DialogHeader(
+                icon = painterResource(Res.drawable.cut),
+                title = if (branches.isEmpty()) "Nothing to prune" else "Prune branches",
+                subtitle = if (branches.isEmpty()) {
                     "Every local branch with a remote branch still has it."
                 } else {
-                    "The remote branch of these local branches was deleted, usually after their pull request " +
-                            "was merged. The selected branches are deleted even if their commits aren't merged " +
-                            "into another branch, as happens with squash merges."
+                    "These branches no longer exist on the server. The selected ones are deleted locally, even if " +
+                            "their commits aren't merged, as happens with squash merges."
                 },
-                color = MaterialTheme.colors.onBackground,
-                style = MaterialTheme.typography.body2,
-                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(bottom = 18.dp),
             )
 
             if (branches.isNotEmpty()) {
                 ScrollableLazyColumn(
                     modifier = Modifier
-                        .padding(top = 16.dp)
                         .heightIn(max = 300.dp)
                         .fillMaxWidth(),
                 ) {
@@ -83,20 +66,25 @@ fun PruneBranchesDialog(
 
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
                             modifier = Modifier
+                                .padding(bottom = 4.dp)
                                 .fillMaxWidth()
+                                .height(40.dp)
+                                .clip(MaterialTheme.shapes.small)
+                                .background(
+                                    if (isSelected) MaterialTheme.colors.primary.copy(alpha = 0.10f) else Color.Transparent
+                                )
                                 .handMouseClickable {
                                     selected = if (isSelected) selected - branch else selected + branch
-                                },
+                                }
+                                .padding(horizontal = 12.dp),
                         ) {
-                            AppCheckbox(
-                                checked = isSelected,
-                                onCheckedChange = {},
-                                modifier = Modifier.padding(8.dp),
-                            )
+                            AppCheckbox(checked = isSelected, onCheckedChange = {})
 
                             Text(
                                 text = branch.simpleName,
+                                fontFamily = monoTypography(),
                                 color = if (isSelected) {
                                     MaterialTheme.colors.onBackground
                                 } else {
@@ -111,26 +99,30 @@ fun PruneBranchesDialog(
 
             Row(
                 modifier = Modifier
-                    .padding(top = 24.dp)
-                    .align(Alignment.End),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    .padding(top = 18.dp)
+                    .fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
+                Text(
+                    text = if (branches.isEmpty()) "" else "${selected.size} of ${branches.size} selected",
+                    style = MaterialTheme.typography.caption,
+                    color = MaterialTheme.colors.onBackgroundSecondary,
+                    modifier = Modifier.weight(1f),
+                )
+
                 if (branches.isEmpty()) {
                     PrimaryButton(text = "OK", onClick = onDismiss)
                 } else {
-                    PrimaryButton(
+                    GhostButton(
                         text = stringResource(Res.string.generic_button_cancel),
                         onClick = onDismiss,
-                        backgroundColor = Color.Transparent,
-                        textColor = MaterialTheme.colors.onBackground,
+                        modifier = Modifier.height(36.dp),
                     )
                     PrimaryButton(
-                        text = "Delete ${selected.size} branch${if (selected.size == 1) "" else "es"}",
+                        text = "Prune ${selected.size} branch${if (selected.size == 1) "" else "es"}",
                         enabled = selected.isNotEmpty(),
                         onClick = { onDelete(branches.filter { it in selected }) },
-                        backgroundColor = MaterialTheme.colors.error,
-                        backgroundDisabled = MaterialTheme.colors.error.copy(alpha = 0.5f),
-                        textColor = MaterialTheme.colors.onError,
                     )
                 }
             }

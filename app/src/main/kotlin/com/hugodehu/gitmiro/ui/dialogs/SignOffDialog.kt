@@ -61,7 +61,7 @@ fun SignOffDialog(
         title = "Edit sign-off",
         subtitle = "Enable or disable the sign-off or adjust its format",
         primaryActionText = "Save",
-        showCancelAction = false,
+        showCancelAction = true,
         onDismiss = onDismiss,
         onPrimaryActionClicked = {
             viewModel.saveSignOffFormat(enabledSignOff, signOffField.text)

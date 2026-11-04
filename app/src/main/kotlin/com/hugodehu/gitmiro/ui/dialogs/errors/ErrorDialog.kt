@@ -26,7 +26,9 @@ import com.hugodehu.gitmiro.domain.errors.GenericError
 import com.hugodehu.gitmiro.domain.models.TaskType
 import com.hugodehu.gitmiro.domain.repositories.CompletedTask
 import com.hugodehu.gitmiro.theme.secondarySurface
+import com.hugodehu.gitmiro.ui.components.GhostButton
 import com.hugodehu.gitmiro.ui.components.PrimaryButton
+import com.hugodehu.gitmiro.ui.dialogs.base.DialogHeader
 import com.hugodehu.gitmiro.ui.components.tooltip.InstantTooltip
 import com.hugodehu.gitmiro.ui.dialogs.base.MaterialDialog
 import com.hugodehu.gitmiro.ui.getErrorText
@@ -55,37 +57,12 @@ fun ErrorDialog(
             modifier = Modifier
                 .width(580.dp)
         ) {
-            Row {
-                Text(
-                    text = error.taskType.errorTitle(),
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colors.onBackground,
-                )
-
-                Spacer(modifier = Modifier.weight(1f))
-
-                Icon(
-                    painterResource(Res.drawable.error),
-                    contentDescription = null,
-                    tint = MaterialTheme.colors.error,
-                    modifier = Modifier.size(24.dp)
-                        .onDoubleClick {
-                            showStackTrace = !showStackTrace
-                        }
-                )
-            }
-
-            SelectionContainer {
-                Text(
-                    text = error.reason.getErrorText(),
-                    color = MaterialTheme.colors.onBackground,
-                    modifier = Modifier
-                        .padding(top = 16.dp)
-                        .widthIn(max = 600.dp),
-                    style = MaterialTheme.typography.body2,
-                )
-            }
+            DialogHeader(
+                icon = painterResource(Res.drawable.error),
+                title = error.taskType.errorTitle(),
+                subtitle = error.reason.getErrorText(),
+                tint = MaterialTheme.colors.error,
+            )
 
             if (showStackTrace && errorStackTrace != null) {
                 Box(
@@ -154,8 +131,17 @@ fun ErrorDialog(
             Row(
                 modifier = Modifier
                     .align(Alignment.End)
-                    .padding(top = 32.dp)
+                    .padding(top = 24.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
+                if (errorStackTrace != null) {
+                    GhostButton(
+                        text = if (showStackTrace) "Hide details" else "Show details",
+                        onClick = { showStackTrace = !showStackTrace },
+                        modifier = Modifier.height(36.dp),
+                    )
+                }
+
                 PrimaryButton(
                     text = stringResource(Res.string.generic_button_ok),
                     onClick = onAccept
