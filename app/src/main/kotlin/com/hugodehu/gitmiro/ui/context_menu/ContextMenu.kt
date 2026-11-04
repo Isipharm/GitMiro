@@ -1,5 +1,6 @@
 package com.hugodehu.gitmiro.ui.context_menu
 
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.layout.*
@@ -66,11 +67,13 @@ fun ContextMenu(enabled: Boolean = true, items: () -> List<ContextMenuElement>, 
 fun DropDownMenu(
     enabled: Boolean = true,
     showIcons: Boolean = true,
+    // Clips the press highlight of the anchor, for anchors that aren't rectangular
+    shape: Shape? = null,
     items: () -> List<ContextMenuElement>,
     function: @Composable () -> Unit
 ) {
     Box(
-        modifier = Modifier
+        modifier = (if (shape != null) Modifier.clip(shape) else Modifier)
             .dropdownMenu(enabled, showIcons, items),
         propagateMinConstraints = true,
     ) {
@@ -86,7 +89,7 @@ fun DropDownMenuText(
     currentValue: String,
     items: () -> List<ContextMenuElement>,
 ) {
-    DropDownMenu(enabled, showIcons, items) {
+    DropDownMenu(enabled = enabled, showIcons = showIcons, items = items) {
         Row(
             modifier = Modifier.width(180.dp)
                 .border(

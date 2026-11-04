@@ -852,7 +852,7 @@ private fun FilterPill(
     // The popup of the dropdown is emitted next to its anchor, so the Box keeps it out of the parent Row, where its
     // spacing would move the pills that follow
     Box {
-        DropDownMenu(items = items, showIcons = false) {
+        DropDownMenu(items = items, showIcons = false, shape = RoundedCornerShape(percent = 50)) {
             Row(
                 modifier = Modifier
                     .height(28.dp)

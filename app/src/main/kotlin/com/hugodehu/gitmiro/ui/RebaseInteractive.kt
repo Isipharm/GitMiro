@@ -306,6 +306,7 @@ fun ActionDropdown(
     Box {
         DropDownMenu(
             showIcons = false,
+            shape = MaterialTheme.shapes.small,
             items = {
                 dropDownItems.map {
                     ContextMenuElement.ContextTextEntry(it.displayName, onClick = { onActionChanged(it.value) })
