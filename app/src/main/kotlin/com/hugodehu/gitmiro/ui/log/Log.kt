@@ -252,7 +252,27 @@ private fun LogView(
             searchView(searchFilterValue)
         }
 
+        var branchFilter by remember { mutableStateOf<Branch?>(null) }
+        var authorFilter by remember { mutableStateOf<String?>(null) }
+        var dateFilter by remember { mutableStateOf(DateFilter.ANY) }
+
+        val commitFilter = remember(branchFilter, authorFilter, dateFilter, commitList) {
+            buildCommitFilter(commitList, branchFilter, authorFilter, dateFilter)
+        }
+
         GraphHeader(
+            branches = remember(logState.branches) {
+                logState.branches.values.flatten().filter { it.isLocal }.distinctBy { it.simpleName }
+            },
+            authors = remember(commitList) {
+                commitList.values.mapNotNull { it.author.name }.distinct().sorted()
+            },
+            branchFilter = branchFilter,
+            authorFilter = authorFilter,
+            dateFilter = dateFilter,
+            onBranchFilter = { branchFilter = it },
+            onAuthorFilter = { authorFilter = it },
+            onDateFilter = { dateFilter = it },
             onShowSearch = {
                 onAction(LogAction.SearchValueChange(""))
             }
@@ -280,6 +300,7 @@ private fun LogView(
                 horizontalScrollState = horizontalScrollState,
                 hasUncommittedChanges = hasUncommittedChanges,
                 searchFilter = if (searchFilterValue is LogSearch.SearchResults) searchFilterValue.commits else null,
+                commitFilter = commitFilter,
                 selectedCommit = selectedCommit,
                 logState = logState,
                 repositoryState = repositoryState,
@@ -495,6 +516,7 @@ fun CommitsList(
     scrollState: LazyListState,
     hasUncommittedChanges: Boolean,
     searchFilter: List<GraphCommit>?,
+    commitFilter: ((GraphCommit) -> Boolean)?,
     selectedCommit: Commit?,
     logState: LogState,
     mergeTrackedBranches: Boolean,
@@ -585,7 +607,8 @@ fun CommitsList(
                 branches = branches[graphNode.hash].orEmpty(),
                 tags = tags[graphNode.hash].orEmpty(),
                 currentBranch = logState.currentBranch,
-                matchesSearchFilter = searchFilter?.contains(graphNode),
+                // Commits excluded by the header filters are dimmed, like the ones not matching the search
+                matchesSearchFilter = if (commitFilter?.invoke(graphNode) == false) false else searchFilter?.contains(graphNode),
                 horizontalScrollState = horizontalScrollState,
                 showCreateNewBranch = { onCreateBranch(graphNode.commit) },
                 showCreateNewTag = { onCreateTag(graphNode.commit) },
@@ -664,8 +687,58 @@ private fun scrollOnNewCommitAdded(
 }
 
 
+enum class DateFilter(val label: String, val seconds: Long?) {
+    ANY("Any date", null),
+    TODAY("Last 24 hours", 24 * 3600L),
+    WEEK("Last 7 days", 7 * 24 * 3600L),
+    MONTH("Last 30 days", 30 * 24 * 3600L),
+}
+
+/**
+ * Predicate telling which commits match the header filters, or null when no filter is active.
+ */
+private fun buildCommitFilter(
+    commitList: GraphCommits,
+    branch: Branch?,
+    author: String?,
+    date: DateFilter,
+): ((GraphCommit) -> Boolean)? {
+    if (branch == null && author == null && date == DateFilter.ANY) return null
+
+    // Commits reachable from the branch, only the loaded ones can be walked
+    val reachable: Set<String>? = branch?.let {
+        val visited = HashSet<String>()
+        val pending = ArrayDeque(listOf(it.hash))
+
+        while (pending.isNotEmpty()) {
+            val hash = pending.removeLast()
+
+            if (visited.add(hash)) {
+                commitList.commits[hash]?.commit?.parentsHashes?.let(pending::addAll)
+            }
+        }
+
+        visited
+    }
+    val minDate = date.seconds?.let { System.currentTimeMillis() / 1000 - it }
+
+    return { node ->
+        (reachable == null || node.hash in reachable) &&
+                (author == null || node.author.name == author) &&
+                (minDate == null || node.date >= minDate)
+    }
+}
+
 @Composable
 fun GraphHeader(
+    branches: List<Branch>,
+    authors: List<String>,
+    branchFilter: Branch?,
+    authorFilter: String?,
+    dateFilter: DateFilter,
+    onBranchFilter: (Branch?) -> Unit,
+    onAuthorFilter: (String?) -> Unit,
+    onDateFilter: (DateFilter) -> Unit,
     onShowSearch: () -> Unit,
 ) {
     Column(
@@ -677,7 +750,40 @@ fun GraphHeader(
                 .height(44.dp)
                 .padding(start = 14.dp, end = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            FilterPill(
+                label = branchFilter?.simpleName ?: "All branches",
+                isActive = branchFilter != null,
+                items = {
+                    listOf(
+                        ContextMenuElement.ContextTextEntry(label = "All branches", onClick = { onBranchFilter(null) })
+                    ) + branches.map { branch ->
+                        ContextMenuElement.ContextTextEntry(label = branch.simpleName, onClick = { onBranchFilter(branch) })
+                    }
+                },
+            )
+            FilterPill(
+                label = authorFilter ?: "Author",
+                isActive = authorFilter != null,
+                items = {
+                    listOf(
+                        ContextMenuElement.ContextTextEntry(label = "Any author", onClick = { onAuthorFilter(null) })
+                    ) + authors.map { author ->
+                        ContextMenuElement.ContextTextEntry(label = author, onClick = { onAuthorFilter(author) })
+                    }
+                },
+            )
+            FilterPill(
+                label = if (dateFilter == DateFilter.ANY) "Date" else dateFilter.label,
+                isActive = dateFilter != DateFilter.ANY,
+                items = {
+                    DateFilter.entries.map { option ->
+                        ContextMenuElement.ContextTextEntry(label = option.label, onClick = { onDateFilter(option) })
+                    }
+                },
+            )
+
             Spacer(modifier = Modifier.weight(1f))
 
             InstantTooltip(text = "Search commits") {
@@ -695,6 +801,48 @@ fun GraphHeader(
         }
 
         PanelDivider()
+    }
+}
+
+@Composable
+private fun FilterPill(
+    label: String,
+    isActive: Boolean,
+    items: () -> List<ContextMenuElement>,
+) {
+    DropDownMenu(items = items, showIcons = false) {
+        Row(
+            modifier = Modifier
+                .height(28.dp)
+                .clip(RoundedCornerShape(percent = 50))
+                .background(
+                    if (isActive) MaterialTheme.colors.primary.copy(alpha = 0.16f) else Color.Transparent
+                )
+                .border(
+                    1.dp,
+                    if (isActive) MaterialTheme.colors.primary.copy(alpha = 0.5f)
+                    else MaterialTheme.colors.onBackground.copy(alpha = 0.12f),
+                    RoundedCornerShape(percent = 50),
+                )
+                .handMouseClickable { }
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.body2,
+                fontWeight = FontWeight.Medium,
+                color = if (isActive) MaterialTheme.colors.primaryVariant else MaterialTheme.colors.onBackgroundSecondary,
+                maxLines = 1,
+            )
+            Icon(
+                painter = painterResource(Res.drawable.dropdown),
+                contentDescription = null,
+                tint = MaterialTheme.colors.onBackgroundSecondary,
+                modifier = Modifier.size(14.dp),
+            )
+        }
     }
 }
 
