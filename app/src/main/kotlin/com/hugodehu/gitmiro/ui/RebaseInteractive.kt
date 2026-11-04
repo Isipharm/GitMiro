@@ -302,36 +302,39 @@ fun ActionDropdown(
     }
     val dropDownItems = if (isFirst) firstItemActions else actions
 
-    DropDownMenu(
-        showIcons = false,
-        items = {
-            dropDownItems.map {
-                ContextMenuElement.ContextTextEntry(it.displayName, onClick = { onActionChanged(it.value) })
+    // The popup of the dropdown is emitted next to its anchor, the Box keeps it out of the parent Row spacing
+    Box {
+        DropDownMenu(
+            showIcons = false,
+            items = {
+                dropDownItems.map {
+                    ContextMenuElement.ContextTextEntry(it.displayName, onClick = { onActionChanged(it.value) })
+                }
             }
-        }
-    ) {
-        Row(
-            modifier = Modifier
-                .width(96.dp)
-                .height(28.dp)
-                .clip(MaterialTheme.shapes.small)
-                .border(1.dp, MaterialTheme.colors.onBackground.copy(alpha = 0.16f), MaterialTheme.shapes.small)
-                .handOnHover(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center,
         ) {
-            Text(
-                text = getActionDisplayName(action).lowercase(),
-                color = color,
-                style = MaterialTheme.typography.body2,
-                fontWeight = FontWeight.Medium,
-            )
-            Icon(
-                painter = painterResource(Res.drawable.dropdown),
-                contentDescription = null,
-                tint = MaterialTheme.colors.onBackgroundSecondary,
-                modifier = Modifier.padding(start = 4.dp).size(14.dp),
-            )
+            Row(
+                modifier = Modifier
+                    .width(96.dp)
+                    .height(28.dp)
+                    .clip(MaterialTheme.shapes.small)
+                    .border(1.dp, MaterialTheme.colors.onBackground.copy(alpha = 0.16f), MaterialTheme.shapes.small)
+                    .handOnHover(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+            ) {
+                Text(
+                    text = getActionDisplayName(action).lowercase(),
+                    color = color,
+                    style = MaterialTheme.typography.body2,
+                    fontWeight = FontWeight.Medium,
+                )
+                Icon(
+                    painter = painterResource(Res.drawable.dropdown),
+                    contentDescription = null,
+                    tint = MaterialTheme.colors.onBackgroundSecondary,
+                    modifier = Modifier.padding(start = 4.dp).size(14.dp),
+                )
+            }
         }
     }
 }

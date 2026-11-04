@@ -849,39 +849,43 @@ private fun FilterPill(
     isActive: Boolean,
     items: () -> List<ContextMenuElement>,
 ) {
-    DropDownMenu(items = items, showIcons = false) {
-        Row(
-            modifier = Modifier
-                .height(28.dp)
-                .clip(RoundedCornerShape(percent = 50))
-                .background(
-                    if (isActive) MaterialTheme.colors.primary.copy(alpha = 0.16f) else Color.Transparent
+    // The popup of the dropdown is emitted next to its anchor, so the Box keeps it out of the parent Row, where its
+    // spacing would move the pills that follow
+    Box {
+        DropDownMenu(items = items, showIcons = false) {
+            Row(
+                modifier = Modifier
+                    .height(28.dp)
+                    .clip(RoundedCornerShape(percent = 50))
+                    .background(
+                        if (isActive) MaterialTheme.colors.primary.copy(alpha = 0.16f) else Color.Transparent
+                    )
+                    .border(
+                        1.dp,
+                        if (isActive) MaterialTheme.colors.primary.copy(alpha = 0.5f)
+                        else MaterialTheme.colors.onBackground.copy(alpha = 0.12f),
+                        RoundedCornerShape(percent = 50),
+                    )
+                    // The dropdown wrapping the pill handles the click, a clickable here would swallow it
+                    .handOnHover()
+                    .padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.body2,
+                    fontWeight = FontWeight.Medium,
+                    color = if (isActive) MaterialTheme.colors.primaryVariant else MaterialTheme.colors.onBackgroundSecondary,
+                    maxLines = 1,
                 )
-                .border(
-                    1.dp,
-                    if (isActive) MaterialTheme.colors.primary.copy(alpha = 0.5f)
-                    else MaterialTheme.colors.onBackground.copy(alpha = 0.12f),
-                    RoundedCornerShape(percent = 50),
+                Icon(
+                    painter = painterResource(Res.drawable.dropdown),
+                    contentDescription = null,
+                    tint = MaterialTheme.colors.onBackgroundSecondary,
+                    modifier = Modifier.size(14.dp),
                 )
-                // The dropdown wrapping the pill handles the click, a clickable here would swallow it
-                .handOnHover()
-                .padding(horizontal = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.body2,
-                fontWeight = FontWeight.Medium,
-                color = if (isActive) MaterialTheme.colors.primaryVariant else MaterialTheme.colors.onBackgroundSecondary,
-                maxLines = 1,
-            )
-            Icon(
-                painter = painterResource(Res.drawable.dropdown),
-                contentDescription = null,
-                tint = MaterialTheme.colors.onBackgroundSecondary,
-                modifier = Modifier.size(14.dp),
-            )
+            }
         }
     }
 }
