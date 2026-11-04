@@ -14,6 +14,9 @@ import com.hugodehu.gitmiro.domain.services.AppSettingsService
 import com.hugodehu.gitmiro.extensions.stateIn
 import com.hugodehu.gitmiro.system.OpenUrlInBrowserUseCase
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine as flowCombine
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -24,18 +27,38 @@ class GlobalSettingsViewModel @Inject constructor(
     private val logsRepository: LogsRepository,
     private val openUrlInBrowserUseCase: OpenUrlInBrowserUseCase,
 ) : TabViewModel() {
+    // Edits wait here until they are saved, the last one made for a setting is the one that counts
+    private val draft = MutableStateFlow<List<AppConfig>>(emptyList())
+
+    /**
+     * The saved settings with the edits that are not saved yet applied on top, so the screen shows what was edited.
+     */
     val settingsViewState = settingsState()
+        .flowCombine(draft) { saved, edits -> edits.fold(saved) { state, edit -> state.with(edit) } }
         .stateIn(emptySettingsState())
+
+    val hasPendingChanges = draft
+        .map { it.isNotEmpty() }
+        .stateIn(false)
 
     fun onAction(action: SettingsAction) {
         when (action) {
-            is SettingsAction.SetConfig -> setAppConfiguration(action.configuration)
+            is SettingsAction.SetConfig -> editConfiguration(action.configuration)
+            SettingsAction.Save -> saveConfiguration()
+            SettingsAction.Discard -> draft.value = emptyList()
             SettingsAction.OpenLogsFolder -> openLogsFolderInFileExplorer()
         }
     }
 
-    private fun setAppConfiguration(appConfig: AppConfig) = viewModelScope.launch {
-        appSettingsService.setConfiguration(appConfig)
+    private fun editConfiguration(appConfig: AppConfig) {
+        draft.value = draft.value.filterNot { it::class == appConfig::class } + appConfig
+    }
+
+    private fun saveConfiguration() = viewModelScope.launch {
+        val edits = draft.value
+
+        draft.value = emptyList()
+        edits.forEach { appSettingsService.setConfiguration(it) }
     }
 
     fun openLogsFolderInFileExplorer() {
@@ -164,6 +187,40 @@ class GlobalSettingsViewModel @Inject constructor(
     }
 }
 
+/**
+ * This state as it would be once [config] is saved. Settings that this state doesn't show are left as they are.
+ */
+private fun SettingsViewState.with(config: AppConfig): SettingsViewState = when (config) {
+    is AppConfig.ScaleUi -> copy(scaleUi = config.value)
+    is AppConfig.LinesHeight -> copy(linesHeightType = config.value ?: linesHeightType)
+    is AppConfig.PullWithRebase -> copy(pullWithRebase = config.value)
+    is AppConfig.PushWithLease -> copy(pushWithLease = config.value)
+    is AppConfig.FastForwardMerge -> copy(fastForwardMerge = config.value)
+    is AppConfig.AutoStashOnMerge -> copy(autoStashOnMerge = config.value)
+    is AppConfig.UseProxy -> copy(useProxy = config.value)
+    is AppConfig.ProxyUseAuth -> copy(proxyUseAuth = config.value)
+    is AppConfig.ProxyProxyType -> copy(proxyType = config.value)
+    is AppConfig.ProxyHostName -> copy(proxyHostName = config.value)
+    is AppConfig.ProxyPortNumber -> copy(proxyPortNumber = config.value)
+    is AppConfig.ProxyHostUser -> copy(proxyHostUser = config.value)
+    is AppConfig.ProxyHostPassword -> copy(proxyHostPassword = config.value)
+    is AppConfig.DateFormatUseDefault -> copy(dateFormatUseDefault = config.value)
+    is AppConfig.DateFormatCustomFormat -> copy(dateFormatCustomFormat = config.value)
+    is AppConfig.DateFormatIs24h -> copy(dateFormatIs24h = config.value)
+    is AppConfig.DateFormatUseRelative -> copy(dateFormatUseRelative = config.value)
+    is AppConfig.CloneDefaultDirectory -> copy(cloneDefaultDirectory = config.value)
+    is AppConfig.CacheCredentialsInMemory -> copy(cacheCredentialsInMemory = config.value)
+    is AppConfig.AvatarProvider -> copy(avatarProvider = config.value)
+    is AppConfig.Theme -> copy(theme = config.value)
+    is AppConfig.CustomTheme -> copy(customTheme = config.value)
+    is AppConfig.SwapStatusPanes -> copy(swapStatusPanes = config.value)
+    is AppConfig.MergeTrackedBranchesInLog -> copy(mergeTrackedBranchesInLog = config.value)
+    is AppConfig.TerminalPath -> copy(terminalPath = config.value)
+    is AppConfig.DiffDisplayFullFile,
+    is AppConfig.DiffTextViewType,
+    is AppConfig.ShowChangesAsTree -> this
+}
+
 @Immutable
 data class SettingsViewState(
     val scaleUi: Float?,
@@ -195,6 +252,9 @@ data class SettingsViewState(
 )
 
 sealed interface SettingsAction {
+    /** Edits a setting, it is only kept once [Save] is used */
     data class SetConfig(val configuration: AppConfig) : SettingsAction
+    data object Save : SettingsAction
+    data object Discard : SettingsAction
     data object OpenLogsFolder : SettingsAction
 }

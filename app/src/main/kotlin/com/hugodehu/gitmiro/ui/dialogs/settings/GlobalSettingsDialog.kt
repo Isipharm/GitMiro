@@ -1,5 +1,7 @@
 package com.hugodehu.gitmiro.ui.dialogs.settings
 
+import com.hugodehu.gitmiro.ui.components.PanelDivider
+import com.hugodehu.gitmiro.ui.components.GhostButton
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -152,12 +154,17 @@ fun GlobalSettingsDialog(
     }
 
     val settingsViewState by settingsViewModel.settingsViewState.collectAsState()
+    val hasPendingChanges by settingsViewModel.hasPendingChanges.collectAsState()
+
+    // Leaving without saving drops the edits
+    val dismissWithoutSaving = {
+        settingsViewModel.onAction(SettingsAction.Discard)
+        onDismiss()
+    }
 
     MaterialDialog(
         background = MaterialTheme.colors.surface,
-        onCloseRequested = {
-            onDismiss()
-        },
+        onCloseRequested = dismissWithoutSaving,
         paddingHorizontal = 0.dp,
         paddingVertical = 0.dp,
     ) {
@@ -223,8 +230,7 @@ fun GlobalSettingsDialog(
                         modifier = Modifier.weight(1f),
                     )
 
-                    // Changes apply as soon as they are made, so there is nothing to confirm: only a way to leave
-                    InstantTooltip(text = "Close") {
+                    InstantTooltip(text = "Close without saving") {
                         Icon(
                             painter = painterResource(Res.drawable.close),
                             contentDescription = "Close settings",
@@ -233,7 +239,7 @@ fun GlobalSettingsDialog(
                                 .size(32.dp)
                                 .clip(MaterialTheme.shapes.small)
                                 .border(1.dp, MaterialTheme.colors.onBackground.copy(alpha = 0.14f), MaterialTheme.shapes.small)
-                                .handMouseClickable { onDismiss() }
+                                .handMouseClickable { dismissWithoutSaving() }
                                 .padding(9.dp),
                         )
                     }
@@ -248,6 +254,33 @@ fun GlobalSettingsDialog(
                     selectedCategory.content(settingsViewState) { action ->
                         settingsViewModel.onAction(action)
                     }
+                }
+
+                PanelDivider()
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 40.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End),
+                ) {
+                    Text(
+                        text = if (hasPendingChanges) "Unsaved changes" else "No changes",
+                        style = MaterialTheme.typography.caption,
+                        color = if (hasPendingChanges) MaterialTheme.colors.primaryVariant else MaterialTheme.colors.onBackgroundSecondary,
+                        modifier = Modifier.weight(1f),
+                    )
+
+                    GhostButton(text = "Cancel", onClick = dismissWithoutSaving, modifier = Modifier.height(36.dp))
+                    PrimaryButton(
+                        text = "Save",
+                        enabled = hasPendingChanges,
+                        onClick = {
+                            settingsViewModel.onAction(SettingsAction.Save)
+                            onDismiss()
+                        },
+                    )
                 }
             }
 
