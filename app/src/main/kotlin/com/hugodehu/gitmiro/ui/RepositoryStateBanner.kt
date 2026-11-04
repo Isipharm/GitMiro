@@ -33,6 +33,7 @@ fun RepositoryStateBanner(
     repositoryState: RepositoryState,
     statusState: StatusState,
     rebaseProgress: RebaseProgress?,
+    currentBranch: String?,
     onAction: (StatusAction) -> Unit,
 ) {
     val operation = when {
@@ -49,7 +50,11 @@ fun RepositoryStateBanner(
 
     val title = when {
         isRebasing && rebaseProgress != null -> "Rebasing ${rebaseProgress.branch} onto ${rebaseProgress.onto}"
-        repositoryState.isMerging && message.isNotBlank() -> message.lines().first()
+        repositoryState.isMerging -> {
+            val merged = Regex("Merge (?:remote-tracking )?branch '([^']+)'").find(message)?.groupValues?.get(1)
+
+            if (merged != null && currentBranch != null) "Merging $merged into $currentBranch" else "Merge in progress"
+        }
         else -> "${operation.replaceFirstChar { it.uppercase() }} in progress"
     }
 

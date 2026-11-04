@@ -34,7 +34,11 @@ import androidx.compose.ui.unit.dp
 import com.hugodehu.gitmiro.LocalTabFocusRequester
 import com.hugodehu.gitmiro.Screen
 import com.hugodehu.gitmiro.app.generated.resources.*
+import com.hugodehu.gitmiro.domain.models.DiffType
+import com.hugodehu.gitmiro.domain.models.EntryType
 import com.hugodehu.gitmiro.domain.models.Identity
+import com.hugodehu.gitmiro.domain.models.StatusEntry
+import com.hugodehu.gitmiro.domain.models.StatusType
 import com.hugodehu.gitmiro.domain.models.PullType
 import com.hugodehu.gitmiro.domain.models.RebaseInteractiveState
 import com.hugodehu.gitmiro.domain.models.RepositoryState
@@ -50,7 +54,12 @@ import com.hugodehu.gitmiro.keybindings.keyBinding
 import com.hugodehu.gitmiro.ui.components.TripleVerticalSplitPanel
 import com.hugodehu.gitmiro.ui.diff.DiffPane
 import com.hugodehu.gitmiro.ui.log.Log
+import com.hugodehu.gitmiro.ui.ConflictRow
+import com.hugodehu.gitmiro.ui.ConflictedFilesPanel
+import com.hugodehu.gitmiro.ui.ConflictsAttentionPanel
 import com.hugodehu.gitmiro.ui.RepositoryStateBanner
+import com.hugodehu.gitmiro.ui.status.StatusAction
+import com.hugodehu.gitmiro.ui.tree_files.TreeItem
 import com.hugodehu.gitmiro.ui.RebaseProgressView
 import com.hugodehu.gitmiro.ui.status.StatusPane
 import com.hugodehu.gitmiro.updates.Update
@@ -131,11 +140,13 @@ fun RepositoryOpenPage(
 
             val statusState by repositoryOpenViewModel.statusState.collectAsState()
             val rebaseProgress by repositoryOpenViewModel.rebaseProgress.collectAsState()
+            val currentBranchName by repositoryOpenViewModel.currentBranchName.collectAsState()
 
             RepositoryStateBanner(
                 repositoryState = repositoryState,
                 statusState = statusState,
                 rebaseProgress = rebaseProgress,
+                currentBranch = currentBranchName,
                 onAction = { repositoryOpenViewModel.onAction(it) },
             )
 
@@ -339,6 +350,47 @@ fun MainContentView(
     }
 
     val isRebaseInteractive = rebaseInteractiveState is RebaseInteractiveState.AwaitingInteraction
+
+    // While an operation is stopped, the layout is the conflict resolution one: a list of the files when one is open,
+    // an overview of what is left to do otherwise
+    val inOperation = repositoryState.isMerging || repositoryState.isRebasing ||
+            repositoryState.isCherryPicking || repositoryState.isReverting
+    val showDiff = diffSelected?.entries?.count() == 1
+    val seenConflicts = remember(viewModel) { mutableStateListOf<String>() }
+    val conflicting = statusState.unstaged.mapNotNull {
+        (it as? TreeItem.File<StatusEntry>)?.data?.takeIf { entry -> entry.statusType == StatusType.CONFLICTING }
+    }
+
+    LaunchedEffect(statusState.unstaged, inOperation) {
+        if (!inOperation) {
+            seenConflicts.clear()
+        } else {
+            conflicting.forEach { if (it.filePath !in seenConflicts) seenConflicts.add(it.filePath) }
+        }
+    }
+
+    val stagedEntries = statusState.staged.mapNotNull { (it as? TreeItem.File<StatusEntry>)?.data }
+    val conflictRows = (seenConflicts + conflicting.map { it.filePath }).distinct().mapNotNull { path ->
+        conflicting.firstOrNull { it.filePath == path }?.let { ConflictRow(it, isResolved = false) }
+            ?: stagedEntries.firstOrNull { it.filePath == path }?.let { ConflictRow(it, isResolved = true) }
+    }
+    val openConflict: (StatusEntry) -> Unit = { entry ->
+        viewModel.onAction(
+            StatusAction.SelectEntry(
+                statusEntry = entry,
+                isCtrlPressed = false,
+                isMetaPressed = false,
+                isShiftPressed = false,
+                diffEntries = if (entry.entryType == EntryType.STAGED) statusState.staged else statusState.unstaged,
+                selectedEntries = if (entry.entryType == EntryType.STAGED) {
+                    statusState.selectedStagedDiffEntries
+                } else {
+                    statusState.selectedUnstagedDiffEntries
+                },
+            )
+        )
+    }
+
     val commitChangesState = viewModel.commitChangesState.collectAsState().value
 
     Row {
@@ -346,13 +398,26 @@ fun MainContentView(
         modifier = Modifier
             .weight(1f)
             .fillMaxHeight(),
-        firstWidth = if (isRebaseInteractive) 0f else firstWidth,
-        thirdWidth = thirdWidth,
+        firstWidth = when {
+            isRebaseInteractive -> 0f
+            inOperation -> if (showDiff) 300f else 0f
+            else -> firstWidth
+        },
+        thirdWidth = if (inOperation) (if (showDiff) 0f else 372f) else thirdWidth,
         first = {
-            SidePanel(
-                viewModel = viewModel,
-                onNavigate = onNavigate,
-            )
+            if (inOperation) {
+                ConflictedFilesPanel(
+                    rows = conflictRows,
+                    selectedPath = diffSelected?.entries?.firstOrNull()?.filePath,
+                    conflictsCount = { path -> viewModel.getConflictFile(path)?.conflicts?.size },
+                    onOpen = openConflict,
+                )
+            } else {
+                SidePanel(
+                    viewModel = viewModel,
+                    onNavigate = onNavigate,
+                )
+            }
         },
         second = {
             Box(
@@ -374,8 +439,6 @@ fun MainContentView(
                 } else {
                     Column {
                         Box(modifier = Modifier.weight(1f, true)) {
-                            val showDiff = diffSelected?.entries?.count() == 1
-
                             val currentRebaseProgress = rebaseProgress
 
                             if (repositoryState.isRebasing && currentRebaseProgress != null) {
@@ -426,7 +489,17 @@ fun MainContentView(
                 modifier = Modifier
                     .fillMaxHeight()
             ) {
-                if (commitChangesState != null) {
+                if (inOperation) {
+                    ConflictsAttentionPanel(
+                        unresolved = conflicting,
+                        resolvedCount = conflictRows.count { it.isResolved },
+                        isRebasing = repositoryState.isRebasing,
+                        onOpen = { entry ->
+                            // Skips the file that is already open, so the button always goes somewhere new
+                            openConflict(conflicting.firstOrNull { it.filePath != diffSelected?.entries?.firstOrNull()?.filePath } ?: entry)
+                        },
+                    )
+                } else if (commitChangesState != null) {
                     CommitChanges(
                         viewModel = viewModel,
                         onBlame = { viewModel.blameFile(it) },
@@ -453,7 +526,7 @@ fun MainContentView(
         onFirstSizeChange = {
             val newWidth = firstWidth + it / density
 
-            if (newWidth > 150 && rebaseInteractiveState !is RebaseInteractiveState.AwaitingInteraction) {
+            if (newWidth > 150 && !inOperation && rebaseInteractiveState !is RebaseInteractiveState.AwaitingInteraction) {
                 firstWidth = newWidth
                 viewModel.setFirstPaneWidth(newWidth)
             }
@@ -466,7 +539,7 @@ fun MainContentView(
         onThirdSizeChange = {
             val newWidth = thirdWidth - it / density
 
-            if (newWidth > 150) {
+            if (newWidth > 150 && !inOperation) {
                 thirdWidth = newWidth
                 viewModel.setThirdPaneWidth(newWidth)
             }

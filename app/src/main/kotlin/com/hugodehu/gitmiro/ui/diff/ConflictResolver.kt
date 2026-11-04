@@ -61,6 +61,8 @@ private data class ChunkLineNumbers(val current: Int, val incoming: Int)
 fun ConflictResolver(
     filePath: String,
     conflictFile: ConflictFile,
+    currentLabel: String,
+    incomingLabel: String,
     onResolve: (content: ByteArray) -> Unit,
 ) {
     val choices = remember(conflictFile) { mutableStateMapOf<Int, ConflictChoice>() }
@@ -145,13 +147,37 @@ fun ConflictResolver(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            val dirPath = filePath.substringBeforeLast("/", "")
+
+            if (dirPath.isNotEmpty()) {
+                Text(
+                    text = "$dirPath/",
+                    style = MaterialTheme.typography.body2,
+                    color = MaterialTheme.colors.onBackgroundSecondary,
+                    maxLines = 1,
+                    modifier = Modifier.weight(1f, false),
+                )
+            }
             Text(
-                text = "$decidedCount of ${conflicts.size} resolved",
+                text = filePath.substringAfterLast("/"),
+                style = MaterialTheme.typography.body2,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colors.onBackground,
+                maxLines = 1,
+            )
+
+            val pillColor = if (isFullyDecided) MaterialTheme.colors.addFile else MaterialTheme.colors.conflictFile
+            Text(
+                text = when {
+                    isFullyDecided -> "Resolved"
+                    conflicts.size == 1 -> "1 conflict"
+                    else -> "${conflicts.size - decidedCount} of ${conflicts.size} conflicts left"
+                },
                 style = MaterialTheme.typography.caption,
-                color = MaterialTheme.colors.modifyFile,
+                color = pillColor,
                 modifier = Modifier
                     .clip(RoundedCornerShape(percent = 50))
-                    .background(MaterialTheme.colors.modifyFile.copy(alpha = 0.14f))
+                    .background(pillColor.copy(alpha = 0.14f))
                     .padding(horizontal = 8.dp, vertical = 2.dp),
             )
 
@@ -187,7 +213,7 @@ fun ConflictResolver(
 
         Row(modifier = Modifier.fillMaxWidth()) {
             SideHeader(
-                title = "Current (HEAD)",
+                title = "Current · $currentLabel",
                 tint = MaterialTheme.colors.graphColors[1],
                 keptCount = keptCurrentCount,
                 totalCount = conflicts.size,
@@ -197,7 +223,7 @@ fun ConflictResolver(
                 modifier = Modifier.weight(1f),
             )
             SideHeader(
-                title = "Incoming",
+                title = "Incoming · $incomingLabel",
                 tint = MaterialTheme.colors.addFile,
                 keptCount = keptIncomingCount,
                 totalCount = conflicts.size,
@@ -270,7 +296,7 @@ fun ConflictResolver(
             Text(
                 text = when {
                     isEditedByHand -> "Edited by hand"
-                    isFullyDecided -> "Editable"
+                    isFullyDecided -> "editable, saved when you mark the file resolved"
                     else -> "Resolve every conflict to edit the result"
                 },
                 style = MaterialTheme.typography.caption,

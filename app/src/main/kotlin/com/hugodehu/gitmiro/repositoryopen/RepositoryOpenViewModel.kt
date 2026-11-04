@@ -244,6 +244,8 @@ class RepositoryOpenViewModel @Inject constructor(
         .currentBranch
         .toUiDataState()
 
+    val currentBranchName: StateFlow<String?> = currentBranch.map { it.data?.simpleName }.stateIn(null)
+
     private val remotes = repositoryDataRepository.remotes.toUiDataState()
 
     private val logBranchesByCommitHash =

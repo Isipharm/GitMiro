@@ -76,6 +76,26 @@ private fun DiffResult.countLines(type: LineType): Int? = when (this) {
     else -> null
 }
 
+/**
+ * Names shown above both sides of a conflict, which depend on the operation: a merge brings the other branch into the
+ * current one, while in a rebase HEAD is the branch the commits are replayed onto.
+ */
+private fun conflictSideLabels(
+    repositoryState: RepositoryState,
+    mergeMessage: String,
+    rebaseProgress: RebaseProgress?,
+    currentBranch: String?,
+): Pair<String, String> = when {
+    repositoryState.isRebasing && rebaseProgress != null -> rebaseProgress.onto to rebaseProgress.branch
+    repositoryState.isMerging -> {
+        val merged = Regex("Merge (?:remote-tracking )?branch '([^']+)'").find(mergeMessage)?.groupValues?.get(1)
+
+        (currentBranch ?: "HEAD") to (merged ?: "incoming")
+    }
+
+    else -> (currentBranch ?: "HEAD") to "incoming"
+}
+
 @Composable
 private fun <T> loadOrNull(key: Any, action: suspend () -> T?): T? {
     var result: T? by remember(key) { mutableStateOf(null) }
@@ -141,7 +161,7 @@ fun DiffPane(
                     conflictFile = if (isContentConflict) viewModel.getConflictFile(diffType.filePath) else null
                 }
 
-                DiffHeader(
+                if (!(isContentConflict && conflictFile != null)) DiffHeader(
                     diffType = diffType,
                     showFileActions = !(isContentConflict && conflictFile != null),
                     diffEntry = diffEntry,
@@ -178,6 +198,15 @@ fun DiffPane(
                 }
 
                 val loadedConflictFile = conflictFile
+                val statusState by viewModel.statusState.collectAsState()
+                val rebaseProgress by viewModel.rebaseProgress.collectAsState()
+                val currentBranchName by viewModel.currentBranchName.collectAsState()
+                val (currentLabel, incomingLabel) = conflictSideLabels(
+                    repositoryState = repositoryState,
+                    mergeMessage = statusState.commitMessage.text,
+                    rebaseProgress = rebaseProgress,
+                    currentBranch = currentBranchName,
+                )
 
                 if (isContentConflict && loadedConflictFile == null) {
                     // Binary files can't be split in blocks, both sides are shown as a diff instead
@@ -188,6 +217,8 @@ fun DiffPane(
                     ConflictResolver(
                         filePath = diffType.filePath,
                         conflictFile = loadedConflictFile,
+                        currentLabel = currentLabel,
+                        incomingLabel = incomingLabel,
                         onResolve = { content ->
                             viewModel.applyConflictResolution(diffType.filePath, content)
                         },
