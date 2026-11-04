@@ -19,7 +19,11 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.awt.ComposeWindow
+import androidx.compose.ui.window.DefaultWindowExceptionHandlerFactory
+import androidx.compose.ui.window.LocalWindowExceptionHandlerFactory
 import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.WindowExceptionHandler
+import androidx.compose.ui.window.WindowExceptionHandlerFactory
 import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
@@ -31,6 +35,7 @@ import com.hugodehu.gitmiro.avatarproviders.GravatarAvatarProvider
 import com.hugodehu.gitmiro.avatarproviders.NoneAvatarProvider
 import com.hugodehu.gitmiro.common.OS
 import com.hugodehu.gitmiro.common.currentOs
+import com.hugodehu.gitmiro.common.printError
 import com.hugodehu.gitmiro.common.systemSeparator
 import com.hugodehu.gitmiro.data.git.signers.AppGpgSigner
 import com.hugodehu.gitmiro.data.git.signers.SshSigner
@@ -198,40 +203,55 @@ class App @Inject constructor(
                 appViewModel.updatePersistedTabs()
             }
 
-            Window(
-                title = "${System.getenv("title") ?: AppConstants.APP_NAME} - $currentTabName",
-                onCloseRequest = {
-                    tempFilesManager.clearAll()
-                    this@application.exitApplication()
-                },
-                state = windowState,
-                icon = painterResource(Res.drawable.logo),
+            // The default handler shows an error dialog and closes the window, even for the harmless error that Compose
+            // throws when an event reaches a popup that was just disposed.
+            CompositionLocalProvider(
+                LocalWindowExceptionHandlerFactory provides WindowExceptionHandlerFactory { window ->
+                    val defaultHandler = DefaultWindowExceptionHandlerFactory.exceptionHandler(window)
+                    WindowExceptionHandler { throwable ->
+                        if (isDisposedComposeSceneError(throwable)) {
+                            printError(TAG, "Ignored error from a disposed popup", throwable as Exception)
+                        } else {
+                            defaultHandler.onException(throwable)
+                        }
+                    }
+                }
             ) {
-                val compositionValues: MutableList<ProvidedValue<*>> =
-                    mutableListOf(LocalTextContextMenu provides AppPopupMenu())
-
-                if (scale != null) {
-                    compositionValues.add(LocalDensity provides Density(scale, 1f))
-                }
-
-                val avatarProvider = when (avatarProviderType) {
-                    AvatarProviderType.Gravatar -> GravatarAvatarProvider()
-                    AvatarProviderType.None -> NoneAvatarProvider()
-                }
-
-                compositionValues.add(LocalAvatarProvider provides avatarProvider)
-                compositionValues.add(LocalDateTimeFormat provides dateFormat)
-
-                CompositionLocalProvider(
-                    values = compositionValues.toTypedArray()
+                Window(
+                    title = "${System.getenv("title") ?: AppConstants.APP_NAME} - $currentTabName",
+                    onCloseRequest = {
+                        tempFilesManager.clearAll()
+                        this@application.exitApplication()
+                    },
+                    state = windowState,
+                    icon = painterResource(Res.drawable.logo),
                 ) {
-                    AppTheme(
-                        selectedTheme = theme,
-                        customTheme = customTheme,
-                        linesHeightType = linesHeightType,
+                    val compositionValues: MutableList<ProvidedValue<*>> =
+                        mutableListOf(LocalTextContextMenu provides AppPopupMenu())
+
+                    if (scale != null) {
+                        compositionValues.add(LocalDensity provides Density(scale, 1f))
+                    }
+
+                    val avatarProvider = when (avatarProviderType) {
+                        AvatarProviderType.Gravatar -> GravatarAvatarProvider()
+                        AvatarProviderType.None -> NoneAvatarProvider()
+                    }
+
+                    compositionValues.add(LocalAvatarProvider provides avatarProvider)
+                    compositionValues.add(LocalDateTimeFormat provides dateFormat)
+
+                    CompositionLocalProvider(
+                        values = compositionValues.toTypedArray()
                     ) {
-                        Box(modifier = Modifier.background(MaterialTheme.colors.background)) {
-                            AppTabs(window)
+                        AppTheme(
+                            selectedTheme = theme,
+                            customTheme = customTheme,
+                            linesHeightType = linesHeightType,
+                        ) {
+                            Box(modifier = Modifier.background(MaterialTheme.colors.background)) {
+                                AppTabs(window)
+                            }
                         }
                     }
                 }
