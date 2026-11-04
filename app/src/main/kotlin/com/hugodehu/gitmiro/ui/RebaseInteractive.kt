@@ -1,5 +1,6 @@
 package com.hugodehu.gitmiro.ui
 
+import com.hugodehu.gitmiro.ui.components.AppSpinner
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -74,7 +75,7 @@ fun RebaseInteractive(
                 }
             )
 
-            DataState.Loading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            DataState.Loading -> AppSpinner(modifier = Modifier.align(Alignment.Center), size = 32.dp)
             is RebaseInteractiveState.ProcessingCommits, RebaseInteractiveState.None -> {}
         }
     }

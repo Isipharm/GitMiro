@@ -141,6 +141,7 @@ class RepositoryOpenViewModel @Inject constructor(
     private val stashChangesUseCase: StashChangesUseCase,
     private val openRepositoryInTerminalGitAction: OpenRepositoryInTerminalGitAction,
     private val getAheadCountUseCase: GetAheadCountUseCase,
+    private val getRebaseProgressUseCase: GetRebaseProgressUseCase,
 ) : IVerticalSplitPaneConfig by verticalSplitPaneConfig,
     TabViewModel() {
     val completedTasks = repositoryStateRepository.completedTasks
@@ -358,6 +359,14 @@ class RepositoryOpenViewModel @Inject constructor(
         combine(log, branches, currentBranch) { _, _, _ -> }
             .map { getAheadCountUseCase().okOrNull() ?: 0 }
             .stateIn(0)
+
+    /**
+     * Commits replayed by the rebase in progress, null when not rebasing. Reloaded after each step of the rebase.
+     */
+    val rebaseProgress: StateFlow<RebaseProgress?> =
+        combine(repositoryState, log) { state, _ -> state }
+            .map { state -> if (state.isRebasing) getRebaseProgressUseCase().okOrNull() else null }
+            .stateIn(null)
 
     private val verticalListState =MutableStateFlow(LazyListState(0, 0))
     private val horizontalListState = MutableStateFlow(ScrollState(0))

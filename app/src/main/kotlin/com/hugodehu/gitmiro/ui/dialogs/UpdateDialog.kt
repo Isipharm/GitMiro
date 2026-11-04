@@ -1,5 +1,6 @@
 package com.hugodehu.gitmiro.ui.dialogs
 
+import com.hugodehu.gitmiro.ui.components.AppProgressBar
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -101,9 +102,9 @@ fun UpdateDialog(
                 }
 
                 downloadProgress?.let { progress ->
-                    LinearProgressIndicator(
+                    AppProgressBar(
                         progress = progress,
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        modifier = Modifier.padding(top = 8.dp),
                     )
                 }
 

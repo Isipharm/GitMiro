@@ -2,6 +2,9 @@
 
 package com.hugodehu.gitmiro.ui.status
 
+import com.hugodehu.gitmiro.theme.secondarySurface
+import androidx.compose.ui.text.style.TextOverflow
+import com.hugodehu.gitmiro.theme.graphColors
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.fadeIn
@@ -165,7 +168,30 @@ fun StatusPane(
             enter = fadeIn(),
             exit = fadeOut(),
         ) {
-            LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colors.primaryVariant)
+            AppProgressBar()
+        }
+
+        val conflicts = statusState.unstaged.mapNotNull {
+            (it as? TreeItem.File<StatusEntry>)?.data?.takeIf { entry -> entry.statusType == StatusType.CONFLICTING }
+        }
+
+        if (statusState.repositoryState != RepositoryState.SAFE && conflicts.isNotEmpty()) {
+            ConflictsAttentionCard(
+                conflicts = conflicts,
+                isRebasing = statusState.repositoryState.isRebasing,
+                onOpen = { entry ->
+                    onAction(
+                        StatusAction.SelectEntry(
+                            statusEntry = entry,
+                            isCtrlPressed = false,
+                            isMetaPressed = false,
+                            isShiftPressed = false,
+                            diffEntries = statusState.unstaged,
+                            selectedEntries = selectedUnstagedDiffEntries,
+                        )
+                    )
+                },
+            )
         }
 
         Column(
@@ -643,44 +669,22 @@ private fun CommitField(
             },
         )
 
+        // Aborting, skipping and continuing an operation in progress are in the banner above the repository
         when {
-            repositoryState.isMerging -> MergeButtons(
-                haveConflictsBeenSolved = !hasUnstagedFiles,
-                onAbort = onResetRepoState,
-                onMerge = { doCommit() }
-            )
+            repositoryState.isMerging || repositoryState.isCherryPicking || repositoryState.isReverting -> {}
 
             repositoryState.isRebasing -> {
                 val isCurrentStepAmenable =
                     (rebaseInteractiveState as? RebaseInteractiveState.ProcessingCommits)?.isCurrentStepAmenable == true
-                RebasingButtons(
-                    canContinue = hasStagedFiles || hasUnstagedFiles || (isAmenableRebaseInteractive && isAmendRebaseInteractive && commitMessage.text.isNotEmpty()),
-                    haveConflictsBeenSolved = !hasUnstagedFiles,
-                    onAbort = onAbortRebase,
-                    onContinue = onContinueRebase,
-                    onSkip = onSkipRebase,
-                    isAmendable = isCurrentStepAmenable,
-                    isAmend = isAmendRebaseInteractive,
-                    onAmendChecked = onAmendRebaseInteractiveChecked,
-                )
+
+                if (isCurrentStepAmenable) {
+                    CheckboxText(
+                        value = isAmendRebaseInteractive,
+                        onCheckedChange = { onAmendRebaseInteractiveChecked(!isAmendRebaseInteractive) },
+                        text = stringResource(Res.string.uncommited_changes_amend_check)
+                    )
+                }
             }
-
-            repositoryState.isCherryPicking -> CherryPickingButtons(
-                haveConflictsBeenSolved = !hasUnstagedFiles,
-                onAbort = onResetRepoState,
-                onCommit = {
-                    doCommit()
-                }
-            )
-
-            repositoryState.isReverting -> RevertingButtons(
-                haveConflictsBeenSolved = haveConflictsBeenSolved,
-                canCommit = commitMessage.text.isNotBlank(),
-                onAbort = onResetRepoState,
-                onCommit = {
-                    doCommit()
-                }
-            )
 
             else -> UncommittedChangesButtons(
                 canCommit = canCommit,
@@ -690,6 +694,102 @@ private fun CommitField(
                 onCommit = doCommit,
             )
         }
+    }
+}
+
+/**
+ * Summary of the files still in conflict while a merge or rebase is in progress.
+ */
+@Composable
+private fun ConflictsAttentionCard(
+    conflicts: List<StatusEntry>,
+    isRebasing: Boolean,
+    onOpen: (StatusEntry) -> Unit,
+) {
+    val amber = MaterialTheme.colors.graphColors[3]
+
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(
+            text = "NEEDS YOUR ATTENTION",
+            style = MaterialTheme.typography.caption,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colors.onBackgroundSecondary,
+        )
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(MaterialTheme.colors.secondarySurface, MaterialTheme.shapes.medium)
+                .border(1.dp, MaterialTheme.colors.onBackground.copy(alpha = 0.12f), MaterialTheme.shapes.medium)
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Icon(
+                    painter = painterResource(Res.drawable.warning),
+                    contentDescription = null,
+                    tint = amber,
+                    modifier = Modifier.size(16.dp),
+                )
+                Text(
+                    text = if (conflicts.size == 1) "1 file in conflict" else "${conflicts.size} files in conflict",
+                    style = MaterialTheme.typography.body1,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colors.onBackground,
+                )
+            }
+
+            conflicts.forEach { entry ->
+                val dir = entry.parentDirectoryPath
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(32.dp)
+                        .background(MaterialTheme.colors.background, MaterialTheme.shapes.small)
+                        .handMouseClickable { onOpen(entry) }
+                        .padding(horizontal = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (dir.isNotEmpty()) {
+                        Text(
+                            text = dir,
+                            style = MaterialTheme.typography.body2,
+                            color = MaterialTheme.colors.onBackgroundSecondary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, false),
+                        )
+                    }
+                    Text(
+                        text = entry.fileName,
+                        style = MaterialTheme.typography.body2,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colors.onBackground,
+                        maxLines = 1,
+                    )
+                }
+            }
+
+            PrimaryButton(
+                text = "Resolve conflicts",
+                modifier = Modifier.fillMaxWidth().height(36.dp),
+                onClick = { onOpen(conflicts.first()) },
+            )
+        }
+
+        Text(
+            text = if (isRebasing) {
+                "Fixing the conflict stages the file. Then Continue replays the next commit."
+            } else {
+                "Fixing the conflict stages the file. Then Continue finishes the merge."
+            },
+            style = MaterialTheme.typography.body2,
+            color = MaterialTheme.colors.onBackgroundSecondary,
+        )
     }
 }
 

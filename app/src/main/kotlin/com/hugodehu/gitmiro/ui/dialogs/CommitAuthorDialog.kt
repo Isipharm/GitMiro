@@ -1,8 +1,8 @@
 package com.hugodehu.gitmiro.ui.dialogs
 
+import com.hugodehu.gitmiro.ui.components.AppCheckbox
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.Checkbox
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.runtime.*
@@ -84,14 +84,13 @@ fun CommitAuthorDialog(
                 persist = !persist
             }.fillMaxWidth()
         ) {
-            Checkbox(
+            AppCheckbox(
                 checked = persist,
                 onCheckedChange = {
                     persist = it
                 },
                 modifier = Modifier
                     .padding(all = 8.dp)
-                    .size(12.dp)
             )
 
             Text(

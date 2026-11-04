@@ -1,5 +1,7 @@
 package com.hugodehu.gitmiro.ui.dialogs.errors
 
+import com.hugodehu.gitmiro.theme.monoTypography
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -92,17 +94,23 @@ fun ErrorDialog(
                         .height(400.dp)
                         .fillMaxWidth()
                 ) {
-                    OutlinedTextField(
-                        value = errorStackTrace,
-                        onValueChange = {},
-                        readOnly = true,
-                        colors = TextFieldDefaults.outlinedTextFieldColors(backgroundColor = MaterialTheme.colors.secondarySurface),
-                        textStyle = MaterialTheme.typography.body2,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .horizontalScroll(horizontalScroll)
-                            .verticalScroll(verticalScroll),
-                    )
+                    SelectionContainer {
+                        Text(
+                            text = errorStackTrace,
+                            fontFamily = monoTypography(),
+                            style = MaterialTheme.typography.caption,
+                            color = MaterialTheme.colors.onBackground,
+                            softWrap = false,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(MaterialTheme.shapes.small)
+                                .background(MaterialTheme.colors.background)
+                                .border(1.dp, MaterialTheme.colors.onBackground.copy(alpha = 0.12f), MaterialTheme.shapes.small)
+                                .horizontalScroll(horizontalScroll)
+                                .verticalScroll(verticalScroll)
+                                .padding(12.dp),
+                        )
+                    }
 
                     HorizontalScrollbar(
                         rememberScrollbarAdapter(horizontalScroll),

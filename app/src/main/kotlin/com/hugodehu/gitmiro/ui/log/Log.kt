@@ -2,6 +2,9 @@
 
 package com.hugodehu.gitmiro.ui.log
 
+import androidx.compose.ui.draw.rotate
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import com.hugodehu.gitmiro.ui.components.AppProgressBar
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.*
@@ -172,7 +175,7 @@ fun Log(
         )
 
         AnimatedVisibility(visible = logStatus.isLoading) {
-            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            AppProgressBar()
         }
     }
 }
@@ -423,91 +426,127 @@ fun SearchFilter(
         textFieldFocusRequester.requestFocus()
     }
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(56.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        TextField(
-            value = searchFilterText,
-            onValueChange = {
-                searchFilterText = it
-                scope.launch {
-                    logViewModel.onSearchValueChanged(it)
-                }
-            },
-            maxLines = 1,
+    Column {
+        Row(
             modifier = Modifier
-                .fillMaxSize()
-                .focusRequester(textFieldFocusRequester)
-                .onFocusChanged {
-                    if (it.isFocused) {
-                        searchFocused()
-                    }
-                }
-                .onPreviewKeyEvent { keyEvent ->
-                    when {
-                        keyEvent.matchesBinding(KeybindingOption.SIMPLE_ACCEPT) -> {
-                            scope.launch {
-                                logViewModel.selectNextFilterCommit()
-                            }
-                            true
-                        }
+                .fillMaxWidth()
+                .height(52.dp)
+                .background(MaterialTheme.colors.secondarySurface)
+                .padding(horizontal = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            val shape = MaterialTheme.shapes.small
+            val fieldInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+            val isFocused by fieldInteraction.collectIsFocusedAsState()
 
-                        else -> false
+            androidx.compose.foundation.text.BasicTextField(
+                value = searchFilterText,
+                onValueChange = {
+                    searchFilterText = it
+                    scope.launch {
+                        logViewModel.onSearchValueChanged(it)
                     }
                 },
-            label = {
-                Text("Search by message, author name or commit ID")
-            },
-            colors = textFieldColors(),
-            textStyle = MaterialTheme.typography.body1,
-            trailingIcon = {
-                Row(
-                    modifier = Modifier
-                        .fillMaxHeight(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    if (searchFilterText.isNotEmpty()) {
-                        Text(
-                            "${searchFilterResults.index}/${searchFilterResults.totalCount}",
-                            color = MaterialTheme.colors.onBackgroundSecondary,
+                singleLine = true,
+                interactionSource = fieldInteraction,
+                textStyle = MaterialTheme.typography.body2.copy(color = MaterialTheme.colors.onBackground),
+                cursorBrush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colors.primary),
+                modifier = Modifier
+                    .weight(1f)
+                    .height(34.dp)
+                    .background(MaterialTheme.colors.background, shape)
+                    .border(
+                        1.dp,
+                        if (isFocused) MaterialTheme.colors.primary else MaterialTheme.colors.onBackground.copy(alpha = 0.12f),
+                        shape,
+                    )
+                    .focusRequester(textFieldFocusRequester)
+                    .onFocusChanged {
+                        if (it.isFocused) {
+                            searchFocused()
+                        }
+                    }
+                    .onPreviewKeyEvent { keyEvent ->
+                        when {
+                            keyEvent.matchesBinding(KeybindingOption.SIMPLE_ACCEPT) -> {
+                                scope.launch {
+                                    logViewModel.selectNextFilterCommit()
+                                }
+                                true
+                            }
+
+                            else -> false
+                        }
+                    },
+                decorationBox = { innerTextField ->
+                    Row(
+                        modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            painterResource(Res.drawable.search),
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp),
+                            tint = MaterialTheme.colors.onBackgroundSecondary,
                         )
-                    }
 
-                    IconButton(
-                        modifier = Modifier
-                            .handOnHover(),
-                        onClick = {
-                            scope.launch { logViewModel.selectPreviousFilterCommit() }
+                        Box(modifier = Modifier.weight(1f).padding(horizontal = 8.dp)) {
+                            if (searchFilterText.isEmpty()) {
+                                Text(
+                                    text = "Search by message, author name or commit ID",
+                                    style = MaterialTheme.typography.body2,
+                                    color = MaterialTheme.colors.onBackgroundSecondary,
+                                    maxLines = 1,
+                                )
+                            }
+
+                            innerTextField()
                         }
-                    ) {
-                        Icon(Icons.Default.KeyboardArrowUp, contentDescription = null)
-                    }
 
-                    IconButton(
-                        modifier = Modifier
-                            .handOnHover(),
-                        onClick = {
-                            scope.launch { logViewModel.selectNextFilterCommit() }
+                        if (searchFilterText.isNotEmpty()) {
+                            Text(
+                                text = "${searchFilterResults.index}/${searchFilterResults.totalCount}",
+                                fontFamily = monoTypography(),
+                                style = MaterialTheme.typography.caption,
+                                color = MaterialTheme.colors.onBackgroundSecondary,
+                            )
                         }
-                    ) {
-                        Icon(Icons.Default.KeyboardArrowDown, contentDescription = null)
                     }
+                },
+            )
 
-                    IconButton(
-                        modifier = Modifier
-                            .handOnHover()
-                            .padding(end = 4.dp),
-                        onClick = { logViewModel.closeSearch() }
-                    ) {
-                        Icon(painterResource(Res.drawable.close), contentDescription = null)
-                    }
-                }
+            SearchBarIconButton(Res.drawable.dropdown, "Previous result", rotated = true) {
+                scope.launch { logViewModel.selectPreviousFilterCommit() }
             }
-        )
+            SearchBarIconButton(Res.drawable.dropdown, "Next result") {
+                scope.launch { logViewModel.selectNextFilterCommit() }
+            }
+            SearchBarIconButton(Res.drawable.close, "Close search") { logViewModel.closeSearch() }
+        }
+
+        PanelDivider()
     }
+}
+
+@Composable
+private fun SearchBarIconButton(
+    icon: DrawableResource,
+    description: String,
+    rotated: Boolean = false,
+    onClick: () -> Unit,
+) {
+    Icon(
+        painter = painterResource(icon),
+        contentDescription = description,
+        tint = MaterialTheme.colors.onBackgroundSecondary,
+        modifier = Modifier
+            .size(28.dp)
+            .clip(MaterialTheme.shapes.small)
+            .handMouseClickable(onClick = onClick)
+            .padding(6.dp)
+            .rotate(if (rotated) 180f else 0f),
+    )
 }
 
 @OptIn(ExperimentalComposeUiApi::class)

@@ -144,7 +144,7 @@ private fun CommitChangesView(
             )
 
             if (commitChangesState.isLoading) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                AppProgressBar()
             }
 
             if (commitChangesState.showAsTree) {

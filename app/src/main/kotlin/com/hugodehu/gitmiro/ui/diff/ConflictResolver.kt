@@ -1,5 +1,6 @@
 package com.hugodehu.gitmiro.ui.diff
 
+import com.hugodehu.gitmiro.ui.components.AppCheckbox
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
@@ -7,6 +8,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.lerp
+import com.hugodehu.gitmiro.ui.components.GhostButton
 import com.hugodehu.gitmiro.ui.components.PanelDivider
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -15,10 +17,8 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.selection.DisableSelection
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.Checkbox
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
-import androidx.compose.material.TriStateCheckbox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -157,18 +157,18 @@ fun ConflictResolver(
 
             Spacer(Modifier.weight(1f))
 
-            ResolverGhostButton("Use current", enabled = !isEditedByHand) {
+            GhostButton("Use current", enabled = !isEditedByHand, onClick = {
                 keepAllCurrent(true)
                 keepAllIncoming(false)
-            }
-            ResolverGhostButton("Use incoming", enabled = !isEditedByHand) {
+            })
+            GhostButton("Use incoming", enabled = !isEditedByHand, onClick = {
                 keepAllCurrent(false)
                 keepAllIncoming(true)
-            }
-            ResolverGhostButton("Use both", enabled = !isEditedByHand) {
+            })
+            GhostButton("Use both", enabled = !isEditedByHand, onClick = {
                 keepAllCurrent(true)
                 keepAllIncoming(true)
-            }
+            })
         }
         PanelDivider()
 
@@ -453,11 +453,10 @@ private fun SideHeader(
             ),
     ) {
         Box(contentAlignment = Alignment.Center, modifier = Modifier.width(CHECKBOX_GUTTER_WIDTH)) {
-            TriStateCheckbox(
+            AppCheckbox(
                 state = state,
                 onClick = onClick,
                 enabled = !isLocked,
-                modifier = Modifier.size(16.dp),
             )
         }
         Box(Modifier.padding(end = 8.dp).size(8.dp).clip(CircleShape).background(tint))
@@ -470,20 +469,6 @@ private fun SideHeader(
     }
 }
 
-@Composable
-private fun ResolverGhostButton(text: String, enabled: Boolean, onClick: () -> Unit) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.body2,
-        fontWeight = FontWeight.Medium,
-        color = MaterialTheme.colors.onBackground.copy(alpha = if (enabled) 1f else 0.4f),
-        modifier = Modifier
-            .clip(MaterialTheme.shapes.small)
-            .border(1.dp, MaterialTheme.colors.onBackground.copy(alpha = 0.16f), MaterialTheme.shapes.small)
-            .handMouseClickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 7.dp),
-    )
-}
 
 @Composable
 private fun SectionTitle(text: String, modifier: Modifier = Modifier) {
@@ -525,11 +510,11 @@ private fun ConflictSide(
                     onClick = { if (isLocked) onLockedClick() else onKeptChanged(!isKept) },
                 ),
         ) {
-            Checkbox(
+            AppCheckbox(
                 checked = isKept,
                 onCheckedChange = onKeptChanged,
                 enabled = !isLocked,
-                modifier = Modifier.padding(top = 4.dp).size(16.dp),
+                modifier = Modifier.padding(top = 4.dp),
             )
         }
 

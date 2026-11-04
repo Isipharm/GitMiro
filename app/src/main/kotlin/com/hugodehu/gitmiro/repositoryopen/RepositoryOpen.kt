@@ -50,10 +50,9 @@ import com.hugodehu.gitmiro.keybindings.keyBinding
 import com.hugodehu.gitmiro.ui.components.TripleVerticalSplitPanel
 import com.hugodehu.gitmiro.ui.diff.DiffPane
 import com.hugodehu.gitmiro.ui.log.Log
-import com.hugodehu.gitmiro.ui.status.AbortButton
-import com.hugodehu.gitmiro.ui.status.StatusAction
+import com.hugodehu.gitmiro.ui.RepositoryStateBanner
+import com.hugodehu.gitmiro.ui.RebaseProgressView
 import com.hugodehu.gitmiro.ui.status.StatusPane
-import com.hugodehu.gitmiro.theme.graphColors
 import com.hugodehu.gitmiro.updates.Update
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -130,13 +129,14 @@ fun RepositoryOpenPage(
                 onShowSettings = { onNavigate(Screen.GlobalSettings) },
             )
 
+            val statusState by repositoryOpenViewModel.statusState.collectAsState()
+            val rebaseProgress by repositoryOpenViewModel.rebaseProgress.collectAsState()
+
             RepositoryStateBanner(
                 repositoryState = repositoryState,
-                onAbort = {
-                    repositoryOpenViewModel.onAction(
-                        if (repositoryState.isRebasing) StatusAction.AbortRebase else StatusAction.ResetRepositoryState
-                    )
-                },
+                statusState = statusState,
+                rebaseProgress = rebaseProgress,
+                onAction = { repositoryOpenViewModel.onAction(it) },
             )
 
             Column(modifier = Modifier.weight(1f)) {
@@ -237,71 +237,6 @@ private fun RepositoryOpenBottomInfoBar(
     )
 }
 
-/**
- * Amber banner shown while a merge, rebase, cherry-pick or revert is in progress.
- */
-@Composable
-private fun RepositoryStateBanner(
-    repositoryState: RepositoryState,
-    onAbort: () -> Unit,
-) {
-    val title = when {
-        repositoryState.isMerging -> "Merge in progress"
-        repositoryState.isRebasing -> "Rebase in progress"
-        repositoryState.isCherryPicking -> "Cherry-pick in progress"
-        repositoryState.isReverting -> "Revert in progress"
-        else -> return
-    }
-    val amber = MaterialTheme.colors.graphColors[3]
-
-    Column {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(60.dp)
-                .background(amber.copy(alpha = 0.10f))
-                .padding(horizontal = 18.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            Icon(
-                painter = painterResource(Res.drawable.warning),
-                contentDescription = null,
-                tint = amber,
-                modifier = Modifier.size(20.dp),
-            )
-
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.body1,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colors.onBackground,
-                )
-                Text(
-                    text = "Resolve the conflicts, then continue from the changes panel.",
-                    style = MaterialTheme.typography.body2,
-                    color = amber.copy(alpha = 0.85f),
-                )
-            }
-
-            AbortButton(
-                modifier = Modifier
-                    .height(34.dp)
-                    .width(120.dp),
-                onClick = onAbort,
-            )
-        }
-
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(1.dp)
-                .background(amber.copy(alpha = 0.35f))
-        )
-    }
-}
-
 @Composable
 private fun RepositoryToolbar(
     viewModel: RepositoryOpenViewModel,
@@ -389,6 +324,7 @@ fun MainContentView(
     val scope = rememberCoroutineScope()
 
     val statusState by viewModel.statusState.collectAsState()
+    val rebaseProgress by viewModel.rebaseProgress.collectAsState()
 
     // We create 2 mutableStates here because using directly the flow makes compose lose some drag events for some reason
     var firstWidth by remember(viewModel) { mutableStateOf(viewModel.firstPaneWidth.value) }
@@ -440,18 +376,24 @@ fun MainContentView(
                         Box(modifier = Modifier.weight(1f, true)) {
                             val showDiff = diffSelected?.entries?.count() == 1
 
-                            Log(
-                                modifier = Modifier.focusable(!showDiff),
-                                viewModel = viewModel,
-                                selectedItem = selectedItem,
-                                repositoryState = repositoryState,
-                                // TODO Move nav outside of this? Applies to next lines
-                                onCreateBranch = { onNavigate(Screen.BranchCreate(it)) },
-                                onResetBranch = { onNavigate(Screen.BranchReset(it)) },
-                                onCreateTag = { onNavigate(Screen.TagCreate(it)) },
-                                onChangeUpstreamBranch = { onNavigate(Screen.BranchChangeUpstream(it)) },
-                                onRenameBranch = { onNavigate(Screen.BranchRename(it)) },
-                            )
+                            val currentRebaseProgress = rebaseProgress
+
+                            if (repositoryState.isRebasing && currentRebaseProgress != null) {
+                                RebaseProgressView(currentRebaseProgress)
+                            } else {
+                                Log(
+                                    modifier = Modifier.focusable(!showDiff),
+                                    viewModel = viewModel,
+                                    selectedItem = selectedItem,
+                                    repositoryState = repositoryState,
+                                    // TODO Move nav outside of this? Applies to next lines
+                                    onCreateBranch = { onNavigate(Screen.BranchCreate(it)) },
+                                    onResetBranch = { onNavigate(Screen.BranchReset(it)) },
+                                    onCreateTag = { onNavigate(Screen.TagCreate(it)) },
+                                    onChangeUpstreamBranch = { onNavigate(Screen.BranchChangeUpstream(it)) },
+                                    onRenameBranch = { onNavigate(Screen.BranchRename(it)) },
+                                )
+                            }
 
                             if (showDiff) {
                                 val tabFocusRequester = LocalTabFocusRequester.current

@@ -1,8 +1,8 @@
 package com.hugodehu.gitmiro.ui.dialogs
 
+import com.hugodehu.gitmiro.ui.components.AppCheckbox
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.Checkbox
 import androidx.compose.material.Icon
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
@@ -89,10 +89,10 @@ fun PruneBranchesDialog(
                                     selected = if (isSelected) selected - branch else selected + branch
                                 },
                         ) {
-                            Checkbox(
+                            AppCheckbox(
                                 checked = isSelected,
-                                onCheckedChange = null,
-                                modifier = Modifier.padding(8.dp).size(16.dp),
+                                onCheckedChange = {},
+                                modifier = Modifier.padding(8.dp),
                             )
 
                             Text(

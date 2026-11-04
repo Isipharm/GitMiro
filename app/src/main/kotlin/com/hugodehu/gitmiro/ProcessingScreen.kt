@@ -1,5 +1,6 @@
 package com.hugodehu.gitmiro
 
+import com.hugodehu.gitmiro.ui.components.AppProgressBar
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -61,14 +62,7 @@ fun ProcessingScreen(
                 )
             }
 
-            LinearProgressIndicator(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(4.dp)
-                    .clip(RoundedCornerShape(percent = 50)),
-                color = MaterialTheme.colors.primary,
-                backgroundColor = MaterialTheme.colors.onBackground.copy(alpha = 0.1f),
-            )
+            AppProgressBar()
         }
     }
 }

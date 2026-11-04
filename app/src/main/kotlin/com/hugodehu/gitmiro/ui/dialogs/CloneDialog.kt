@@ -1,5 +1,7 @@
 package com.hugodehu.gitmiro.ui.dialogs
 
+import com.hugodehu.gitmiro.ui.components.AppSpinner
+import com.hugodehu.gitmiro.ui.components.AppCheckbox
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
@@ -224,7 +226,7 @@ private fun CloneDialogView(
                 .fillMaxWidth()
                 .padding(top = 16.dp)
         ) {
-            Checkbox(
+            AppCheckbox(
                 checked = cloneSubmodules,
                 onCheckedChange = {
                     onCloneSubmodulesChange(it)
@@ -330,18 +332,9 @@ private fun Cloning(cloneViewModel: CloneViewModel, cloneStateValue: CloneState.
             Text(cloneStateValue.taskName, color = MaterialTheme.colors.onBackground)
 
             if (progress >= 0f)
-                CircularProgressIndicator(
-                    modifier = Modifier
-                        .padding(vertical = 16.dp),
-                    progress = progress,
-                    color = MaterialTheme.colors.primaryVariant,
-                )
+                AppSpinner(modifier = Modifier.padding(vertical = 16.dp), size = 32.dp)
             else // Show indeterminate if we do not know the total (aka total == 0 or progress == -1)
-                CircularProgressIndicator(
-                    modifier = Modifier
-                        .padding(vertical = 16.dp),
-                    color = MaterialTheme.colors.primaryVariant,
-                )
+                AppSpinner(modifier = Modifier.padding(vertical = 16.dp), size = 32.dp)
 
         }
 
@@ -371,10 +364,7 @@ private fun Cancelling() {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        CircularProgressIndicator(
-            modifier = Modifier.padding(horizontal = 16.dp),
-            color = MaterialTheme.colors.primaryVariant,
-        )
+        AppSpinner(modifier = Modifier.padding(horizontal = 16.dp), size = 32.dp)
 
         Text(
             text = "Cancelling clone operation...",

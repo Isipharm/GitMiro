@@ -1,8 +1,8 @@
 package com.hugodehu.gitmiro.ui.dialogs
 
+import com.hugodehu.gitmiro.ui.components.AppCheckbox
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.Checkbox
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.runtime.*
@@ -100,7 +100,7 @@ fun SignOffDialog(
                 .fillMaxWidth()
                 .padding(top = 8.dp)
         ) {
-            Checkbox(
+            AppCheckbox(
                 checked = enabledSignOff,
                 enabled = state is SignOffState.Loaded,
                 onCheckedChange = {
@@ -108,7 +108,6 @@ fun SignOffDialog(
                 },
                 modifier = Modifier
                     .padding(all = 8.dp)
-                    .size(12.dp)
             )
 
             Text(

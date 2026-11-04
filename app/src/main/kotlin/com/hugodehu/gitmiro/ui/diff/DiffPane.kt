@@ -2,6 +2,7 @@
 
 package com.hugodehu.gitmiro.ui.diff
 
+import com.hugodehu.gitmiro.ui.components.AppProgressBar
 import androidx.compose.foundation.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
@@ -267,10 +268,7 @@ fun DiffPane(
                     PathOnlyDiffHeader(
                         filePath = viewDiffResult.diffType.filePath,
                         onCloseDiffView = { closeDiffView() })
-                    LinearProgressIndicator(
-                        modifier = Modifier.fillMaxWidth(),
-                        color = MaterialTheme.colors.primaryVariant
-                    )
+                    AppProgressBar()
                 }
 
             }
@@ -278,10 +276,7 @@ fun DiffPane(
             ViewDiffResult.None -> {
                 Column {
                     PathOnlyDiffHeader(filePath = "", onCloseDiffView = { closeDiffView() })
-                    LinearProgressIndicator(
-                        modifier = Modifier.fillMaxWidth(),
-                        color = MaterialTheme.colors.primaryVariant
-                    )
+                    AppProgressBar()
                 }
             }
         }

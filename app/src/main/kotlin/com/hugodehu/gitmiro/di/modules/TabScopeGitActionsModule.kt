@@ -294,6 +294,10 @@ interface TabScopeGitActionsModule {
 
     @Binds
     @TabScope
+    fun bindsGetRebaseProgressGitAction(action: GetRebaseProgressGitAction): IGetRebaseProgressGitAction
+
+    @Binds
+    @TabScope
     fun bindsGetTrackingBranchGitAction(action: GetTrackingBranchGitAction): IGetTrackingBranchGitAction
 
     @Binds

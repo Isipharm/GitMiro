@@ -81,7 +81,7 @@ fun AdjustableOutlinedTextField(
                 Row(
                     modifier = Modifier
                         .border(
-                            width = 2.dp,
+                            width = 1.dp,
                             color = indicatorColor,
                             shape = shape
                         )
@@ -181,7 +181,7 @@ fun AdjustableOutlinedTextField(
                 Row(
                     modifier = Modifier
                         .border(
-                            width = 2.dp,
+                            width = 1.dp,
                             color = indicatorColor,
                             shape = shape
                         )
