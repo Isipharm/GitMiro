@@ -62,7 +62,7 @@ function App() {
       ) : (
         <section className="welcome-panel">
           <h1>Open a repository</h1>
-          <p>Pick a folder, clone from a URL or reopen a recent repository.</p>
+          <p>Choose a local Git repository to view its branch and recent commits.</p>
           <button className="button button-primary" onClick={openRepository} disabled={opening}>
             {opening ? "Opening…" : "Open repository"}
           </button>
