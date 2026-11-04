@@ -1,7 +1,7 @@
 import "./App.css";
 import { open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type RepositorySummary = {
   path: string;
@@ -15,6 +15,11 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [opening, setOpening] = useState(false);
   const openingRef = useRef(false);
+  const repositoryHeadingRef = useRef<HTMLHeadingElement>(null);
+
+  useEffect(() => {
+    if (repository) repositoryHeadingRef.current?.focus();
+  }, [repository]);
 
   async function openRepository() {
     if (openingRef.current) return;
@@ -43,7 +48,7 @@ function App() {
           <div className="repository-heading">
             <div>
               <div className="eyebrow">REPOSITORY</div>
-              <h1>{repository.name}</h1>
+              <h1 ref={repositoryHeadingRef} tabIndex={-1}>{repository.name}</h1>
               <p className="repository-path">{repository.path}</p>
             </div>
             <button className="button button-secondary" onClick={openRepository} disabled={opening}>
