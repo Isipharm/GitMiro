@@ -1251,12 +1251,15 @@ fun CommitMessage(
             graphCommit.commit.shortMessage
         }
 
+        // The commit the current branch points to is in bold, the selected one is marked by the violet bar of its row
+        val isCurrentCommit = currentBranch?.hash == graphCommit.hash
+
         Text(
             text = message,
             modifier = Modifier
                 .padding(start = 8.dp, end = 12.dp)
                 .weight(1f),
-            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+            fontWeight = if (isCurrentCommit) FontWeight.SemiBold else FontWeight.Normal,
             style = MaterialTheme.typography.body2,
             color = if (matchesSearchFilter == false) MaterialTheme.colors.onBackgroundSecondary else MaterialTheme.colors.onBackground,
             maxLines = 1,
