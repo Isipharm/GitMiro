@@ -127,7 +127,10 @@ fun RepositoryStateBanner(
                 GhostButton(
                     text = "Skip this commit",
                     modifier = Modifier.height(34.dp),
-                    onClick = { onAction(StatusAction.SkipRebase) },
+                    onClick = {
+                        onAction(StatusAction.SkipRebase)
+                        onAction(StatusAction.UpdateCommitMessage(androidx.compose.ui.text.input.TextFieldValue("")))
+                    },
                 )
             }
 
@@ -137,6 +140,8 @@ fun RepositoryStateBanner(
                 modifier = Modifier.height(34.dp),
                 onClick = {
                     onAction(if (isRebasing) StatusAction.ContinueRebase(message) else StatusAction.Commit(message))
+                    // The message shown while stopped is the one of the commit being replayed, not a draft to keep
+                    if (isRebasing) onAction(StatusAction.UpdateCommitMessage(androidx.compose.ui.text.input.TextFieldValue("")))
                 },
             )
         }
