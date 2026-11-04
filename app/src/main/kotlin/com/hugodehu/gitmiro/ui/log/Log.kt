@@ -1741,7 +1741,14 @@ fun Chip(
 
     // Tinted by the kind of ref, as in the mockup: tags, checked out branch, other local branches, remote branches
     val accent = color
-    val contentColor = if (isOutlined || MaterialTheme.colors.isLight) accent else lerp(accent, Color.White, 0.3f)
+    // On the light theme the text is a darker shade of the accent than the tint behind it, to stay readable
+    val contentColor = when {
+        isOutlined -> accent
+        MaterialTheme.colors.isLight ->
+            if (accent == MaterialTheme.colors.primary) MaterialTheme.colors.primaryVariant else lerp(accent, Color.Black, 0.25f)
+
+        else -> lerp(accent, Color.White, 0.3f)
+    }
     val chipBackground = if (isOutlined) MaterialTheme.colors.onBackground.copy(alpha = 0.05f) else accent.copy(alpha = 0.14f)
     val chipBorder = if (isOutlined) MaterialTheme.colors.onBackground.copy(alpha = 0.14f) else accent.copy(alpha = 0.4f)
 
