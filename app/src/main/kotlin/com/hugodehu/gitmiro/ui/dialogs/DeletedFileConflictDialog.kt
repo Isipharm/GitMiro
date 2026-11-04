@@ -16,7 +16,10 @@ import com.hugodehu.gitmiro.app.generated.resources.generic_button_cancel
 import com.hugodehu.gitmiro.app.generated.resources.warning
 import com.hugodehu.gitmiro.domain.models.ConflictSide
 import com.hugodehu.gitmiro.domain.models.RepositoryState
+import com.hugodehu.gitmiro.theme.graphColors
+import com.hugodehu.gitmiro.ui.components.GhostButton
 import com.hugodehu.gitmiro.ui.components.PrimaryButton
+import com.hugodehu.gitmiro.ui.dialogs.base.DialogHeader
 import com.hugodehu.gitmiro.ui.dialogs.base.MaterialDialog
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
@@ -50,32 +53,12 @@ fun DeletedFileConflictDialog(
     }
 
     MaterialDialog(onCloseRequested = onDismiss) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.width(480.dp),
-        ) {
-            Icon(
-                painterResource(Res.drawable.warning),
-                contentDescription = null,
-                modifier = Modifier
-                    .padding(bottom = 16.dp)
-                    .size(64.dp),
-                tint = MaterialTheme.colors.onBackground,
-            )
-
-            Text(
-                text = "File deleted on one side",
-                modifier = Modifier.padding(bottom = 8.dp),
-                color = MaterialTheme.colors.onBackground,
-                style = MaterialTheme.typography.body1,
-                fontWeight = FontWeight.SemiBold,
-            )
-
-            Text(
-                text = "\"$filePath\" was deleted in $deletedIn, but modified in $modifiedIn.",
-                color = MaterialTheme.colors.onBackground,
-                style = MaterialTheme.typography.body2,
-                textAlign = TextAlign.Center,
+        Column(modifier = Modifier.width(480.dp)) {
+            DialogHeader(
+                icon = painterResource(Res.drawable.warning),
+                title = "File deleted on one side",
+                subtitle = "\"$filePath\" was deleted in $deletedIn, but modified in $modifiedIn.",
+                tint = MaterialTheme.colors.graphColors[3],
             )
 
             Row(
@@ -84,17 +67,16 @@ fun DeletedFileConflictDialog(
                     .align(Alignment.End),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                PrimaryButton(
+                GhostButton(
                     text = stringResource(Res.string.generic_button_cancel),
                     onClick = onDismiss,
-                    backgroundColor = Color.Transparent,
-                    textColor = MaterialTheme.colors.onBackground,
+                    modifier = Modifier.height(36.dp),
                 )
-                PrimaryButton(
+                GhostButton(
                     text = "Delete file",
                     onClick = { onResolve(deletedBy) },
-                    backgroundColor = MaterialTheme.colors.error,
-                    textColor = MaterialTheme.colors.onError,
+                    color = MaterialTheme.colors.error,
+                    modifier = Modifier.height(36.dp),
                 )
                 PrimaryButton(
                     text = "Keep modified file",

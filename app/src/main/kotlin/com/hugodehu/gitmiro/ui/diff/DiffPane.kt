@@ -134,8 +134,16 @@ fun DiffPane(
                 val diffEntry = viewDiffResult.diffResult.diffEntry
                 val diffResult = viewDiffResult.diffResult
 
+                val isContentConflict = diffType.isConflict && diffEntry.changeType == DiffEntry.ChangeType.MODIFY
+                var conflictFile by remember(diffType.filePath) { mutableStateOf<ConflictFile?>(null) }
+
+                LaunchedEffect(diffType.filePath, isContentConflict) {
+                    conflictFile = if (isContentConflict) viewModel.getConflictFile(diffType.filePath) else null
+                }
+
                 DiffHeader(
                     diffType = diffType,
+                    showFileActions = !(isContentConflict && conflictFile != null),
                     diffEntry = diffEntry,
                     onCloseDiffView = { closeDiffView() },
                     textDiffViewType = textDiffType,
@@ -167,13 +175,6 @@ fun DiffPane(
                         deletedConflictPromptedFor = diffType.filePath
                         onDeletedFileConflict(diffType.filePath, deletedBy, repositoryState)
                     }
-                }
-
-                val isContentConflict = diffType.isConflict && diffEntry.changeType == DiffEntry.ChangeType.MODIFY
-                var conflictFile by remember(diffType.filePath) { mutableStateOf<ConflictFile?>(null) }
-
-                LaunchedEffect(diffType.filePath, isContentConflict) {
-                    conflictFile = if (isContentConflict) viewModel.getConflictFile(diffType.filePath) else null
                 }
 
                 val loadedConflictFile = conflictFile
@@ -920,6 +921,7 @@ private fun DiffHeader(
     textDiffViewType: DiffTextViewType,
     isDisplayFullFile: Boolean,
     isTextDiff: Boolean,
+    showFileActions: Boolean,
     addedLines: Int?,
     removedLines: Int?,
     onCloseDiffView: () -> Unit,
@@ -1005,7 +1007,8 @@ private fun DiffHeader(
                 )
             }
 
-            if (diffType is DiffType.UncommittedDiff) {
+            // The conflict resolver has its own actions to resolve the file
+            if (diffType is DiffType.UncommittedDiff && showFileActions) {
                 UncommittedDiffFileHeaderButtons(
                     diffType,
                     onUnstageFile = onUnstageFile,

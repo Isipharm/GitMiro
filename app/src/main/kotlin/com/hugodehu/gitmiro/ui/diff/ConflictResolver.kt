@@ -350,12 +350,13 @@ private fun ResultPreview(
                         }
                     } else {
                         Text(
-                            text = "Conflict ${chunk.index + 1} not resolved yet",
+                            text = "Conflict ${chunk.index + 1} not resolved yet. Pick a side above, or edit the result here.",
                             style = MaterialTheme.typography.body2,
-                            color = MaterialTheme.colors.onBackground,
+                            fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                            color = MaterialTheme.colors.onBackgroundSecondary,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(MaterialTheme.colors.conflictFile.copy(alpha = 0.3f))
+                                .background(MaterialTheme.colors.conflictFile.copy(alpha = 0.12f))
                                 .padding(horizontal = 16.dp, vertical = 2.dp),
                         )
                     }
