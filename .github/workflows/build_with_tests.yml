@@ -1,4 +1,4 @@
-# Workflow to run with every commit added to the main branch.
+# Verify app code on main/story pushes and relevant pull requests.
 # Legacy Compose Windows/macOS and LibSSH builds remain excluded to limit CI time.
 
 name: Test Build
@@ -6,8 +6,18 @@ name: Test Build
 on:
   push:
     branches: [ "main", "feat/**" ]
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
   pull_request:
     branches: [ "main", "feat/rust-port" ]
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
