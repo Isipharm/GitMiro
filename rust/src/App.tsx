@@ -96,6 +96,7 @@ function App() {
   const [recentRepositories, setRecentRepositories] = useState(readRecentRepositories);
   const [recentFilter, setRecentFilter] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [statusError, setStatusError] = useState<string | null>(null);
   const [opening, setOpening] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const openingRef = useRef(false);
@@ -118,11 +119,12 @@ function App() {
       void invoke<RepositoryStatus>("refresh_repository_status", { path: repository.path })
         .then((status) => {
           if (active && refreshId === statusRefreshRef.current) {
+            setStatusError(null);
             setRepository((current) => current?.path === repository.path ? { ...current, status } : current);
           }
         })
         .catch((error) => {
-          if (active) setError(String(error));
+          if (active && refreshId === statusRefreshRef.current) setStatusError(String(error));
         });
     }).then((stop) => {
       if (active) unlisten = stop;
@@ -164,6 +166,7 @@ function App() {
 
   async function openRepositoryPath(path: string) {
     const opened = await invoke<RepositorySummary>("open_repository", { path });
+    setStatusError(null);
     setRepository(opened);
     setRecentRepositories((current) => [opened.path, ...current.filter((recent) => recent !== opened.path)]);
   }
@@ -248,6 +251,7 @@ function App() {
           {repository.status.truncated && (
             <p className="status-truncated" role="status">Change list is truncated at 512 KiB.</p>
           )}
+          {statusError && <p className="error-message" role="alert">{statusError}</p>}
           <div className="status-panels">
             {(["staged", "unstaged"] as const).map((group) => {
               const entries = repository.status[group];
