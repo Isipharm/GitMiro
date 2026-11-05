@@ -26,3 +26,15 @@ GitMiro needs a desktop UI that preserves the current Compose application's scre
 ## Validation scope
 
 No competing framework prototypes. Validate a small Tauri/React/Rust vertical slice against the current application, then measure representative flows and process-tree resource usage. Preserve every platform currently supported by the existing release configuration unless the owner approves a change.
+
+## Windows baseline snapshot
+
+- Run: 2026-11-05, Windows 11 build 26300, AMD Ryzen 7 7800X3D, 32 GiB RAM, Git 2.54.0.
+- Corpus: temporary local repository with 1,000 commits, HEAD `9d8af30a5ee9376a7ab1921ac0f93bebe370a96c`; both apps opened the same repository. Tauri loaded both 500-commit pages.
+- Builds: Tauri commit `f44fa385`; Kotlin source baseline `abde13a0` (GitMiro 2.0.1).
+- Five process-tree samples, 3 s apart: Tauri median RSS 517.2 MiB / private bytes 300.4 MiB; Kotlin median RSS 391.4 MiB / private bytes 535.8 MiB. Tauri RSS is 32% higher; private bytes are 44% lower. Include descendant WebView2 processes in Tauri totals.
+- One 20 s idle CPU window: Tauri consumed 0.24 CPU s; Kotlin consumed 0.00 CPU s at displayed precision. This single window is directional only.
+- Visual comparison: Kotlin shows commit graph and status/workflow panels; Tauri currently shows a commit list. The React slice has no custom graph drawing, so graph draw cost cannot yet be measured. This confirms a major parity gap; it does not demonstrate an overall performance win.
+- Kotlin stores recent paths as JSON in Java Preferences (`gitmiroConfig` / `lastOpenedRepositoriesList`); this staged Tauri slice stores its own recent paths in WebView local storage. Import the existing Kotlin value during final settings migration before Kotlin is removed; do not mutate Kotlin settings during staging.
+- CI run `41942059184` passed Rust format/lint/tests, Windows installers, macOS/Linux Tauri builds, and Gradle build/tests.
+- Limits: one machine and one corpus; no cold-start, interaction-latency, accessibility/keyboard, active-load, or p50/p95 measurements. Do not use this snapshot to claim the port meets performance goals.
