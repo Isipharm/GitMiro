@@ -707,6 +707,16 @@ async fn open_repository(path: String) -> Result<RepositorySummary, String> {
 }
 
 #[tauri::command]
+async fn refresh_repository_status(path: String) -> Result<RepositoryStatus, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let root_path = repository_root(Path::new(&path))?;
+        repository_status(Path::new(&root_path))
+    })
+    .await
+    .map_err(|error| format!("Could not refresh repository status: {error}"))?
+}
+
+#[tauri::command]
 async fn load_more_commits(
     path: String,
     history_refs: HistoryRefs,
@@ -726,7 +736,11 @@ async fn load_more_commits(
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![open_repository, load_more_commits])
+        .invoke_handler(tauri::generate_handler![
+            open_repository,
+            load_more_commits,
+            refresh_repository_status
+        ])
         .run(tauri::generate_context!())
         .expect("failed to run GitMiro");
 }
@@ -832,7 +846,14 @@ u UU N... 100644 100644 100644 100644 abc abc abc conflict.txt\0\
         };
         run_git(&["init", "--quiet"]);
         fs::create_dir(path.join(".git/gitmiro-test-hooks")).unwrap();
+        let excludes_path = path.join(".git/gitmiro-test-excludes");
+        fs::write(&excludes_path, "").unwrap();
         run_git(&["config", "core.hooksPath", ".git/gitmiro-test-hooks"]);
+        run_git(&[
+            "config",
+            "core.excludesFile",
+            excludes_path.to_str().unwrap(),
+        ]);
         run_git(&["config", "commit.gpgsign", "false"]);
         run_git(&["config", "user.name", "GitMiro Test"]);
         run_git(&["config", "user.email", "gitmiro-test@example.invalid"]);

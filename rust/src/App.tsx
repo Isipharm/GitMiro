@@ -1,6 +1,7 @@
 import "./App.css";
 import { open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { type CSSProperties, useEffect, useRef, useState } from "react";
 
 type RepositorySummary = {
@@ -105,6 +106,29 @@ function App() {
   useEffect(() => {
     if (repository) repositoryHeadingRef.current?.focus();
   }, [repository]);
+
+  useEffect(() => {
+    if (!repository) return;
+    let active = true;
+    let unlisten: (() => void) | undefined;
+    void getCurrentWindow().onFocusChanged(({ payload: focused }) => {
+      if (!focused) return;
+      void invoke<RepositoryStatus>("refresh_repository_status", { path: repository.path })
+        .then((status) => {
+          if (active) setRepository((current) => current?.path === repository.path ? { ...current, status } : current);
+        })
+        .catch((error) => {
+          if (active) setError(String(error));
+        });
+    }).then((stop) => {
+      if (active) unlisten = stop;
+      else stop();
+    });
+    return () => {
+      active = false;
+      unlisten?.();
+    };
+  }, [repository?.path]);
 
   useEffect(() => {
     if (!repository?.has_more_commits || loadingMore) return;
