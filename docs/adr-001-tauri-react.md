@@ -21,6 +21,7 @@ GitMiro needs a desktop UI that preserves the current Compose application's scre
 - Treat frontend input as untrusted at every IPC command; expose narrow commands and capabilities.
 - Validate WebView2 installation/runtime, packaging, startup time, idle/active memory, and interaction latency on supported platforms.
 - Keep Kotlin behavior and its UI as the parity reference until replacement is complete.
+- Keep the Kotlin release workflow during staging; at cutover, switch release packaging to Tauri and remove Kotlin/Gradle build steps only after migration gates pass.
 - Reopen framework selection only if a concrete compatibility, licensing, accessibility, or measured performance issue blocks this stack.
 
 ## Validation scope
