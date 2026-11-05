@@ -100,6 +100,7 @@ function App() {
   const [loadingMore, setLoadingMore] = useState(false);
   const openingRef = useRef(false);
   const loadingMoreRef = useRef(false);
+  const statusRefreshRef = useRef(0);
   const repositoryHeadingRef = useRef<HTMLHeadingElement>(null);
   const recentRepositoryRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
@@ -113,9 +114,12 @@ function App() {
     let unlisten: (() => void) | undefined;
     void getCurrentWindow().onFocusChanged(({ payload: focused }) => {
       if (!focused) return;
+      const refreshId = ++statusRefreshRef.current;
       void invoke<RepositoryStatus>("refresh_repository_status", { path: repository.path })
         .then((status) => {
-          if (active) setRepository((current) => current?.path === repository.path ? { ...current, status } : current);
+          if (active && refreshId === statusRefreshRef.current) {
+            setRepository((current) => current?.path === repository.path ? { ...current, status } : current);
+          }
         })
         .catch((error) => {
           if (active) setError(String(error));
