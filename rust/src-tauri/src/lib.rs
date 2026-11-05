@@ -70,11 +70,13 @@ struct RepositorySummary {
 struct RepositoryStatus {
     staged: Vec<StatusEntry>,
     unstaged: Vec<StatusEntry>,
+    truncated: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
 struct StatusEntry {
     path: String,
+    path_bytes: Vec<u8>,
     kind: StatusKind,
 }
 
@@ -115,6 +117,19 @@ fn collect_output(mut child: Child) -> Result<Output, String> {
 }
 
 fn collect_output_with_input(child: &mut Child, input: Option<&[u8]>) -> Result<Output, String> {
+    collect_output_inner(child, input, false).map(|(output, _)| output)
+}
+
+fn collect_output_with_truncated_stdout(child: Child) -> Result<(Output, bool), String> {
+    let mut child = child;
+    collect_output_inner(&mut child, None, true)
+}
+
+fn collect_output_inner(
+    child: &mut Child,
+    input: Option<&[u8]>,
+    allow_truncated_stdout: bool,
+) -> Result<(Output, bool), String> {
     let stdout = child.stdout.take().expect("piped stdout");
     let stderr = child.stderr.take().expect("piped stderr");
     let stdout_reader = thread::spawn(move || read_capped(stdout, MAX_GIT_STDOUT_BYTES));
@@ -148,17 +163,20 @@ fn collect_output_with_input(child: &mut Child, input: Option<&[u8]>) -> Result<
         .map_err(|_| "Could not read Git error output".to_owned())?
         .map_err(|error| format!("Could not read Git error output: {error}"))?;
 
-    if stdout_truncated {
+    if stdout_truncated && !allow_truncated_stdout {
         return Err("Git output exceeded the 512 KiB limit".to_owned());
     }
     if stderr_truncated {
         stderr.extend_from_slice(b"\n[Git error output truncated]");
     }
-    Ok(Output {
-        status,
-        stdout,
-        stderr,
-    })
+    Ok((
+        Output {
+            status,
+            stdout,
+            stderr,
+        },
+        stdout_truncated,
+    ))
 }
 
 fn git_output(path: &Path, args: &[&str], locale: Option<&str>) -> Result<Output, String> {
@@ -243,8 +261,19 @@ fn parse_commits(output: &str) -> Vec<Commit> {
         .collect()
 }
 
-fn parse_status(output: &[u8]) -> Result<RepositoryStatus, String> {
-    let mut status = RepositoryStatus::default();
+fn parse_status(output: &[u8], truncated: bool) -> Result<RepositoryStatus, String> {
+    let output = if truncated {
+        output
+            .iter()
+            .rposition(|byte| *byte == 0)
+            .map_or(&[][..], |end| &output[..=end])
+    } else {
+        output
+    };
+    let mut status = RepositoryStatus {
+        truncated,
+        ..RepositoryStatus::default()
+    };
     let mut records = output.split(|byte| *byte == 0);
     while let Some(record) = records.next().filter(|record| !record.is_empty()) {
         let record_type = record[0];
@@ -255,10 +284,7 @@ fn parse_status(output: &[u8]) -> Result<RepositoryStatus, String> {
             let path = record
                 .strip_prefix(b"? ")
                 .ok_or_else(|| "Malformed Git status record".to_owned())?;
-            status.unstaged.push(StatusEntry {
-                path: String::from_utf8_lossy(path).into_owned(),
-                kind: StatusKind::Added,
-            });
+            status.unstaged.push(status_entry(path, StatusKind::Added));
             continue;
         }
 
@@ -277,41 +303,112 @@ fn parse_status(output: &[u8]) -> Result<RepositoryStatus, String> {
         {
             return Err("Malformed Git status record".to_owned());
         }
-        if record_type == b'2' {
-            records
-                .next()
-                .ok_or_else(|| "Malformed Git rename record".to_owned())?;
-        }
+        let original_path = if record_type == b'2' {
+            match records.next().filter(|path| !path.is_empty()) {
+                Some(path) => Some(path),
+                None if truncated => break,
+                None => return Err("Malformed Git rename record".to_owned()),
+            }
+        } else {
+            None
+        };
 
         let pair = fields[1];
-        let path = String::from_utf8_lossy(fields[field_count - 1]).into_owned();
         if record_type == b'u' || pair.contains(&b'U') {
-            status.unstaged.push(StatusEntry {
-                path,
-                kind: StatusKind::Conflicting,
-            });
+            status.unstaged.push(status_entry(
+                fields[field_count - 1],
+                StatusKind::Conflicting,
+            ));
             continue;
         }
-        if pair[0] != b'.' {
-            status.staged.push(StatusEntry {
-                path: path.clone(),
-                kind: status_kind(pair[0]),
-            });
-        }
-        if pair[1] != b'.' {
-            status.unstaged.push(StatusEntry {
-                path,
-                kind: status_kind(pair[1]),
-            });
-        }
+        add_status_entry(
+            &mut status.staged,
+            pair[0],
+            fields[field_count - 1],
+            original_path,
+        )?;
+        add_status_entry(
+            &mut status.unstaged,
+            pair[1],
+            fields[field_count - 1],
+            original_path,
+        )?;
     }
     status
         .staged
-        .sort_by(|left, right| left.path.cmp(&right.path));
+        .sort_by(|left, right| left.path_bytes.cmp(&right.path_bytes));
     status
         .unstaged
-        .sort_by(|left, right| left.path.cmp(&right.path));
+        .sort_by(|left, right| left.path_bytes.cmp(&right.path_bytes));
     Ok(status)
+}
+
+fn add_status_entry(
+    entries: &mut Vec<StatusEntry>,
+    code: u8,
+    path: &[u8],
+    original_path: Option<&[u8]>,
+) -> Result<(), String> {
+    if code == b'.' {
+        return Ok(());
+    }
+    if code == b'R' {
+        let original_path =
+            original_path.ok_or_else(|| "Malformed Git rename record".to_owned())?;
+        entries.push(status_entry(path, StatusKind::Added));
+        entries.push(status_entry(original_path, StatusKind::Removed));
+    } else {
+        entries.push(status_entry(path, status_kind(code)));
+    }
+    Ok(())
+}
+
+fn status_entry(path: &[u8], kind: StatusKind) -> StatusEntry {
+    StatusEntry {
+        path: display_git_path(path),
+        path_bytes: path.to_vec(),
+        kind,
+    }
+}
+
+fn display_git_path(path: &[u8]) -> String {
+    use std::fmt::Write as _;
+
+    let mut result = String::new();
+    let mut remaining = path;
+    while let Err(error) = std::str::from_utf8(remaining) {
+        let valid = error.valid_up_to();
+        append_display_text(
+            &mut result,
+            std::str::from_utf8(&remaining[..valid]).unwrap(),
+        );
+        let invalid = error
+            .error_len()
+            .unwrap_or_else(|| remaining.len().saturating_sub(valid));
+        for byte in &remaining[valid..valid + invalid] {
+            write!(result, "\\x{byte:02X}").unwrap();
+        }
+        remaining = &remaining[valid + invalid..];
+    }
+    append_display_text(&mut result, std::str::from_utf8(remaining).unwrap());
+    result
+}
+
+fn append_display_text(output: &mut String, text: &str) {
+    use std::fmt::Write as _;
+
+    for character in text.chars() {
+        match character {
+            '\\' => output.push_str("\\\\"),
+            '\n' => output.push_str("\\n"),
+            '\r' => output.push_str("\\r"),
+            '\t' => output.push_str("\\t"),
+            character if character.is_control() => {
+                write!(output, "\\u{{{:X}}}", character as u32).unwrap();
+            }
+            character => output.push(character),
+        }
+    }
 }
 
 fn status_kind(code: u8) -> StatusKind {
@@ -323,11 +420,21 @@ fn status_kind(code: u8) -> StatusKind {
 }
 
 fn repository_status(path: &Path) -> Result<RepositoryStatus, String> {
-    let output = git(
-        path,
-        &["status", "--porcelain=v2", "-z", "--untracked-files=all"],
-    )?;
-    parse_status(&output.stdout)
+    let mut command = Command::new("git");
+    command
+        .arg("-C")
+        .arg(path)
+        .args(["status", "--porcelain=v2", "-z", "--untracked-files=all"])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let child = command
+        .spawn()
+        .map_err(|error| format!("Could not start Git: {error}"))?;
+    let (output, truncated) = collect_output_with_truncated_stdout(child)?;
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).trim().to_owned());
+    }
+    parse_status(&output.stdout, truncated)
 }
 
 fn graph_reservations_for(state: &mut GraphState, hash: &str) -> Vec<usize> {
@@ -649,17 +756,20 @@ mod tests {
 u UU N... 100644 100644 100644 100644 abc abc abc conflict.txt\0\
 2 R. N... 100644 100644 100644 abc abc R100 renamed file.txt\0old file.txt\0";
 
-        let status = parse_status(output).unwrap();
+        let status = parse_status(output, false).unwrap();
 
-        assert_eq!(status.staged.len(), 2);
-        assert_eq!(status.staged[0].path, "renamed file.txt");
-        assert!(matches!(status.staged[0].kind, StatusKind::Modified));
-        assert_eq!(status.staged[1].path, "staged file.txt");
-        assert!(matches!(status.staged[1].kind, StatusKind::Modified));
+        assert_eq!(status.staged.len(), 3);
+        assert_eq!(status.staged[0].path, "old file.txt");
+        assert!(matches!(status.staged[0].kind, StatusKind::Removed));
+        assert_eq!(status.staged[1].path, "renamed file.txt");
+        assert!(matches!(status.staged[1].kind, StatusKind::Added));
+        assert_eq!(status.staged[2].path, "staged file.txt");
+        assert!(matches!(status.staged[2].kind, StatusKind::Modified));
         assert_eq!(status.unstaged.len(), 3);
         assert_eq!(status.unstaged[0].path, "conflict.txt");
         assert!(matches!(status.unstaged[0].kind, StatusKind::Conflicting));
-        assert_eq!(status.unstaged[1].path, "new\nfile.txt");
+        assert_eq!(status.unstaged[1].path, "new\\nfile.txt");
+        assert_eq!(status.unstaged[1].path_bytes, b"new\nfile.txt");
         assert!(matches!(status.unstaged[1].kind, StatusKind::Added));
         assert_eq!(status.unstaged[2].path, "worktree.txt");
         assert!(matches!(status.unstaged[2].kind, StatusKind::Modified));
@@ -667,8 +777,31 @@ u UU N... 100644 100644 100644 100644 abc abc abc conflict.txt\0\
 
     #[test]
     fn rejects_malformed_porcelain_v2_records() {
-        assert!(parse_status(b"1 M. missing fields\0").is_err());
-        assert!(parse_status(b"2 R. missing original path\0").is_err());
+        assert!(parse_status(b"1 M. missing fields\0", false).is_err());
+        assert!(parse_status(b"2 R. missing original path\0", false).is_err());
+    }
+
+    #[test]
+    fn preserves_non_utf8_paths_and_marks_capped_status_output() {
+        let status = parse_status(b"? file-\xff.txt\0? file-\\xFF.txt\0? partial", true).unwrap();
+
+        assert!(status.truncated);
+        assert_eq!(status.unstaged.len(), 2);
+        assert_eq!(status.unstaged[0].path, "file-\\\\xFF.txt");
+        assert_eq!(status.unstaged[1].path, "file-\\xFF.txt");
+        assert_eq!(status.unstaged[1].path_bytes, b"file-\xff.txt");
+    }
+
+    #[test]
+    fn drops_incomplete_rename_from_capped_status_output() {
+        let status = parse_status(
+            b"? complete.txt\02 R. N... 100644 100644 100644 abc abc R100 target.txt\0",
+            true,
+        )
+        .unwrap();
+
+        assert_eq!(status.unstaged.len(), 1);
+        assert_eq!(status.unstaged[0].path, "complete.txt");
     }
 
     #[test]
@@ -698,6 +831,9 @@ u UU N... 100644 100644 100644 100644 abc abc abc conflict.txt\0\
             assert!(status.success(), "git {args:?} failed");
         };
         run_git(&["init", "--quiet"]);
+        fs::create_dir(path.join(".git/gitmiro-test-hooks")).unwrap();
+        run_git(&["config", "core.hooksPath", ".git/gitmiro-test-hooks"]);
+        run_git(&["config", "commit.gpgsign", "false"]);
         run_git(&["config", "user.name", "GitMiro Test"]);
         run_git(&["config", "user.email", "gitmiro-test@example.invalid"]);
         fs::write(path.join("tracked.txt"), "original\n").unwrap();

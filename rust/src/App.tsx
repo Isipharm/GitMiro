@@ -15,8 +15,8 @@ type RepositorySummary = {
   status: RepositoryStatus;
 };
 
-type RepositoryStatus = { staged: StatusEntry[]; unstaged: StatusEntry[] };
-type StatusEntry = { path: string; kind: "added" | "modified" | "removed" | "conflicting" };
+type RepositoryStatus = { staged: StatusEntry[]; unstaged: StatusEntry[]; truncated: boolean };
+type StatusEntry = { path: string; path_bytes: number[]; kind: "added" | "modified" | "removed" | "conflicting" };
 
 type Commit = {
   id: string;
@@ -217,6 +217,9 @@ function App() {
             </button>
           </div>
           <div className="branch-label">{repository.branch}</div>
+          {repository.status.truncated && (
+            <p className="status-truncated" role="status">Change list is truncated at 512 KiB.</p>
+          )}
           <div className="status-panels">
             {(["staged", "unstaged"] as const).map((group) => {
               const entries = repository.status[group];
@@ -227,7 +230,7 @@ function App() {
                   {entries.length ? (
                     <ul>
                       {entries.map((entry) => (
-                        <li key={`${entry.kind}-${entry.path}`}>
+                        <li key={`${entry.kind}-${entry.path_bytes.join(",")}`}>
                           <span className={`status-kind status-${entry.kind}`}>{entry.kind}</span>
                           <code title={entry.path}>{entry.path}</code>
                         </li>

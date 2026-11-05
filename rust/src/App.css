@@ -252,6 +252,12 @@
   font-weight: 500;
 }
 
+.status-truncated {
+  margin: -16px 0 16px;
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+
 .status-pane ul {
   max-height: 180px;
   margin: 0;
