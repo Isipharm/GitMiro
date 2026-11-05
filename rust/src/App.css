@@ -184,15 +184,33 @@
 }
 
 .repository-view {
-  width: min(900px, calc(100vw - 48px));
-  margin: 34px auto 48px;
+  display: flex;
+  height: calc(100vh - 38px);
+  min-height: 0;
+  flex-direction: column;
 }
 
 .repository-heading {
   display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+}
+
+.repository-toolbar {
+  display: flex;
+  min-height: 56px;
+  align-items: center;
   justify-content: space-between;
-  align-items: flex-start;
   gap: 20px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.repository-toolbar h1 {
+  font-size: 15px;
+  letter-spacing: 0;
 }
 
 .repository-path,
@@ -202,19 +220,105 @@
 }
 
 .repository-path {
-  margin: 8px 0 0;
+  margin: 3px 0 0;
   overflow-wrap: anywhere;
+  font-size: 11px;
 }
 
 .branch-label {
   display: inline-flex;
-  margin: 24px 0 30px;
-  padding: 5px 9px;
+  flex: none;
+  padding: 4px 8px;
   border-radius: 6px;
   color: var(--accent);
   background: var(--accent-soft);
   font-family: "Geist Mono", monospace;
+  font-size: 11px;
+}
+
+.repository-layout {
+  display: grid;
+  min-height: 0;
+  flex: 1;
+  grid-template-columns: minmax(190px, 240px) minmax(0, 1fr) minmax(260px, 320px);
+}
+
+.reference-sidebar,
+.status-column {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px;
+  background: var(--surface);
+}
+
+.reference-sidebar {
+  border-right: 1px solid var(--border);
+}
+
+.reference-sidebar h2 {
+  margin: 0 0 10px;
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.reference-sidebar ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.reference-item {
+  display: flex;
+  width: 100%;
+  min-height: 30px;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 5px;
+  color: var(--ink-muted);
+  background: transparent;
+  font: inherit;
   font-size: 12px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.reference-item:hover,
+.reference-item-selected {
+  color: var(--ink);
+  background: var(--surface-hover);
+}
+
+.reference-item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.reference-dot {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border: 1px solid var(--ink-muted);
+  border-radius: 50%;
+}
+
+.reference-item-selected .reference-dot {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.history-panel {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
 }
 
 .repository-view h2 {
@@ -225,14 +329,17 @@
 }
 
 .status-panels {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-  margin: 0 0 28px;
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .status-pane {
+  display: flex;
   min-width: 0;
+  min-height: 120px;
+  flex-direction: column;
   padding: 12px;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -253,13 +360,14 @@
 }
 
 .status-truncated {
-  margin: -16px 0 16px;
+  margin: 0;
   color: var(--ink-muted);
   font-size: 12px;
 }
 
 .status-pane ul {
-  max-height: 180px;
+  min-height: 0;
+  flex: 1;
   margin: 0;
   padding: 0;
   overflow-y: auto;
@@ -300,12 +408,18 @@
   font-size: 12px;
 }
 
-@media (max-width: 640px) {
-  .status-panels { grid-template-columns: 1fr; }
+.status-column {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-left: 1px solid var(--border);
 }
 
 .commit-history {
+  min-height: 0;
+  flex: 1;
   overflow-x: auto;
+  overflow-y: auto;
 }
 
 .commit-list {
@@ -388,14 +502,17 @@
 }
 
 .load-more {
-  margin-top: 16px;
+  align-self: center;
+  margin: 12px;
 }
 
 .commit-history-heading {
   display: flex;
+  min-height: 44px;
   align-items: center;
   gap: 8px;
-  margin-bottom: 12px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--border);
 }
 
 .repository-view .commit-history-heading h2 {
@@ -421,4 +538,27 @@
 .commit-history-heading select:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+@media (max-width: 900px) {
+  .repository-layout {
+    grid-template-columns: minmax(150px, 200px) minmax(0, 1fr);
+  }
+
+  .status-column {
+    grid-column: 1 / -1;
+    max-height: 280px;
+    flex-direction: row;
+    border-top: 1px solid var(--border);
+    border-left: 0;
+  }
+
+  .status-panels {
+    flex: 1;
+    flex-direction: row;
+  }
+
+  .status-pane {
+    flex: 1;
+  }
 }

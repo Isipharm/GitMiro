@@ -260,83 +260,109 @@ function App() {
       </header>
       {repository ? (
         <section className="repository-view">
-          <div className="repository-heading">
-            <div>
-              <div className="eyebrow">REPOSITORY</div>
-              <h1 ref={repositoryHeadingRef} tabIndex={-1}>{repository.name}</h1>
-              <p className="repository-path">{repository.path}</p>
+          <header className="repository-toolbar">
+            <div className="repository-heading">
+              <div>
+                <h1 ref={repositoryHeadingRef} tabIndex={-1}>{repository.name}</h1>
+                <p className="repository-path">{repository.path}</p>
+              </div>
+              <span className="branch-label">{repository.branch}</span>
             </div>
             <button className="button button-secondary" onClick={openRepository} disabled={opening}>
               {opening ? "Opening…" : "Open another"}
             </button>
-          </div>
-          <div className="branch-label">{repository.branch}</div>
-          {repository.status.truncated && (
-            <p className="status-truncated" role="status">Change list is truncated at 512 KiB.</p>
-          )}
-          {statusError && <p className="error-message" role="alert">{statusError}</p>}
-          <div className="status-panels">
-            {(["staged", "unstaged"] as const).map((group) => {
-              const entries = repository.status[group];
-              const title = group === "staged" ? "Staged changes" : "Unstaged changes";
-              return (
-                <section className="status-pane" aria-label={title} key={group}>
-                  <h2>{title} <span className="status-count">{entries.length}</span></h2>
-                  {entries.length ? (
-                    <ul>
-                      {entries.map((entry) => (
-                        <li key={`${entry.kind}-${entry.path_bytes.join(",")}`}>
-                          <span className={`status-kind status-${entry.kind}`}>{entry.kind}</span>
-                          <code title={entry.path}>{entry.path}</code>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : <p className="muted">No changes.</p>}
-                </section>
-              );
-            })}
-          </div>
-          <div className="commit-history-heading">
-            <h2>Commit history</h2>
-            <label htmlFor="history-branch-filter">Branch</label>
-            <select
-              id="history-branch-filter"
-              value={historyFilter}
-              onChange={(event) => setHistoryFilter(event.target.value)}
-            >
-              <option value="">All branches</option>
-              {repository.history_refs.references
-                .filter(({ kind }) => kind === "local")
-                .map(({ name }) => <option value={name} key={name}>{name}</option>)}
-            </select>
-          </div>
-          {error && <p className="error-message" role="alert">{error}</p>}
-          {repository.commits.length ? (
-            <div className="commit-history" style={{ "--graph-width": `${Math.max(40, Math.max(...repository.commits.map(({ lane }) => lane)) * GRAPH_LANE_WIDTH + 36)}px` } as CSSProperties}>
-              <ol className="commit-list">
-                {repository.commits.map((commit) => (
-                  <li className={reachableCommits && !reachableCommits.has(commit.id) ? "commit-dimmed" : undefined} key={commit.id}>
-                    <CommitGraph commit={commit} />
-                    <code>{commit.id.slice(0, 7)}</code>
-                    <span className="commit-refs">
-                      {commit.references.map((reference) => (
-                        <span className={`ref-chip ref-${reference.kind}`} key={`${reference.kind}-${reference.name}`}>
-                          {reference.name}
+          </header>
+          <div className="repository-layout">
+            <aside className="reference-sidebar" aria-label="Local branches">
+              <h2>Local branches</h2>
+              <ul>
+                {repository.history_refs.references
+                  .filter(({ kind }) => kind === "local")
+                  .map(({ name }) => (
+                    <li key={name}>
+                      <button
+                        className={name === historyFilter ? "reference-item reference-item-selected" : "reference-item"}
+                        aria-pressed={name === historyFilter}
+                        onClick={() => setHistoryFilter(historyFilter === name ? "" : name)}
+                      >
+                        <span className="reference-dot" aria-hidden="true" />
+                        <span>{name}</span>
+                      </button>
+                    </li>
+                  ))}
+              </ul>
+            </aside>
+            <section className="history-panel" aria-label="Commit history">
+              <div className="commit-history-heading">
+                <h2>Commit history</h2>
+                <label htmlFor="history-branch-filter">Branch</label>
+                <select
+                  id="history-branch-filter"
+                  value={historyFilter}
+                  onChange={(event) => setHistoryFilter(event.target.value)}
+                >
+                  <option value="">All branches</option>
+                  {repository.history_refs.references
+                    .filter(({ kind }) => kind === "local")
+                    .map(({ name }) => <option value={name} key={name}>{name}</option>)}
+                </select>
+              </div>
+              {error && <p className="error-message" role="alert">{error}</p>}
+              {repository.commits.length ? (
+                <div className="commit-history" style={{ "--graph-width": `${Math.max(40, Math.max(...repository.commits.map(({ lane }) => lane)) * GRAPH_LANE_WIDTH + 36)}px` } as CSSProperties}>
+                  <ol className="commit-list">
+                    {repository.commits.map((commit) => (
+                      <li className={reachableCommits && !reachableCommits.has(commit.id) ? "commit-dimmed" : undefined} key={commit.id}>
+                        <CommitGraph commit={commit} />
+                        <code>{commit.id.slice(0, 7)}</code>
+                        <span className="commit-refs">
+                          {commit.references.map((reference) => (
+                            <span className={`ref-chip ref-${reference.kind}`} key={`${reference.kind}-${reference.name}`}>
+                              {reference.name}
+                            </span>
+                          ))}
                         </span>
-                      ))}
-                    </span>
-                    <span className="commit-subject">{commit.subject}</span>
-                    <span className="commit-meta">{commit.author} · {new Date(commit.date).toLocaleString()}</span>
-                  </li>
-                ))}
-              </ol>
-            </div>
-          ) : <p className="muted">No commits yet.</p>}
-          {repository.has_more_commits && (
-            <button className="button button-secondary load-more" onClick={loadMoreCommits} disabled={loadingMore}>
-              {loadingMore ? "Loading…" : "Load older commits"}
-            </button>
-          )}
+                        <span className="commit-subject">{commit.subject}</span>
+                        <span className="commit-meta">{commit.author} · {new Date(commit.date).toLocaleString()}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              ) : <p className="muted">No commits yet.</p>}
+              {repository.has_more_commits && (
+                <button className="button button-secondary load-more" onClick={loadMoreCommits} disabled={loadingMore}>
+                  {loadingMore ? "Loading…" : "Load older commits"}
+                </button>
+              )}
+            </section>
+            <aside className="status-column" aria-label="Repository status">
+              {repository.status.truncated && (
+                <p className="status-truncated" role="status">Change list is truncated at 512 KiB.</p>
+              )}
+              {statusError && <p className="error-message" role="alert">{statusError}</p>}
+              <div className="status-panels">
+                {(["staged", "unstaged"] as const).map((group) => {
+                  const entries = repository.status[group];
+                  const title = group === "staged" ? "Staged changes" : "Unstaged changes";
+                  return (
+                    <section className="status-pane" aria-label={title} key={group}>
+                      <h2>{title} <span className="status-count">{entries.length}</span></h2>
+                      {entries.length ? (
+                        <ul>
+                          {entries.map((entry) => (
+                            <li key={`${entry.kind}-${entry.path_bytes.join(",")}`}>
+                              <span className={`status-kind status-${entry.kind}`}>{entry.kind}</span>
+                              <code title={entry.path}>{entry.path}</code>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : <p className="muted">No changes.</p>}
+                    </section>
+                  );
+                })}
+              </div>
+            </aside>
+          </div>
         </section>
       ) : (
         <section className="welcome-panel">
