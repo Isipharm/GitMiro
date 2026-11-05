@@ -1,8 +1,9 @@
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, BTreeSet},
+    ffi::OsString,
     io::{self, Read, Write},
-    path::Path,
+    path::{Path, PathBuf},
     process::{Child, Command, Output, Stdio},
     thread,
 };
@@ -190,6 +191,25 @@ fn git_output(path: &Path, args: &[&str], locale: Option<&str>) -> Result<Output
     if let Some(locale) = locale {
         command.env("LC_ALL", locale);
     }
+    let child = command
+        .spawn()
+        .map_err(|error| format!("Could not start Git: {error}"))?;
+    collect_output(child)
+}
+
+fn git_output_with_path(
+    path: &Path,
+    args: &[&str],
+    path_argument: &std::ffi::OsStr,
+) -> Result<Output, String> {
+    let mut command = Command::new("git");
+    command
+        .arg("-C")
+        .arg(path)
+        .args(args)
+        .arg(path_argument)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
     let child = command
         .spawn()
         .map_err(|error| format!("Could not start Git: {error}"))?;
@@ -435,6 +455,78 @@ fn repository_status(path: &Path) -> Result<RepositoryStatus, String> {
         return Err(String::from_utf8_lossy(&output.stderr).trim().to_owned());
     }
     parse_status(&output.stdout, truncated)
+}
+
+fn git_path_os_string(path_bytes: &[u8]) -> Result<OsString, String> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::ffi::OsStringExt;
+        Ok(OsString::from_vec(path_bytes.to_vec()))
+    }
+    #[cfg(windows)]
+    {
+        Ok(OsString::from(
+            String::from_utf8(path_bytes.to_vec())
+                .map_err(|_| "Git path cannot be represented on Windows".to_owned())?,
+        ))
+    }
+}
+
+fn is_gitlink(path: &Path, path_bytes: &[u8]) -> Result<bool, String> {
+    let path_argument = git_path_os_string(path_bytes)?;
+    let args = ["--literal-pathspecs", "ls-files", "--stage", "-z", "--"];
+    let output = git_output_with_path(path, &args, path_argument.as_os_str())?;
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).trim().to_owned());
+    }
+    Ok(output.stdout.split(|byte| *byte == 0).any(|record| {
+        record
+            .iter()
+            .position(|byte| *byte == b'\t')
+            .is_some_and(|separator| {
+                record[..separator].starts_with(b"160000 ")
+                    && &record[separator + 1..] == path_bytes
+            })
+    }))
+}
+
+fn stage_status_path(path: &Path, path_bytes: &[u8]) -> Result<RepositoryStatus, String> {
+    if path_bytes.is_empty() || path_bytes.len() > MAX_GIT_STDOUT_BYTES || path_bytes.contains(&0) {
+        return Err("Invalid Git path".to_owned());
+    }
+    let status = repository_status(path)?;
+    let Some(entry) = status
+        .unstaged
+        .iter()
+        .find(|entry| entry.path_bytes == path_bytes)
+    else {
+        return Err("The file is no longer unstaged".to_owned());
+    };
+    let relative_path = git_path_os_string(path_bytes)?;
+    let filesystem_path: PathBuf = path.join(relative_path);
+    // shortcut: Git CLI cannot atomically stage from a checked worktree path; use index plumbing if concurrent writers must be supported.
+    match filesystem_path.symlink_metadata() {
+        Ok(metadata) if metadata.file_type().is_dir() => {
+            if !is_gitlink(path, path_bytes)? {
+                return Err("The selected file is now a directory".to_owned());
+            }
+        }
+        Ok(_) => {}
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) => return Err(format!("Could not inspect selected file: {error}")),
+    }
+    let mut pathspec = path_bytes.to_vec();
+    pathspec.push(0);
+    let mut args = vec!["--literal-pathspecs", "add"];
+    if entry.kind == StatusKind::Removed {
+        args.push("--update");
+    }
+    args.extend(["--pathspec-from-file=-", "--pathspec-file-nul"]);
+    let output = git_output_with_input(path, &args, &pathspec)?;
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).trim().to_owned());
+    }
+    repository_status(path)
 }
 
 fn graph_reservations_for(state: &mut GraphState, hash: &str) -> Vec<usize> {
@@ -717,6 +809,16 @@ async fn refresh_repository_status(path: String) -> Result<RepositoryStatus, Str
 }
 
 #[tauri::command]
+async fn stage_status_entry(path: String, path_bytes: Vec<u8>) -> Result<RepositoryStatus, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let root_path = repository_root(Path::new(&path))?;
+        stage_status_path(Path::new(&root_path), &path_bytes)
+    })
+    .await
+    .map_err(|error| format!("Could not stage file: {error}"))?
+}
+
+#[tauri::command]
 async fn load_more_commits(
     path: String,
     history_refs: HistoryRefs,
@@ -739,7 +841,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             open_repository,
             load_more_commits,
-            refresh_repository_status
+            refresh_repository_status,
+            stage_status_entry
         ])
         .run(tauri::generate_context!())
         .expect("failed to run GitMiro");
@@ -749,9 +852,9 @@ pub fn run() {
 mod tests {
     use super::{
         COMMIT_PAGE_SIZE, Commit, GraphState, MAX_GIT_STDERR_BYTES, StatusKind, collect_output,
-        commit_page, current_branch, history_head, history_refs, is_commit_id, page_commits,
-        parse_commits, parse_status, read_capped, repository_root, repository_status,
-        validate_graph_state,
+        commit_page, current_branch, history_head, history_refs, is_commit_id, is_gitlink,
+        page_commits, parse_commits, parse_status, read_capped, repository_root, repository_status,
+        stage_status_path, validate_graph_state,
     };
 
     #[test]
@@ -819,7 +922,7 @@ u UU N... 100644 100644 100644 100644 abc abc abc conflict.txt\0\
     }
 
     #[test]
-    fn reads_staged_unstaged_and_untracked_changes_from_a_temporary_repository() {
+    fn stages_only_the_requested_literal_status_path() {
         use std::{
             fs,
             process::Command,
@@ -864,18 +967,66 @@ u UU N... 100644 100644 100644 100644 abc abc abc conflict.txt\0\
         run_git(&["add", "tracked.txt"]);
         fs::write(path.join("tracked.txt"), "unstaged\n").unwrap();
         fs::write(path.join("new.txt"), "new\n").unwrap();
+        fs::write(path.join("glob[1].txt"), "literal\n").unwrap();
+        fs::write(path.join("glob1.txt"), "match\n").unwrap();
 
         let status = repository_status(&path).unwrap();
-        let _ = fs::remove_dir_all(&path);
 
         assert_eq!(status.staged.len(), 1);
         assert_eq!(status.staged[0].path, "tracked.txt");
         assert!(matches!(status.staged[0].kind, StatusKind::Modified));
-        assert_eq!(status.unstaged.len(), 2);
-        assert_eq!(status.unstaged[0].path, "new.txt");
+        assert_eq!(status.unstaged.len(), 4);
+        assert_eq!(status.unstaged[0].path, "glob1.txt");
         assert!(matches!(status.unstaged[0].kind, StatusKind::Added));
-        assert_eq!(status.unstaged[1].path, "tracked.txt");
-        assert!(matches!(status.unstaged[1].kind, StatusKind::Modified));
+        assert_eq!(status.unstaged[1].path, "glob[1].txt");
+        assert!(matches!(status.unstaged[1].kind, StatusKind::Added));
+        assert_eq!(status.unstaged[2].path, "new.txt");
+        assert!(matches!(status.unstaged[2].kind, StatusKind::Added));
+        assert_eq!(status.unstaged[3].path, "tracked.txt");
+        assert!(matches!(status.unstaged[3].kind, StatusKind::Modified));
+
+        let staged = stage_status_path(&path, b"glob[1].txt").unwrap();
+        assert!(
+            staged
+                .staged
+                .iter()
+                .any(|entry| entry.path == "glob[1].txt")
+        );
+        assert!(!staged.staged.iter().any(|entry| entry.path == "glob1.txt"));
+        assert!(
+            staged
+                .unstaged
+                .iter()
+                .any(|entry| entry.path == "glob1.txt")
+        );
+        assert!(staged.unstaged.iter().any(|entry| entry.path == "new.txt"));
+        assert!(stage_status_path(&path, b"glob*").is_err());
+
+        run_git(&["add", "tracked.txt"]);
+        fs::remove_file(path.join("tracked.txt")).unwrap();
+        let status = stage_status_path(&path, b"tracked.txt").unwrap();
+        assert!(
+            status
+                .staged
+                .iter()
+                .any(|entry| { entry.path == "tracked.txt" && entry.kind == StatusKind::Removed })
+        );
+
+        let head = Command::new("git")
+            .arg("-C")
+            .arg(&path)
+            .args(["rev-parse", "HEAD"])
+            .output()
+            .unwrap();
+        assert!(head.status.success());
+        let cacheinfo = format!(
+            "160000,{},submodule",
+            String::from_utf8_lossy(&head.stdout).trim()
+        );
+        run_git(&["update-index", "--add", "--cacheinfo", &cacheinfo]);
+        assert!(is_gitlink(&path, b"submodule").unwrap());
+        assert!(!is_gitlink(&path, b"submodule-other").unwrap());
+        let _ = fs::remove_dir_all(&path);
     }
 
     #[test]
