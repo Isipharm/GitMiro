@@ -115,13 +115,13 @@
         "rule": "overused-font",
         "value": "geist mono",
         "createdAt": "2026-11-04T22:22:23.930Z",
-        "reason": "GitMiro port maintains Kotlin Graphite typography for visual parity; documented in docs/adr-001-tauri-react.md."
+        "reason": "Port parity: Kotlin GitMiro already ships Geist typography in app/src/main/composeResources/font; keep matching font during migration."
       },
       {
         "rule": "overused-font",
         "value": "geist",
         "createdAt": "2026-11-04T22:22:24.680Z",
-        "reason": "GitMiro port maintains Kotlin Graphite typography for visual parity; documented in docs/adr-001-tauri-react.md."
+        "reason": "Port parity: Kotlin GitMiro already ships Geist typography in app/src/main/composeResources/font; keep matching font during migration."
       }
     ]
   }
