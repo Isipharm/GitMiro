@@ -529,6 +529,35 @@ fn stage_status_path(path: &Path, path_bytes: &[u8]) -> Result<RepositoryStatus,
     repository_status(path)
 }
 
+fn unstage_status_path(path: &Path, path_bytes: &[u8]) -> Result<RepositoryStatus, String> {
+    if path_bytes.is_empty() || path_bytes.len() > MAX_GIT_STDOUT_BYTES || path_bytes.contains(&0) {
+        return Err("Invalid Git path".to_owned());
+    }
+    let status = repository_status(path)?;
+    let Some(entry) = status
+        .staged
+        .iter()
+        .find(|entry| entry.path_bytes == path_bytes)
+    else {
+        return Err("The file is no longer staged".to_owned());
+    };
+
+    let mut pathspec = path_bytes.to_vec();
+    pathspec.push(0);
+    let mut args = vec!["--literal-pathspecs"];
+    if entry.kind == StatusKind::Added {
+        args.extend(["rm", "--cached", "-f"]);
+    } else {
+        args.push("reset");
+    }
+    args.extend(["--pathspec-from-file=-", "--pathspec-file-nul"]);
+    let output = git_output_with_input(path, &args, &pathspec)?;
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).trim().to_owned());
+    }
+    repository_status(path)
+}
+
 fn graph_reservations_for(state: &mut GraphState, hash: &str) -> Vec<usize> {
     let lanes = state
         .reserved_lanes
@@ -819,6 +848,19 @@ async fn stage_status_entry(path: String, path_bytes: Vec<u8>) -> Result<Reposit
 }
 
 #[tauri::command]
+async fn unstage_status_entry(
+    path: String,
+    path_bytes: Vec<u8>,
+) -> Result<RepositoryStatus, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let root_path = repository_root(Path::new(&path))?;
+        unstage_status_path(Path::new(&root_path), &path_bytes)
+    })
+    .await
+    .map_err(|error| format!("Could not unstage file: {error}"))?
+}
+
+#[tauri::command]
 async fn load_more_commits(
     path: String,
     history_refs: HistoryRefs,
@@ -842,7 +884,8 @@ pub fn run() {
             open_repository,
             load_more_commits,
             refresh_repository_status,
-            stage_status_entry
+            stage_status_entry,
+            unstage_status_entry
         ])
         .run(tauri::generate_context!())
         .expect("failed to run GitMiro");
@@ -854,7 +897,7 @@ mod tests {
         COMMIT_PAGE_SIZE, Commit, GraphState, MAX_GIT_STDERR_BYTES, StatusKind, collect_output,
         commit_page, current_branch, history_head, history_refs, is_commit_id, is_gitlink,
         page_commits, parse_commits, parse_status, read_capped, repository_root, repository_status,
-        stage_status_path, validate_graph_state,
+        stage_status_path, unstage_status_path, validate_graph_state,
     };
 
     #[test]
@@ -1002,6 +1045,21 @@ u UU N... 100644 100644 100644 100644 abc abc abc conflict.txt\0\
         assert!(staged.unstaged.iter().any(|entry| entry.path == "new.txt"));
         assert!(stage_status_path(&path, b"glob*").is_err());
 
+        let unstaged = unstage_status_path(&path, b"glob[1].txt").unwrap();
+        assert!(
+            !unstaged
+                .staged
+                .iter()
+                .any(|entry| entry.path == "glob[1].txt")
+        );
+        assert!(
+            unstaged
+                .unstaged
+                .iter()
+                .any(|entry| entry.path == "glob[1].txt")
+        );
+        assert!(unstage_status_path(&path, b"glob*").is_err());
+
         run_git(&["add", "tracked.txt"]);
         fs::remove_file(path.join("tracked.txt")).unwrap();
         let status = stage_status_path(&path, b"tracked.txt").unwrap();
@@ -1026,6 +1084,48 @@ u UU N... 100644 100644 100644 100644 abc abc abc conflict.txt\0\
         run_git(&["update-index", "--add", "--cacheinfo", &cacheinfo]);
         assert!(is_gitlink(&path, b"submodule").unwrap());
         assert!(!is_gitlink(&path, b"submodule-other").unwrap());
+        let _ = fs::remove_dir_all(&path);
+    }
+
+    #[test]
+    fn unstages_a_new_file_without_a_head_and_keeps_worktree_content() {
+        use std::{
+            fs,
+            process::Command,
+            time::{SystemTime, UNIX_EPOCH},
+        };
+
+        let path = std::env::temp_dir().join(format!(
+            "gitmiro-unborn-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir(&path).unwrap();
+        let run_git = |args: &[&str]| {
+            let status = Command::new("git")
+                .arg("-C")
+                .arg(&path)
+                .args(args)
+                .status()
+                .unwrap();
+            assert!(status.success(), "git {args:?} failed");
+        };
+        run_git(&["init", "--quiet"]);
+        fs::write(path.join("new.txt"), "staged\n").unwrap();
+        run_git(&["add", "new.txt"]);
+        fs::write(path.join("new.txt"), "keep this worktree content\n").unwrap();
+
+        let status = unstage_status_path(&path, b"new.txt").unwrap();
+
+        assert!(status.staged.is_empty());
+        assert!(status.unstaged.iter().any(|entry| entry.path == "new.txt"));
+        assert_eq!(
+            fs::read_to_string(path.join("new.txt")).unwrap(),
+            "keep this worktree content\n"
+        );
         let _ = fs::remove_dir_all(&path);
     }
 

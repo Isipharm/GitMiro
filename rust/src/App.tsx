@@ -103,10 +103,10 @@ function App() {
   const [opening, setOpening] = useState(false);
   const [historyFilter, setHistoryFilter] = useState("");
   const [loadingMore, setLoadingMore] = useState(false);
-  const [staging, setStaging] = useState(false);
+  const [changingStatus, setChangingStatus] = useState(false);
   const openingRef = useRef(false);
   const loadingMoreRef = useRef(false);
-  const stagingRef = useRef(false);
+  const changingStatusRef = useRef(false);
   const historyRequestRef = useRef(0);
   const statusRefreshRef = useRef(0);
   const repositoryHeadingRef = useRef<HTMLHeadingElement>(null);
@@ -121,7 +121,7 @@ function App() {
     let active = true;
     let unlisten: (() => void) | undefined;
     void getCurrentWindow().onFocusChanged(({ payload: focused }) => {
-      if (!focused || stagingRef.current) return;
+      if (!focused || changingStatusRef.current) return;
       const refreshId = ++statusRefreshRef.current;
       void invoke<RepositoryStatus>("refresh_repository_status", { path: repository.path })
         .then((status) => {
@@ -255,15 +255,15 @@ function App() {
     }
   }
 
-  async function stageStatusEntry(entry: StatusEntry) {
-    if (!repository || stagingRef.current) return;
+  async function changeStatusEntry(entry: StatusEntry, action: "stage" | "unstage") {
+    if (!repository || changingStatusRef.current) return;
     const targetPath = repository.path;
-    stagingRef.current = true;
-    setStaging(true);
+    changingStatusRef.current = true;
+    setChangingStatus(true);
     const requestId = ++statusRefreshRef.current;
     setStatusError(null);
     try {
-      const status = await invoke<RepositoryStatus>("stage_status_entry", {
+      const status = await invoke<RepositoryStatus>(`${action}_status_entry`, {
         path: targetPath,
         pathBytes: entry.path_bytes,
       });
@@ -273,8 +273,8 @@ function App() {
     } catch (error) {
       if (requestId === statusRefreshRef.current) setStatusError(String(error));
     } finally {
-      stagingRef.current = false;
-      setStaging(false);
+      changingStatusRef.current = false;
+      setChangingStatus(false);
     }
   }
 
@@ -293,7 +293,7 @@ function App() {
               </div>
               <span className="branch-label">{repository.branch}</span>
             </div>
-            <button className="button button-secondary" onClick={openRepository} disabled={opening || staging}>
+            <button className="button button-secondary" onClick={openRepository} disabled={opening || changingStatus}>
               {opening ? "Opening…" : "Open another"}
             </button>
           </header>
@@ -378,13 +378,23 @@ function App() {
                             <li key={`${entry.kind}-${entry.path_bytes.join(",")}`}>
                               <span className={`status-kind status-${entry.kind}`}>{entry.kind}</span>
                               <code title={entry.path}>{entry.path}</code>
-                              {group === "unstaged" && (
+                              {group === "staged" ? (
+                                <button
+                                  className="status-action"
+                                  type="button"
+                                  aria-label={`Unstage ${entry.path}`}
+                                  onClick={() => void changeStatusEntry(entry, "unstage")}
+                                  disabled={changingStatus}
+                                >
+                                  Unstage
+                                </button>
+                              ) : (
                                 <button
                                   className="status-action"
                                   type="button"
                                   aria-label={`${entry.kind === "conflicting" ? "Stage resolution for" : "Stage"} ${entry.path}`}
-                                  onClick={() => void stageStatusEntry(entry)}
-                                  disabled={staging}
+                                  onClick={() => void changeStatusEntry(entry, "stage")}
+                                  disabled={changingStatus}
                                 >
                                   {entry.kind === "conflicting" ? "Stage resolution" : "Stage"}
                                 </button>
