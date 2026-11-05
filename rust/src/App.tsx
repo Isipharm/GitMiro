@@ -1,18 +1,76 @@
 import "./App.css";
 import { open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
-import { useEffect, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useRef, useState } from "react";
 
 type RepositorySummary = {
   path: string;
   name: string;
   branch: string;
   history_head: string | null;
-  commits: { id: string; subject: string; author: string; date: string }[];
+  history_tips: string[];
+  commits: Commit[];
   has_more_commits: boolean;
+  graph_state: Record<string, string>;
 };
 
-type CommitPage = Pick<RepositorySummary, "commits" | "has_more_commits">;
+type Commit = {
+  id: string;
+  subject: string;
+  author: string;
+  date: string;
+  parents: string[];
+  lane: number;
+  passing_lanes: number[];
+  merging_lanes: number[];
+  forking_off_lanes: number[];
+  child_count: number;
+};
+
+type CommitPage = Pick<RepositorySummary, "commits" | "has_more_commits" | "graph_state">;
+
+const GRAPH_COLORS = ["#42a5f5", "#ef5350", "#78909c", "#ff7043", "#66bb6a", "#ec407a"];
+const GRAPH_LANE_WIDTH = 18;
+const COMMIT_ROW_HEIGHT = 50;
+
+function CommitGraph({ commit }: { commit: Commit }) {
+  const laneX = (lane: number) => GRAPH_LANE_WIDTH * (lane + 1);
+  const centerY = COMMIT_ROW_HEIGHT / 2;
+  const color = (lane: number) => GRAPH_COLORS[lane % GRAPH_COLORS.length];
+
+  return (
+    <svg className="commit-graph" aria-hidden="true">
+      {commit.child_count > 0 && (
+        <line x1={laneX(commit.lane)} y1="0" x2={laneX(commit.lane)} y2={centerY} stroke={color(commit.lane)} />
+      )}
+      {commit.passing_lanes.map((lane) => (
+        <line key={`pass-${lane}`} x1={laneX(lane)} y1="0" x2={laneX(lane)} y2={COMMIT_ROW_HEIGHT} stroke={color(lane)} />
+      ))}
+      {commit.parents.length > 0 && (
+        <line x1={laneX(commit.lane)} y1={centerY} x2={laneX(commit.lane)} y2={COMMIT_ROW_HEIGHT} stroke={color(commit.lane)} />
+      )}
+      {commit.forking_off_lanes.map((lane) => (
+        <path
+          key={`fork-${lane}`}
+          d={`M ${laneX(commit.lane)} ${centerY} C ${laneX(commit.lane)} ${centerY - 14}, ${laneX(lane)} 14, ${laneX(lane)} 0`}
+          stroke={color(lane)}
+        />
+      ))}
+      {commit.merging_lanes.map((lane) => (
+        <path
+          key={`merge-${lane}`}
+          d={`M ${laneX(commit.lane)} ${centerY} C ${laneX(commit.lane)} ${centerY + 14}, ${laneX(lane)} ${COMMIT_ROW_HEIGHT - 14}, ${laneX(lane)} ${COMMIT_ROW_HEIGHT}`}
+          stroke={color(lane)}
+        />
+      ))}
+      {commit.parents.length > 1 ? (
+        <rect x={laneX(commit.lane) - 5} y={centerY - 5} width="10" height="10" rx="3" fill={color(commit.lane)} />
+      ) : (
+        <circle cx={laneX(commit.lane)} cy={centerY} r="5" fill={color(commit.lane)} />
+      )}
+    </svg>
+  );
+}
 
 const RECENT_REPOSITORIES_KEY = "gitmiro.recentRepositories";
 
@@ -114,14 +172,16 @@ function App() {
     try {
       const page = await invoke<CommitPage>("load_more_commits", {
         path: repository.path,
-        historyHead: repository.history_head,
+        historyTips: repository.history_tips,
         skip: repository.commits.length,
+        graphState: repository.graph_state,
       });
       setRepository((current) => current?.path === repository.path && current.history_head === repository.history_head
         ? {
           ...current,
           commits: [...current.commits, ...page.commits],
           has_more_commits: page.has_more_commits,
+          graph_state: page.graph_state,
         }
         : current);
     } catch (error) {
@@ -153,15 +213,18 @@ function App() {
           <h2>Commit history</h2>
           {error && <p className="error-message" role="alert">{error}</p>}
           {repository.commits.length ? (
-            <ol className="commit-list">
-              {repository.commits.map((commit) => (
-                <li key={commit.id}>
-                  <code>{commit.id}</code>
-                  <span className="commit-subject">{commit.subject}</span>
-                  <span className="commit-meta">{commit.author} · {new Date(commit.date).toLocaleString()}</span>
-                </li>
-              ))}
-            </ol>
+            <div className="commit-history" style={{ "--graph-width": `${Math.max(40, Math.max(...repository.commits.map(({ lane }) => lane)) * GRAPH_LANE_WIDTH + 36)}px` } as CSSProperties}>
+              <ol className="commit-list">
+                {repository.commits.map((commit) => (
+                  <li key={commit.id}>
+                    <CommitGraph commit={commit} />
+                    <code>{commit.id.slice(0, 7)}</code>
+                    <span className="commit-subject">{commit.subject}</span>
+                    <span className="commit-meta">{commit.author} · {new Date(commit.date).toLocaleString()}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
           ) : <p className="muted">No commits yet.</p>}
           {repository.has_more_commits && (
             <button className="button button-secondary load-more" onClick={loadMoreCommits} disabled={loadingMore}>

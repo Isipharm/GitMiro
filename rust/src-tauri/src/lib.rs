@@ -1,6 +1,7 @@
 use serde::Serialize;
 use std::{
-    io::{self, Read},
+    collections::{BTreeMap, BTreeSet},
+    io::{self, Read, Write},
     path::Path,
     process::{Child, Command, Output, Stdio},
     thread,
@@ -9,6 +10,7 @@ use std::{
 const MAX_GIT_STDOUT_BYTES: usize = 512 * 1024;
 const MAX_GIT_STDERR_BYTES: usize = 16 * 1024;
 const COMMIT_PAGE_SIZE: usize = 500;
+const MAX_GRAPH_LANES: usize = 4096;
 
 #[derive(Serialize)]
 struct Commit {
@@ -16,6 +18,17 @@ struct Commit {
     subject: String,
     author: String,
     date: String,
+    parents: Vec<String>,
+    lane: usize,
+    passing_lanes: Vec<usize>,
+    merging_lanes: Vec<usize>,
+    forking_off_lanes: Vec<usize>,
+    child_count: usize,
+}
+
+#[derive(Clone, Default, serde::Deserialize, Serialize)]
+struct GraphState {
+    reserved_lanes: BTreeMap<usize, String>,
 }
 
 #[derive(Serialize)]
@@ -24,14 +37,17 @@ struct RepositorySummary {
     name: String,
     branch: String,
     history_head: Option<String>,
+    history_tips: Vec<String>,
     commits: Vec<Commit>,
     has_more_commits: bool,
+    graph_state: GraphState,
 }
 
 #[derive(Serialize)]
 struct CommitPage {
     commits: Vec<Commit>,
     has_more_commits: bool,
+    graph_state: GraphState,
 }
 
 fn read_capped(mut reader: impl Read, limit: usize) -> io::Result<(Vec<u8>, bool)> {
@@ -51,10 +67,24 @@ fn read_capped(mut reader: impl Read, limit: usize) -> io::Result<(Vec<u8>, bool
 }
 
 fn collect_output(mut child: Child) -> Result<Output, String> {
+    collect_output_with_input(&mut child, None)
+}
+
+fn collect_output_with_input(child: &mut Child, input: Option<&[u8]>) -> Result<Output, String> {
     let stdout = child.stdout.take().expect("piped stdout");
     let stderr = child.stderr.take().expect("piped stderr");
     let stdout_reader = thread::spawn(move || read_capped(stdout, MAX_GIT_STDOUT_BYTES));
     let stderr_reader = thread::spawn(move || read_capped(stderr, MAX_GIT_STDERR_BYTES));
+    if let Some(input) = input {
+        let result = child.stdin.take().expect("piped stdin").write_all(input);
+        if let Err(error) = result {
+            let _ = child.kill();
+            let _ = child.wait();
+            let _ = stdout_reader.join();
+            let _ = stderr_reader.join();
+            return Err(format!("Could not write Git input: {error}"));
+        }
+    }
     let status = match child.wait() {
         Ok(status) => status,
         Err(error) => {
@@ -104,6 +134,21 @@ fn git_output(path: &Path, args: &[&str], locale: Option<&str>) -> Result<Output
     collect_output(child)
 }
 
+fn git_output_with_input(path: &Path, args: &[&str], input: &[u8]) -> Result<Output, String> {
+    let mut command = Command::new("git");
+    command
+        .arg("-C")
+        .arg(path)
+        .args(args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let mut child = command
+        .spawn()
+        .map_err(|error| format!("Could not start Git: {error}"))?;
+    collect_output_with_input(&mut child, Some(input))
+}
+
 fn git(path: &Path, args: &[&str]) -> Result<Output, String> {
     let output = git_output(path, args, None)?;
 
@@ -121,20 +166,101 @@ fn git_text(path: &Path, args: &[&str]) -> Result<String, String> {
     })
 }
 
+fn git_text_with_input(path: &Path, args: &[&str], input: &[u8]) -> Result<String, String> {
+    let output = git_output_with_input(path, args, input)?;
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).trim().to_owned());
+    }
+    Ok(String::from_utf8_lossy(&output.stdout)
+        .trim_end_matches(['\r', '\n'])
+        .to_owned())
+}
+
 fn parse_commits(output: &str) -> Vec<Commit> {
     let fields: Vec<_> = output.split('\0').collect();
     fields
-        .as_chunks::<4>()
+        .as_chunks::<5>()
         .0
         .iter()
         .filter(|fields| !fields[0].trim_matches(['\r', '\n']).is_empty())
         .map(|fields| Commit {
             id: fields[0].trim_matches(['\r', '\n']).to_owned(),
-            subject: fields[1].trim_end().to_owned(),
-            author: fields[2].trim_end().to_owned(),
-            date: fields[3].trim_end_matches(['\r', '\n']).to_owned(),
+            parents: fields[1].split_whitespace().map(str::to_owned).collect(),
+            subject: fields[2].trim_end().to_owned(),
+            author: fields[3].trim_end().to_owned(),
+            date: fields[4].trim_end_matches(['\r', '\n']).to_owned(),
+            lane: 0,
+            passing_lanes: Vec::new(),
+            merging_lanes: Vec::new(),
+            forking_off_lanes: Vec::new(),
+            child_count: 0,
         })
         .collect()
+}
+
+fn graph_reservations_for(state: &mut GraphState, hash: &str) -> Vec<usize> {
+    let lanes = state
+        .reserved_lanes
+        .iter()
+        .filter_map(|(lane, reserved)| (reserved == hash).then_some(*lane))
+        .collect::<Vec<_>>();
+    for lane in &lanes {
+        state.reserved_lanes.remove(lane);
+    }
+    lanes
+}
+
+fn next_available_lane(state: &GraphState, min: usize) -> usize {
+    (min..)
+        .find(|lane| !state.reserved_lanes.contains_key(lane))
+        .unwrap()
+}
+
+fn validate_graph_state(state: &GraphState) -> Result<(), String> {
+    if state.reserved_lanes.len() > MAX_GRAPH_LANES
+        || state
+            .reserved_lanes
+            .iter()
+            .any(|(lane, hash)| *lane >= MAX_GRAPH_LANES || !is_commit_id(hash))
+    {
+        return Err("Invalid commit graph cursor".to_owned());
+    }
+    Ok(())
+}
+
+fn layout_commits(commits: &mut [Commit], state: &mut GraphState) {
+    for commit in commits {
+        let reserved_lanes = graph_reservations_for(state, &commit.id);
+        let child_count = reserved_lanes.len();
+        let lane = reserved_lanes
+            .first()
+            .copied()
+            .unwrap_or_else(|| next_available_lane(state, 0));
+        let passing_lanes = state.reserved_lanes.keys().copied().collect::<Vec<_>>();
+        let mut merging_lanes = Vec::new();
+
+        if let Some(first_parent) = commit.parents.first() {
+            state.reserved_lanes.insert(lane, first_parent.clone());
+            for parent in commit.parents.iter().skip(1) {
+                let existing = state
+                    .reserved_lanes
+                    .iter()
+                    .find_map(|(lane, reserved)| (reserved == parent).then_some(*lane));
+                let merge_lane = existing.unwrap_or_else(|| {
+                    let merge_lane = next_available_lane(state, lane);
+                    state.reserved_lanes.insert(merge_lane, parent.clone());
+                    merge_lane
+                });
+                merging_lanes.push(merge_lane);
+            }
+        }
+
+        commit.lane = lane;
+        commit.passing_lanes = passing_lanes;
+        commit.merging_lanes = merging_lanes;
+        commit.forking_off_lanes = reserved_lanes.into_iter().skip(1).collect();
+        commit.child_count = child_count;
+    }
 }
 
 fn current_branch(path: &Path) -> Result<String, String> {
@@ -190,39 +316,85 @@ fn history_head(path: &Path) -> Result<Option<String>, String> {
     Err(String::from_utf8_lossy(&output.stderr).trim().to_owned())
 }
 
+fn history_tips(path: &Path, head: Option<&str>) -> Result<Vec<String>, String> {
+    let refs = git_text(
+        path,
+        &[
+            "for-each-ref",
+            "--format=%(*objectname)%00%(*objecttype)%00%(objectname)%00%(objecttype)",
+            "refs/heads",
+            "refs/remotes",
+            "refs/tags",
+        ],
+    )?;
+    let mut tips = BTreeSet::new();
+    if let Some(head) = head {
+        tips.insert(head.to_owned());
+    }
+    for record in refs.lines() {
+        let fields = record.split('\0').collect::<Vec<_>>();
+        if fields.len() != 4 {
+            continue;
+        }
+        let tip = if fields[1] == "commit" {
+            fields[0]
+        } else if fields[3] == "commit" {
+            fields[2]
+        } else {
+            continue;
+        };
+        if is_commit_id(tip) {
+            tips.insert(tip.to_owned());
+        }
+    }
+    Ok(tips.into_iter().collect())
+}
+
 fn is_commit_id(value: &str) -> bool {
     matches!(value.len(), 40 | 64) && value.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
-fn commit_page(path: &Path, history_head: Option<&str>, skip: usize) -> Result<CommitPage, String> {
-    let Some(history_head) = history_head else {
-        return Ok(page_commits(Vec::new()));
-    };
-    if !is_commit_id(history_head) {
+fn commit_page(
+    path: &Path,
+    history_tips: &[String],
+    skip: usize,
+    graph_state: GraphState,
+) -> Result<CommitPage, String> {
+    if history_tips.is_empty() {
+        return Ok(page_commits(Vec::new(), graph_state));
+    }
+    if history_tips.iter().any(|tip| !is_commit_id(tip)) {
         return Err("Invalid history commit ID".to_owned());
     }
 
     let skip_arg = format!("--skip={skip}");
     let limit_arg = format!("--max-count={}", COMMIT_PAGE_SIZE + 1);
-    let output = git_text(
-        path,
-        &[
-            "log",
-            &skip_arg,
-            &limit_arg,
-            history_head,
-            "--format=%h%x00%<(256,trunc)%s%x00%<(256,trunc)%an%x00%aI%x00",
-        ],
-    )?;
-    Ok(page_commits(parse_commits(&output)))
+    let revisions = history_tips.join("\n");
+    if revisions.len() > MAX_GIT_STDOUT_BYTES {
+        return Err("Too many history references".to_owned());
+    }
+    let mut revisions = revisions.into_bytes();
+    revisions.push(b'\n');
+    let args = [
+        "log",
+        "--stdin",
+        "--date-order",
+        skip_arg.as_str(),
+        limit_arg.as_str(),
+        "--format=%H%x00%P%x00%<(256,trunc)%s%x00%<(256,trunc)%an%x00%aI%x00",
+    ];
+    let output = git_text_with_input(path, &args, &revisions)?;
+    Ok(page_commits(parse_commits(&output), graph_state))
 }
 
-fn page_commits(mut commits: Vec<Commit>) -> CommitPage {
+fn page_commits(mut commits: Vec<Commit>, mut graph_state: GraphState) -> CommitPage {
     let has_more_commits = commits.len() > COMMIT_PAGE_SIZE;
     commits.truncate(COMMIT_PAGE_SIZE);
+    layout_commits(&mut commits, &mut graph_state);
     CommitPage {
         commits,
         has_more_commits,
+        graph_state,
     }
 }
 
@@ -234,7 +406,8 @@ async fn open_repository(path: String) -> Result<RepositorySummary, String> {
         let root = Path::new(&root_path);
         let branch = current_branch(root)?;
         let history_head = history_head(root)?;
-        let page = commit_page(root, history_head.as_deref(), 0)?;
+        let history_tips = history_tips(root, history_head.as_deref())?;
+        let page = commit_page(root, &history_tips, 0, GraphState::default())?;
 
         Ok(RepositorySummary {
             path: root.display().to_string(),
@@ -245,8 +418,10 @@ async fn open_repository(path: String) -> Result<RepositorySummary, String> {
                 .to_owned(),
             branch,
             history_head,
+            history_tips,
             commits: page.commits,
             has_more_commits: page.has_more_commits,
+            graph_state: page.graph_state,
         })
     })
     .await
@@ -256,12 +431,14 @@ async fn open_repository(path: String) -> Result<RepositorySummary, String> {
 #[tauri::command]
 async fn load_more_commits(
     path: String,
-    history_head: String,
+    history_tips: Vec<String>,
     skip: usize,
+    graph_state: GraphState,
 ) -> Result<CommitPage, String> {
+    validate_graph_state(&graph_state)?;
     tauri::async_runtime::spawn_blocking(move || {
         let root_path = repository_root(Path::new(&path))?;
-        commit_page(Path::new(&root_path), Some(&history_head), skip)
+        commit_page(Path::new(&root_path), &history_tips, skip, graph_state)
     })
     .await
     .map_err(|error| format!("Could not read repository: {error}"))?
@@ -279,9 +456,9 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::{
-        COMMIT_PAGE_SIZE, Commit, MAX_GIT_STDERR_BYTES, collect_output, commit_page,
-        current_branch, history_head, is_commit_id, page_commits, parse_commits, read_capped,
-        repository_root,
+        COMMIT_PAGE_SIZE, Commit, GraphState, MAX_GIT_STDERR_BYTES, collect_output, commit_page,
+        current_branch, history_head, history_tips, is_commit_id, page_commits, parse_commits,
+        read_capped, repository_root, validate_graph_state,
     };
 
     #[test]
@@ -348,18 +525,60 @@ mod tests {
     #[test]
     fn parses_nul_delimited_git_log_records() {
         let output = format!(
-            "abc123\0subject\u{1f}value\0Pierre\0{date}\0\ndef456\0Second\0Ada\0{date}\0\n",
+            "abc123\0parent123 parent456\0subject\u{1f}value\0Pierre\0{date}\0\ndef456\0\0Second\0Ada\0{date}\0\n",
             date = "2026-11-04T10:00:00+01:00"
         );
         let commits = parse_commits(&output);
 
         assert_eq!(commits.len(), 2);
         assert_eq!(commits[0].id, "abc123");
+        assert_eq!(commits[0].parents, ["parent123", "parent456"]);
         assert_eq!(commits[0].subject, "subject\u{1f}value");
         assert_eq!(commits[0].author, "Pierre");
         assert_eq!(commits[0].date, "2026-11-04T10:00:00+01:00");
         assert_eq!(commits[1].id, "def456");
         assert_eq!(commits[1].author, "Ada");
+    }
+
+    #[test]
+    fn lays_out_merge_lanes_and_preserves_lane_state_across_pages() {
+        let commit = |id: &str, parents: &[&str]| Commit {
+            id: id.to_owned(),
+            subject: String::new(),
+            author: String::new(),
+            date: String::new(),
+            parents: parents.iter().map(|parent| (*parent).to_owned()).collect(),
+            lane: 0,
+            passing_lanes: Vec::new(),
+            merging_lanes: Vec::new(),
+            forking_off_lanes: Vec::new(),
+            child_count: 0,
+        };
+
+        let first_page = page_commits(
+            vec![commit("merge", &["left", "right"])],
+            GraphState::default(),
+        );
+
+        assert_eq!(first_page.commits[0].lane, 0);
+        assert_eq!(first_page.commits[0].merging_lanes, [1]);
+        assert_eq!(
+            first_page.graph_state.reserved_lanes.get(&0).unwrap(),
+            "left"
+        );
+        assert_eq!(
+            first_page.graph_state.reserved_lanes.get(&1).unwrap(),
+            "right"
+        );
+
+        let second_page = page_commits(
+            vec![commit("left", &["right"]), commit("right", &[])],
+            first_page.graph_state,
+        );
+
+        assert_eq!(second_page.commits[0].passing_lanes, [1]);
+        assert_eq!(second_page.commits[1].child_count, 2);
+        assert_eq!(second_page.commits[1].forking_off_lanes, [1]);
     }
 
     #[test]
@@ -371,15 +590,21 @@ mod tests {
                     subject: String::new(),
                     author: String::new(),
                     date: String::new(),
+                    parents: Vec::new(),
+                    lane: 0,
+                    passing_lanes: Vec::new(),
+                    merging_lanes: Vec::new(),
+                    forking_off_lanes: Vec::new(),
+                    child_count: 0,
                 })
                 .collect()
         };
 
-        let page = page_commits(commits(COMMIT_PAGE_SIZE + 1));
+        let page = page_commits(commits(COMMIT_PAGE_SIZE + 1), GraphState::default());
 
         assert_eq!(page.commits.len(), COMMIT_PAGE_SIZE);
         assert!(page.has_more_commits);
-        assert!(!page_commits(commits(COMMIT_PAGE_SIZE)).has_more_commits);
+        assert!(!page_commits(commits(COMMIT_PAGE_SIZE), GraphState::default()).has_more_commits);
     }
 
     #[test]
@@ -388,6 +613,23 @@ mod tests {
         assert!(is_commit_id(&"a".repeat(64)));
         assert!(!is_commit_id("HEAD~1"));
         assert!(!is_commit_id(&"g".repeat(40)));
+    }
+
+    #[test]
+    fn rejects_invalid_graph_cursors_before_git_is_called() {
+        let mut state = GraphState::default();
+        state.reserved_lanes.insert(usize::MAX, "a".repeat(40));
+        assert_eq!(
+            validate_graph_state(&state).unwrap_err(),
+            "Invalid commit graph cursor"
+        );
+
+        state.reserved_lanes.clear();
+        state.reserved_lanes.insert(0, "invalid".to_owned());
+        assert_eq!(
+            validate_graph_state(&state).unwrap_err(),
+            "Invalid commit graph cursor"
+        );
     }
 
     #[test]
@@ -423,11 +665,64 @@ mod tests {
         let initial_head = history_head(&path).unwrap().unwrap();
         run_git(&["commit", "--allow-empty", "-m", "later", "--quiet"]);
 
-        let page = commit_page(&path, Some(&initial_head), 0).unwrap();
+        let tips = vec![initial_head];
+        let page = commit_page(&path, &tips, 0, GraphState::default()).unwrap();
 
         let _ = fs::remove_dir_all(&path);
         assert_eq!(page.commits.len(), 1);
         assert_eq!(page.commits[0].subject, "initial");
+    }
+
+    #[test]
+    fn history_includes_unmerged_branches_and_peels_annotated_tags() {
+        use std::{
+            fs,
+            process::Command,
+            time::{SystemTime, UNIX_EPOCH},
+        };
+
+        let path = std::env::temp_dir().join(format!(
+            "gitmiro-history-refs-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir(&path).unwrap();
+        let run_git = |args: &[&str]| {
+            let status = Command::new("git")
+                .arg("-C")
+                .arg(&path)
+                .args(args)
+                .status()
+                .unwrap();
+            assert!(status.success(), "git {args:?} failed");
+        };
+        run_git(&["init", "--quiet", "--initial-branch=main"]);
+        run_git(&["config", "user.name", "GitMiro Test"]);
+        run_git(&["config", "user.email", "gitmiro-test@example.invalid"]);
+        run_git(&["commit", "--allow-empty", "-m", "base", "--quiet"]);
+        run_git(&["checkout", "--quiet", "-b", "feature"]);
+        run_git(&["commit", "--allow-empty", "-m", "feature", "--quiet"]);
+        run_git(&["tag", "-a", "feature-release", "-m", "feature release"]);
+        run_git(&["checkout", "--quiet", "main"]);
+        run_git(&["commit", "--allow-empty", "-m", "main", "--quiet"]);
+
+        let head = history_head(&path).unwrap().unwrap();
+        let tips = history_tips(&path, Some(&head)).unwrap();
+        let page = commit_page(&path, &tips, 0, GraphState::default()).unwrap();
+        let subjects = page
+            .commits
+            .iter()
+            .map(|commit| commit.subject.as_str())
+            .collect::<Vec<_>>();
+
+        let _ = fs::remove_dir_all(&path);
+        assert!(subjects.contains(&"main"));
+        assert!(subjects.contains(&"feature"));
+        assert!(subjects.contains(&"base"));
+        assert_eq!(tips.len(), 2);
     }
 
     #[test]

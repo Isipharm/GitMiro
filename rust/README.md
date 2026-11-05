@@ -11,7 +11,7 @@ npm install
 npm run tauri dev
 ```
 
-The current slice opens an existing repository, then shows its current branch and commit history in batches of 500, loading older commits as the user scrolls. The welcome screen persists recent repository paths in the local WebView storage and supports search, reopen, and removal.
+The current slice opens an existing repository, then shows a merge-aware commit graph and history across local branches, remote branches, and tags in batches of 500. Graph lanes persist while older commits load on scroll. The welcome screen persists recent repository paths in local WebView storage and supports search, reopen, and removal.
 
 ## Checks
 
