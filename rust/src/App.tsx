@@ -8,7 +8,7 @@ type RepositorySummary = {
   name: string;
   branch: string;
   history_head: string | null;
-  history_tips: string[];
+  history_refs: { tips: string[]; references: GitReference[] };
   commits: Commit[];
   has_more_commits: boolean;
   graph_state: Record<string, string>;
@@ -25,7 +25,10 @@ type Commit = {
   merging_lanes: number[];
   forking_off_lanes: number[];
   child_count: number;
+  references: GitReference[];
 };
+
+type GitReference = { id: string; name: string; kind: "local" | "remote" | "tag" };
 
 type CommitPage = Pick<RepositorySummary, "commits" | "has_more_commits" | "graph_state">;
 
@@ -172,7 +175,7 @@ function App() {
     try {
       const page = await invoke<CommitPage>("load_more_commits", {
         path: repository.path,
-        historyTips: repository.history_tips,
+        historyRefs: repository.history_refs,
         skip: repository.commits.length,
         graphState: repository.graph_state,
       });
@@ -219,6 +222,13 @@ function App() {
                   <li key={commit.id}>
                     <CommitGraph commit={commit} />
                     <code>{commit.id.slice(0, 7)}</code>
+                    <span className="commit-refs">
+                      {commit.references.map((reference) => (
+                        <span className={`ref-chip ref-${reference.kind}`} key={`${reference.kind}-${reference.name}`}>
+                          {reference.name}
+                        </span>
+                      ))}
+                    </span>
                     <span className="commit-subject">{commit.subject}</span>
                     <span className="commit-meta">{commit.author} · {new Date(commit.date).toLocaleString()}</span>
                   </li>

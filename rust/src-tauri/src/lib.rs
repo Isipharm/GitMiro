@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, BTreeSet},
     io::{self, Read, Write},
@@ -12,6 +12,27 @@ const MAX_GIT_STDERR_BYTES: usize = 16 * 1024;
 const COMMIT_PAGE_SIZE: usize = 500;
 const MAX_GRAPH_LANES: usize = 4096;
 
+#[derive(Clone, Deserialize, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum ReferenceKind {
+    Local,
+    Remote,
+    Tag,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+struct GitReference {
+    id: String,
+    name: String,
+    kind: ReferenceKind,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+struct HistoryRefs {
+    tips: Vec<String>,
+    references: Vec<GitReference>,
+}
+
 #[derive(Serialize)]
 struct Commit {
     id: String,
@@ -24,6 +45,7 @@ struct Commit {
     merging_lanes: Vec<usize>,
     forking_off_lanes: Vec<usize>,
     child_count: usize,
+    references: Vec<GitReference>,
 }
 
 #[derive(Clone, Default, serde::Deserialize, Serialize)]
@@ -37,7 +59,7 @@ struct RepositorySummary {
     name: String,
     branch: String,
     history_head: Option<String>,
-    history_tips: Vec<String>,
+    history_refs: HistoryRefs,
     commits: Vec<Commit>,
     has_more_commits: bool,
     graph_state: GraphState,
@@ -194,6 +216,7 @@ fn parse_commits(output: &str) -> Vec<Commit> {
             merging_lanes: Vec::new(),
             forking_off_lanes: Vec::new(),
             child_count: 0,
+            references: Vec::new(),
         })
         .collect()
 }
@@ -316,24 +339,25 @@ fn history_head(path: &Path) -> Result<Option<String>, String> {
     Err(String::from_utf8_lossy(&output.stderr).trim().to_owned())
 }
 
-fn history_tips(path: &Path, head: Option<&str>) -> Result<Vec<String>, String> {
+fn history_refs(path: &Path, head: Option<&str>) -> Result<HistoryRefs, String> {
     let refs = git_text(
         path,
         &[
             "for-each-ref",
-            "--format=%(*objectname)%00%(*objecttype)%00%(objectname)%00%(objecttype)",
+            "--format=%(*objectname)%00%(*objecttype)%00%(objectname)%00%(objecttype)%00%(refname)",
             "refs/heads",
             "refs/remotes",
             "refs/tags",
         ],
     )?;
     let mut tips = BTreeSet::new();
+    let mut references = Vec::new();
     if let Some(head) = head {
         tips.insert(head.to_owned());
     }
     for record in refs.lines() {
         let fields = record.split('\0').collect::<Vec<_>>();
-        if fields.len() != 4 {
+        if fields.len() != 5 {
             continue;
         }
         let tip = if fields[1] == "commit" {
@@ -345,9 +369,28 @@ fn history_tips(path: &Path, head: Option<&str>) -> Result<Vec<String>, String> 
         };
         if is_commit_id(tip) {
             tips.insert(tip.to_owned());
+            let refname = fields[4];
+            let (kind, name) = if let Some(name) = refname.strip_prefix("refs/heads/") {
+                (ReferenceKind::Local, name)
+            } else if let Some(name) = refname.strip_prefix("refs/remotes/") {
+                (ReferenceKind::Remote, name)
+            } else if let Some(name) = refname.strip_prefix("refs/tags/") {
+                (ReferenceKind::Tag, name)
+            } else {
+                continue;
+            };
+            references.push(GitReference {
+                id: tip.to_owned(),
+                name: name.to_owned(),
+                kind,
+            });
         }
     }
-    Ok(tips.into_iter().collect())
+    references.sort_by(|left, right| left.name.cmp(&right.name));
+    Ok(HistoryRefs {
+        tips: tips.into_iter().collect(),
+        references,
+    })
 }
 
 fn is_commit_id(value: &str) -> bool {
@@ -356,20 +399,28 @@ fn is_commit_id(value: &str) -> bool {
 
 fn commit_page(
     path: &Path,
-    history_tips: &[String],
+    history_refs: &HistoryRefs,
     skip: usize,
     graph_state: GraphState,
 ) -> Result<CommitPage, String> {
-    if history_tips.is_empty() {
+    if history_refs.tips.is_empty() {
         return Ok(page_commits(Vec::new(), graph_state));
     }
-    if history_tips.iter().any(|tip| !is_commit_id(tip)) {
+    if history_refs.tips.iter().any(|tip| !is_commit_id(tip))
+        || history_refs.references.iter().any(|reference| {
+            !is_commit_id(&reference.id)
+                || reference.name.is_empty()
+                || reference.name.len() > 1024
+                || reference.name.chars().any(char::is_control)
+                || !history_refs.tips.contains(&reference.id)
+        })
+    {
         return Err("Invalid history commit ID".to_owned());
     }
 
     let skip_arg = format!("--skip={skip}");
     let limit_arg = format!("--max-count={}", COMMIT_PAGE_SIZE + 1);
-    let revisions = history_tips.join("\n");
+    let revisions = history_refs.tips.join("\n");
     if revisions.len() > MAX_GIT_STDOUT_BYTES {
         return Err("Too many history references".to_owned());
     }
@@ -384,7 +435,16 @@ fn commit_page(
         "--format=%H%x00%P%x00%<(256,trunc)%s%x00%<(256,trunc)%an%x00%aI%x00",
     ];
     let output = git_text_with_input(path, &args, &revisions)?;
-    Ok(page_commits(parse_commits(&output), graph_state))
+    let mut commits = parse_commits(&output);
+    for commit in &mut commits {
+        commit.references = history_refs
+            .references
+            .iter()
+            .filter(|reference| reference.id == commit.id)
+            .cloned()
+            .collect();
+    }
+    Ok(page_commits(commits, graph_state))
 }
 
 fn page_commits(mut commits: Vec<Commit>, mut graph_state: GraphState) -> CommitPage {
@@ -406,8 +466,8 @@ async fn open_repository(path: String) -> Result<RepositorySummary, String> {
         let root = Path::new(&root_path);
         let branch = current_branch(root)?;
         let history_head = history_head(root)?;
-        let history_tips = history_tips(root, history_head.as_deref())?;
-        let page = commit_page(root, &history_tips, 0, GraphState::default())?;
+        let history_refs = history_refs(root, history_head.as_deref())?;
+        let page = commit_page(root, &history_refs, 0, GraphState::default())?;
 
         Ok(RepositorySummary {
             path: root.display().to_string(),
@@ -418,7 +478,7 @@ async fn open_repository(path: String) -> Result<RepositorySummary, String> {
                 .to_owned(),
             branch,
             history_head,
-            history_tips,
+            history_refs,
             commits: page.commits,
             has_more_commits: page.has_more_commits,
             graph_state: page.graph_state,
@@ -431,14 +491,14 @@ async fn open_repository(path: String) -> Result<RepositorySummary, String> {
 #[tauri::command]
 async fn load_more_commits(
     path: String,
-    history_tips: Vec<String>,
+    history_refs: HistoryRefs,
     skip: usize,
     graph_state: GraphState,
 ) -> Result<CommitPage, String> {
     validate_graph_state(&graph_state)?;
     tauri::async_runtime::spawn_blocking(move || {
         let root_path = repository_root(Path::new(&path))?;
-        commit_page(Path::new(&root_path), &history_tips, skip, graph_state)
+        commit_page(Path::new(&root_path), &history_refs, skip, graph_state)
     })
     .await
     .map_err(|error| format!("Could not read repository: {error}"))?
@@ -457,7 +517,7 @@ pub fn run() {
 mod tests {
     use super::{
         COMMIT_PAGE_SIZE, Commit, GraphState, MAX_GIT_STDERR_BYTES, collect_output, commit_page,
-        current_branch, history_head, history_tips, is_commit_id, page_commits, parse_commits,
+        current_branch, history_head, history_refs, is_commit_id, page_commits, parse_commits,
         read_capped, repository_root, validate_graph_state,
     };
 
@@ -553,6 +613,7 @@ mod tests {
             merging_lanes: Vec::new(),
             forking_off_lanes: Vec::new(),
             child_count: 0,
+            references: Vec::new(),
         };
 
         let first_page = page_commits(
@@ -596,6 +657,7 @@ mod tests {
                     merging_lanes: Vec::new(),
                     forking_off_lanes: Vec::new(),
                     child_count: 0,
+                    references: Vec::new(),
                 })
                 .collect()
         };
@@ -665,8 +727,11 @@ mod tests {
         let initial_head = history_head(&path).unwrap().unwrap();
         run_git(&["commit", "--allow-empty", "-m", "later", "--quiet"]);
 
-        let tips = vec![initial_head];
-        let page = commit_page(&path, &tips, 0, GraphState::default()).unwrap();
+        let refs = super::HistoryRefs {
+            tips: vec![initial_head],
+            references: Vec::new(),
+        };
+        let page = commit_page(&path, &refs, 0, GraphState::default()).unwrap();
 
         let _ = fs::remove_dir_all(&path);
         assert_eq!(page.commits.len(), 1);
@@ -710,8 +775,8 @@ mod tests {
         run_git(&["commit", "--allow-empty", "-m", "main", "--quiet"]);
 
         let head = history_head(&path).unwrap().unwrap();
-        let tips = history_tips(&path, Some(&head)).unwrap();
-        let page = commit_page(&path, &tips, 0, GraphState::default()).unwrap();
+        let refs = history_refs(&path, Some(&head)).unwrap();
+        let page = commit_page(&path, &refs, 0, GraphState::default()).unwrap();
         let subjects = page
             .commits
             .iter()
@@ -722,7 +787,23 @@ mod tests {
         assert!(subjects.contains(&"main"));
         assert!(subjects.contains(&"feature"));
         assert!(subjects.contains(&"base"));
-        assert_eq!(tips.len(), 2);
+        assert_eq!(refs.tips.len(), 2);
+        assert!(
+            refs.references
+                .iter()
+                .any(|reference| reference.name == "feature-release"
+                    && reference.kind == super::ReferenceKind::Tag)
+        );
+        assert!(
+            page.commits
+                .iter()
+                .find(|commit| commit.subject == "feature")
+                .unwrap()
+                .references
+                .iter()
+                .any(|reference| reference.name == "feature"
+                    && reference.kind == super::ReferenceKind::Local)
+        );
     }
 
     #[test]
