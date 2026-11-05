@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, BTreeSet},
     ffi::{OsStr, OsString},
+    fs,
     io::{self, Read, Write},
     path::{Path, PathBuf},
     process::{Child, Command, Output, Stdio},
@@ -67,9 +68,24 @@ struct RepositorySummary {
     history_head: Option<String>,
     history_refs: HistoryRefs,
     status: RepositoryStatus,
+    commit: CommitMetadata,
     commits: Vec<Commit>,
     has_more_commits: bool,
     graph_state: GraphState,
+}
+
+#[derive(Clone, Default, Deserialize, Serialize)]
+struct CommitIdentity {
+    name: Option<String>,
+    email: Option<String>,
+}
+
+#[derive(Serialize)]
+struct CommitMetadata {
+    draft: String,
+    previous_message: Option<String>,
+    local_identity: CommitIdentity,
+    global_identity: CommitIdentity,
 }
 
 #[derive(Default, Serialize)]
@@ -1068,6 +1084,277 @@ fn repository_root(path: &Path) -> Result<String, String> {
     Err(error.trim().to_owned())
 }
 
+fn git_path(path: &Path, name: &str) -> Result<PathBuf, String> {
+    let output = git_text(
+        path,
+        &["rev-parse", "--path-format=absolute", "--git-path", name],
+    )?;
+    Ok(PathBuf::from(output))
+}
+
+fn config_value(path: &Path, scope: &str, key: &str) -> Option<String> {
+    let output = git_output(path, &["config", scope, "--get", key], None).ok()?;
+    output.status.success().then(|| {
+        String::from_utf8_lossy(&output.stdout)
+            .trim_end()
+            .to_owned()
+    })
+}
+
+fn read_identity(path: &Path, scope: &str) -> CommitIdentity {
+    CommitIdentity {
+        name: config_value(path, scope, "user.name"),
+        email: config_value(path, scope, "user.email"),
+    }
+}
+
+fn commit_message_metadata(path: &Path) -> Result<CommitMetadata, String> {
+    let merge_head = git_path(path, "MERGE_HEAD")?;
+    let merging = merge_head.exists();
+    let message_path = if merging {
+        git_path(path, "MERGE_MSG")?
+    } else {
+        git_path(path, "COMMIT_EDITMSG")?
+    };
+    let draft = match fs::read_to_string(message_path) {
+        Ok(message) => message,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => String::new(),
+        Err(error) => return Err(format!("Could not read commit message: {error}")),
+    };
+    let draft = if merging {
+        draft
+            .lines()
+            .filter(|line| !line.starts_with('#'))
+            .collect::<Vec<_>>()
+            .join("\n")
+            .trim()
+            .to_owned()
+    } else {
+        draft
+    };
+    let previous_message = history_head(path)?
+        .map(|_| git_text(path, &["log", "-1", "--format=%B"]))
+        .transpose()?;
+    Ok(CommitMetadata {
+        draft,
+        previous_message,
+        local_identity: read_identity(path, "--local"),
+        global_identity: read_identity(path, "--global"),
+    })
+}
+
+fn write_commit_message(path: &Path, message: &str) -> Result<(), String> {
+    let merge_head = git_path(path, "MERGE_HEAD")?;
+    let message_path = if merge_head.exists() {
+        git_path(path, "MERGE_MSG")?
+    } else {
+        git_path(path, "COMMIT_EDITMSG")?
+    };
+    if message.is_empty() {
+        match fs::remove_file(message_path) {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+            Err(error) => Err(format!("Could not clear commit message: {error}")),
+        }
+    } else {
+        fs::write(message_path, message)
+            .map_err(|error| format!("Could not save commit message: {error}"))
+    }
+}
+
+fn commit_sign_off(
+    path: &Path,
+    message: &str,
+    identity: &CommitIdentity,
+) -> Result<String, String> {
+    let config_path = git_path(path, "gitnuro")?;
+    if !config_path.exists() {
+        return Ok(message.to_owned());
+    }
+    let config_argument = config_path.to_string_lossy();
+    let enabled = git_output(
+        path,
+        &[
+            "config",
+            "--file",
+            &config_argument,
+            "--bool",
+            "--get",
+            "signoff.enabled",
+        ],
+        None,
+    )?;
+    if !enabled.status.success() {
+        let error = String::from_utf8_lossy(&enabled.stderr).trim().to_owned();
+        return if error.is_empty() {
+            Ok(message.to_owned())
+        } else {
+            Err(error)
+        };
+    }
+    if !String::from_utf8_lossy(&enabled.stdout)
+        .trim()
+        .eq_ignore_ascii_case("true")
+    {
+        return Ok(message.to_owned());
+    }
+    let format = git_output(
+        path,
+        &[
+            "config",
+            "--file",
+            &config_argument,
+            "--get",
+            "signoff.format",
+        ],
+        None,
+    )?;
+    let format = if format.status.success() {
+        String::from_utf8_lossy(&format.stdout)
+            .trim_end()
+            .to_owned()
+    } else {
+        let error = String::from_utf8_lossy(&format.stderr).trim().to_owned();
+        if !error.is_empty() {
+            return Err(error);
+        }
+        "Signed-off-by: %user <%email>".to_owned()
+    };
+    let signature = format
+        .replace("%user", identity.name.as_deref().unwrap_or_default())
+        .replace("%email", identity.email.as_deref().unwrap_or_default());
+    Ok(format!("{message}\n\n{signature}"))
+}
+
+fn set_global_identity(path: &Path, identity: &CommitIdentity) -> Result<(), String> {
+    for (key, value) in [
+        ("user.name", identity.name.as_deref().unwrap_or_default()),
+        ("user.email", identity.email.as_deref().unwrap_or_default()),
+    ] {
+        let args = [
+            "config".to_owned(),
+            "--global".to_owned(),
+            "--replace-all".to_owned(),
+            key.to_owned(),
+            value.to_owned(),
+        ];
+        let output = git_output(
+            path,
+            &args.iter().map(String::as_str).collect::<Vec<_>>(),
+            None,
+        )?;
+        if !output.status.success() {
+            return Err(String::from_utf8_lossy(&output.stderr).trim().to_owned());
+        }
+    }
+    Ok(())
+}
+
+fn commit_changes(
+    path: &Path,
+    message: &str,
+    amend: bool,
+    identity: Option<CommitIdentity>,
+    persist_identity: bool,
+) -> Result<RepositorySummary, String> {
+    if message.is_empty() {
+        return Err("Commit message cannot be empty".to_owned());
+    }
+    let status = repository_status(path)?;
+    if !amend && status.staged.is_empty() {
+        return Err("Stage changes before committing".to_owned());
+    }
+    if amend && history_head(path)?.is_none() {
+        return Err("There is no commit to amend".to_owned());
+    }
+
+    let metadata = commit_message_metadata(path)?;
+    let override_identity = identity.is_some();
+    let resolved_identity = identity.unwrap_or_else(|| CommitIdentity {
+        name: metadata
+            .local_identity
+            .name
+            .clone()
+            .or(metadata.global_identity.name.clone()),
+        email: metadata
+            .local_identity
+            .email
+            .clone()
+            .or(metadata.global_identity.email.clone()),
+    });
+    if resolved_identity
+        .name
+        .as_deref()
+        .unwrap_or_default()
+        .is_empty()
+        || resolved_identity
+            .email
+            .as_deref()
+            .unwrap_or_default()
+            .is_empty()
+    {
+        return Err("Git author name and email are required".to_owned());
+    }
+    if persist_identity {
+        set_global_identity(path, &resolved_identity)?;
+    }
+
+    let message = commit_sign_off(path, message, &resolved_identity)?;
+    let merging = git_path(path, "MERGE_HEAD")?.exists();
+    let mut command = Command::new("git");
+    command
+        .arg("-C")
+        .arg(path)
+        .arg("-c")
+        .arg(format!(
+            "user.name={}",
+            resolved_identity.name.as_deref().unwrap()
+        ))
+        .arg("-c")
+        .arg(format!(
+            "user.email={}",
+            resolved_identity.email.as_deref().unwrap()
+        ))
+        .arg("commit");
+    if amend {
+        command.args(["--amend", "--allow-empty"]);
+        if override_identity {
+            command.arg(format!(
+                "--author={} <{}>",
+                resolved_identity.name.as_deref().unwrap(),
+                resolved_identity.email.as_deref().unwrap()
+            ));
+        }
+    } else if merging {
+        command.arg("--allow-empty");
+    }
+    command
+        .args(["--file", "-"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let mut child = command
+        .spawn()
+        .map_err(|error| format!("Could not start Git commit: {error}"))?;
+    let output = collect_output_with_input(&mut child, Some(message.as_bytes()))?;
+    if !output.status.success() {
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_owned();
+        let error = String::from_utf8_lossy(&output.stderr).trim().to_owned();
+        return Err(if stdout.is_empty() && error.is_empty() {
+            format!("Git commit failed with {}", output.status)
+        } else {
+            [stdout, error]
+                .into_iter()
+                .filter(|message| !message.is_empty())
+                .collect::<Vec<_>>()
+                .join("\n")
+        });
+    }
+    write_commit_message(path, "")?;
+
+    repository_summary(path)
+}
+
 fn history_head(path: &Path) -> Result<Option<String>, String> {
     let output = git_output(
         path,
@@ -1195,6 +1482,30 @@ fn commit_page(
     Ok(page_commits(commits, graph_state))
 }
 
+fn repository_summary(path: &Path) -> Result<RepositorySummary, String> {
+    let root_path = repository_root(path)?;
+    let root = Path::new(&root_path);
+    let history_head = history_head(root)?;
+    let history_refs = history_refs(root, history_head.as_deref())?;
+    let page = commit_page(root, &history_refs, 0, GraphState::default())?;
+    Ok(RepositorySummary {
+        path: root.display().to_string(),
+        name: root
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("Repository")
+            .to_owned(),
+        branch: current_branch(root)?,
+        history_head,
+        history_refs,
+        status: repository_status(root)?,
+        commit: commit_message_metadata(root)?,
+        commits: page.commits,
+        has_more_commits: page.has_more_commits,
+        graph_state: page.graph_state,
+    })
+}
+
 fn page_commits(mut commits: Vec<Commit>, mut graph_state: GraphState) -> CommitPage {
     let has_more_commits = commits.len() > COMMIT_PAGE_SIZE;
     commits.truncate(COMMIT_PAGE_SIZE);
@@ -1208,34 +1519,41 @@ fn page_commits(mut commits: Vec<Commit>, mut graph_state: GraphState) -> Commit
 
 #[tauri::command]
 async fn open_repository(path: String) -> Result<RepositorySummary, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let selected = Path::new(&path);
-        let root_path = repository_root(selected)?;
-        let root = Path::new(&root_path);
-        let branch = current_branch(root)?;
-        let history_head = history_head(root)?;
-        let history_refs = history_refs(root, history_head.as_deref())?;
-        let status = repository_status(root)?;
-        let page = commit_page(root, &history_refs, 0, GraphState::default())?;
+    tauri::async_runtime::spawn_blocking(move || repository_summary(Path::new(&path)))
+        .await
+        .map_err(|error| format!("Could not read repository: {error}"))?
+}
 
-        Ok(RepositorySummary {
-            path: root.display().to_string(),
-            name: root
-                .file_name()
-                .and_then(|name| name.to_str())
-                .unwrap_or("Repository")
-                .to_owned(),
-            branch,
-            history_head,
-            history_refs,
-            status,
-            commits: page.commits,
-            has_more_commits: page.has_more_commits,
-            graph_state: page.graph_state,
-        })
+#[tauri::command]
+async fn persist_commit_message(path: String, message: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let root_path = repository_root(Path::new(&path))?;
+        write_commit_message(Path::new(&root_path), &message)
     })
     .await
-    .map_err(|error| format!("Could not read repository: {error}"))?
+    .map_err(|error| format!("Could not save commit message: {error}"))?
+}
+
+#[tauri::command]
+async fn commit_repository(
+    path: String,
+    message: String,
+    amend: bool,
+    identity: Option<CommitIdentity>,
+    persist_identity: bool,
+) -> Result<RepositorySummary, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let root_path = repository_root(Path::new(&path))?;
+        commit_changes(
+            Path::new(&root_path),
+            &message,
+            amend,
+            identity,
+            persist_identity,
+        )
+    })
+    .await
+    .map_err(|error| format!("Could not create commit: {error}"))?
 }
 
 #[tauri::command]
@@ -1323,6 +1641,8 @@ pub fn run() {
             open_repository,
             load_more_commits,
             refresh_repository_status,
+            persist_commit_message,
+            commit_repository,
             get_file_diff,
             resolve_conflict_file,
             stage_status_entry,
@@ -1335,12 +1655,13 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::{
-        COMMIT_PAGE_SIZE, Commit, ConflictSide, ConflictVersionKind, FileDiffKind, GraphState,
-        MAX_GIT_STDERR_BYTES, MAX_GIT_STDOUT_BYTES, StatusGroup, StatusKind, collect_output,
-        commit_page, current_branch, file_diff, history_head, history_refs, is_commit_id,
-        is_gitlink, page_commits, parse_commits, parse_status, read_capped, repository_root,
-        repository_status, resolve_conflict_side, stage_status_path, unstage_status_path,
-        validate_graph_state,
+        COMMIT_PAGE_SIZE, Commit, CommitIdentity, ConflictSide, ConflictVersionKind, FileDiffKind,
+        GraphState, MAX_GIT_STDERR_BYTES, MAX_GIT_STDOUT_BYTES, StatusGroup, StatusKind,
+        collect_output, commit_changes, commit_message_metadata, commit_page, current_branch,
+        file_diff, history_head, history_refs, is_commit_id, is_gitlink, page_commits,
+        parse_commits, parse_status, read_capped, repository_root, repository_status,
+        resolve_conflict_side, stage_status_path, unstage_status_path, validate_graph_state,
+        write_commit_message,
     };
 
     #[test]
@@ -1405,6 +1726,154 @@ u UU N... 100644 100644 100644 100644 abc abc abc conflict.txt\0\
 
         assert_eq!(status.unstaged.len(), 1);
         assert_eq!(status.unstaged[0].path, "complete.txt");
+    }
+
+    #[test]
+    fn commits_only_staged_changes_amends_previous_commit_and_persists_draft() {
+        use std::{
+            fs,
+            process::Command,
+            time::{SystemTime, UNIX_EPOCH},
+        };
+
+        let path = std::env::temp_dir().join(format!(
+            "gitmiro-commit-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir(&path).unwrap();
+        let run_git = |args: &[&str]| {
+            let output = Command::new("git")
+                .arg("-C")
+                .arg(&path)
+                .args(args)
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "git {args:?}: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            output
+        };
+        run_git(&["init", "--quiet"]);
+        run_git(&["config", "user.name", "GitMiro Test"]);
+        run_git(&["config", "user.email", "gitmiro-test@example.invalid"]);
+        run_git(&["config", "commit.gpgsign", "false"]);
+        fs::write(path.join("tracked.txt"), "base\n").unwrap();
+        run_git(&["add", "tracked.txt"]);
+        run_git(&["commit", "--quiet", "-m", "initial"]);
+
+        fs::write(path.join("tracked.txt"), "staged\n").unwrap();
+        run_git(&["add", "tracked.txt"]);
+        fs::write(path.join("tracked.txt"), "unstaged\n").unwrap();
+        write_commit_message(&path, "draft message").unwrap();
+        assert!(matches!(
+            commit_changes(&path, "", false, None, false),
+            Err(error) if error == "Commit message cannot be empty"
+        ));
+        assert_eq!(
+            commit_message_metadata(&path).unwrap().draft,
+            "draft message"
+        );
+
+        fs::write(
+            path.join(".git/gitnuro"),
+            "[signoff]\n  enabled = true\n  format = Reviewed-by: %user <%email>\n",
+        )
+        .unwrap();
+        commit_changes(&path, "feature", false, None, false).unwrap();
+        let message = String::from_utf8(run_git(&["log", "-1", "--format=%B"]).stdout).unwrap();
+        assert!(
+            message.contains("feature\n\nReviewed-by: GitMiro Test <gitmiro-test@example.invalid>")
+        );
+        assert_eq!(commit_message_metadata(&path).unwrap().draft, "");
+        assert_eq!(repository_status(&path).unwrap().staged.len(), 0);
+        assert_eq!(repository_status(&path).unwrap().unstaged.len(), 1);
+
+        commit_changes(
+            &path,
+            "amended",
+            true,
+            Some(CommitIdentity {
+                name: Some("Override".into()),
+                email: Some("override@example.invalid".into()),
+            }),
+            false,
+        )
+        .unwrap();
+        let amended = run_git(&["log", "-1", "--format=%an <%ae>%n%s"]);
+        assert_eq!(
+            String::from_utf8(amended.stdout).unwrap().trim(),
+            "Override <override@example.invalid>\namended"
+        );
+        assert_eq!(repository_status(&path).unwrap().unstaged.len(), 1);
+        let _ = fs::remove_dir_all(&path);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn returns_hook_stderr_and_keeps_commit_draft_on_rejection() {
+        use std::{
+            fs,
+            os::unix::fs::PermissionsExt,
+            process::Command,
+            time::{SystemTime, UNIX_EPOCH},
+        };
+
+        let path = std::env::temp_dir().join(format!(
+            "gitmiro-hook-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir(&path).unwrap();
+        let run_git = |args: &[&str]| {
+            let output = Command::new("git")
+                .arg("-C")
+                .arg(&path)
+                .args(args)
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "git {args:?}: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            output
+        };
+        run_git(&["init", "--quiet"]);
+        run_git(&["config", "user.name", "GitMiro Test"]);
+        run_git(&["config", "user.email", "gitmiro-test@example.invalid"]);
+        run_git(&["config", "commit.gpgsign", "false"]);
+        fs::create_dir(path.join("hooks")).unwrap();
+        let hook = path.join("hooks/pre-commit");
+        fs::write(
+            &hook,
+            "#!/bin/sh\necho 'hook stdout reason'\necho 'hook stderr reason' >&2\nexit 1\n",
+        )
+        .unwrap();
+        fs::set_permissions(&hook, fs::Permissions::from_mode(0o755)).unwrap();
+        run_git(&["config", "core.hooksPath", "hooks"]);
+        fs::write(path.join("staged.txt"), "staged\n").unwrap();
+        run_git(&["add", "staged.txt"]);
+        write_commit_message(&path, "draft survives").unwrap();
+
+        let error = commit_changes(&path, "draft survives", false, None, false).unwrap_err();
+
+        assert!(error.contains("hook stdout reason"));
+        assert!(error.contains("hook stderr reason"));
+        assert_eq!(
+            commit_message_metadata(&path).unwrap().draft,
+            "draft survives"
+        );
+        assert_eq!(repository_status(&path).unwrap().staged.len(), 1);
+        let _ = fs::remove_dir_all(&path);
     }
 
     #[test]

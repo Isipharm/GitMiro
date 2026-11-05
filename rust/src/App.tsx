@@ -13,10 +13,19 @@ type RepositorySummary = {
   branch: string;
   history_head: string | null;
   history_refs: { tips: string[]; references: GitReference[] };
+  commit: CommitMetadata;
   commits: Commit[];
   has_more_commits: boolean;
   graph_state: GraphState;
   status: RepositoryStatus;
+};
+
+type CommitIdentity = { name: string | null; email: string | null };
+type CommitMetadata = {
+  draft: string;
+  previous_message: string | null;
+  local_identity: CommitIdentity;
+  global_identity: CommitIdentity;
 };
 
 type RepositoryStatus = { staged: StatusEntry[]; unstaged: StatusEntry[]; truncated: boolean };
@@ -120,10 +129,18 @@ function App() {
   const [fileDiff, setFileDiff] = useState<FileDiff | null>(null);
   const [diffLoading, setDiffLoading] = useState(false);
   const [diffError, setDiffError] = useState<string | null>(null);
+  const [commitMessage, setCommitMessage] = useState("");
+  const [isAmend, setIsAmend] = useState(false);
+  const [committing, setCommitting] = useState(false);
+  const [commitError, setCommitError] = useState<string | null>(null);
+  const [identityPrompt, setIdentityPrompt] = useState<{ name: string; email: string; save: boolean } | null>(null);
+  const [identityError, setIdentityError] = useState<string | null>(null);
   const selectedDiffRef = useRef<typeof selectedDiff>(null);
   const openingRef = useRef(false);
   const loadingMoreRef = useRef(false);
   const changingStatusRef = useRef(false);
+  const committingRef = useRef(false);
+  const commitPersistTimerRef = useRef<number | null>(null);
   const diffRequestRef = useRef(0);
   const historyRequestRef = useRef(0);
   const statusRefreshRef = useRef(0);
@@ -198,6 +215,14 @@ function App() {
     statusRefreshRef.current++;
     setStatusError(null);
     diffRequestRef.current++;
+    if (commitPersistTimerRef.current !== null) {
+      window.clearTimeout(commitPersistTimerRef.current);
+      commitPersistTimerRef.current = null;
+    }
+    setCommitMessage(opened.commit.draft);
+    setIsAmend(false);
+    setCommitError(null);
+    setIdentityPrompt(null);
     selectedDiffRef.current = null;
     setSelectedDiff(null);
     setFileDiff(null);
@@ -223,6 +248,70 @@ function App() {
 
   function removeRecentRepository(path: string) {
     setRecentRepositories((current) => current.filter((recent) => recent !== path));
+  }
+
+  function changeCommitMessage(message: string) {
+    setCommitMessage(message);
+    setCommitError(null);
+    const targetPath = repository?.path;
+    if (!targetPath) return;
+    if (commitPersistTimerRef.current !== null) window.clearTimeout(commitPersistTimerRef.current);
+    commitPersistTimerRef.current = window.setTimeout(() => {
+      commitPersistTimerRef.current = null;
+      void invoke("persist_commit_message", { path: targetPath, message }).catch((error) => {
+        setCommitError(String(error));
+      });
+    }, 1000);
+  }
+
+  function identityNeedsInput(metadata: CommitMetadata) {
+    const name = metadata.local_identity.name?.trim() || metadata.global_identity.name?.trim();
+    const email = metadata.local_identity.email?.trim() || metadata.global_identity.email?.trim();
+    return !name || !email;
+  }
+
+  async function commitChanges(identity?: { name: string; email: string }, persistIdentity = false) {
+    if (!repository || committingRef.current || changingStatusRef.current) return;
+    if (!commitMessage.length || (!isAmend && repository.status.staged.length === 0)) return;
+    if (isAmend && !repository.history_head) return;
+    if (!identity && identityNeedsInput(repository.commit)) {
+      setIdentityError(null);
+      setIdentityPrompt({
+        name: repository.commit.local_identity.name ?? repository.commit.global_identity.name ?? "",
+        email: repository.commit.local_identity.email ?? repository.commit.global_identity.email ?? "",
+        save: false,
+      });
+      return;
+    }
+
+    committingRef.current = true;
+    setCommitting(true);
+    setCommitError(null);
+    const targetPath = repository.path;
+    if (commitPersistTimerRef.current !== null) {
+      window.clearTimeout(commitPersistTimerRef.current);
+      commitPersistTimerRef.current = null;
+    }
+    try {
+      await invoke("persist_commit_message", { path: targetPath, message: commitMessage });
+      const updated = await invoke<RepositorySummary>("commit_repository", {
+        path: targetPath,
+        message: commitMessage,
+        amend: isAmend,
+        identity: identity ?? null,
+        persistIdentity,
+      });
+      setRepository(updated);
+      setCommitMessage(updated.commit.draft);
+      setIsAmend(false);
+      setIdentityPrompt(null);
+      setIdentityError(null);
+    } catch (error) {
+      setCommitError(String(error));
+    } finally {
+      committingRef.current = false;
+      setCommitting(false);
+    }
   }
 
   useEffect(() => {
@@ -515,6 +604,48 @@ function App() {
               )}
             </section>
             <aside className="status-column" aria-label="Repository status">
+              <section className="commit-composer" aria-label="Create commit">
+                <label htmlFor="commit-message">Commit message</label>
+                <textarea
+                  id="commit-message"
+                  value={commitMessage}
+                  onChange={(event) => changeCommitMessage(event.target.value)}
+                  onKeyDown={(event) => {
+                    if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+                      event.preventDefault();
+                      void commitChanges();
+                    }
+                  }}
+                  rows={4}
+                  disabled={committing}
+                />
+                {repository.history_head && (
+                  <label className="amend-option">
+                    <input
+                      type="checkbox"
+                      checked={isAmend}
+                      onChange={(event) => {
+                        const amend = event.target.checked;
+                        setIsAmend(amend);
+                        if (amend && !commitMessage && repository.commit.previous_message) {
+                          changeCommitMessage(repository.commit.previous_message);
+                        }
+                      }}
+                      disabled={committing}
+                    />
+                    Amend previous commit
+                  </label>
+                )}
+                <button
+                  className="button button-primary"
+                  type="button"
+                  onClick={() => void commitChanges()}
+                  disabled={committing || changingStatus || !commitMessage.length || (!isAmend && !repository.status.staged.length)}
+                >
+                  {committing ? "Committing…" : isAmend ? "Amend commit" : "Commit staged changes"}
+                </button>
+                {commitError && <p className="error-message" role="alert">{commitError}</p>}
+              </section>
               {repository.status.truncated && (
                 <p className="status-truncated" role="status">Change list is truncated at 512 KiB.</p>
               )}
@@ -637,6 +768,42 @@ function App() {
             )}
           </section>
         </section>
+      )}
+      {identityPrompt && (
+        <div className="dialog-backdrop">
+          <form
+            className="identity-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="identity-title"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!identityPrompt.name.trim() || !identityPrompt.email.trim()) {
+                setIdentityError("Name and email are required.");
+                return;
+              }
+              void commitChanges(
+                { name: identityPrompt.name, email: identityPrompt.email },
+                identityPrompt.save,
+              );
+            }}
+          >
+            <h2 id="identity-title">Commit author</h2>
+            <label htmlFor="author-name">Name</label>
+            <input id="author-name" autoFocus value={identityPrompt.name} onChange={(event) => setIdentityPrompt({ ...identityPrompt, name: event.target.value })} />
+            <label htmlFor="author-email">Email</label>
+            <input id="author-email" type="email" value={identityPrompt.email} onChange={(event) => setIdentityPrompt({ ...identityPrompt, email: event.target.value })} />
+            <label className="amend-option">
+              <input type="checkbox" checked={identityPrompt.save} onChange={(event) => setIdentityPrompt({ ...identityPrompt, save: event.target.checked })} />
+              Save identity globally
+            </label>
+            {identityError && <p className="error-message" role="alert">{identityError}</p>}
+            <footer>
+              <button className="button button-secondary" type="button" onClick={() => setIdentityPrompt(null)}>Cancel</button>
+              <button className="button button-primary" type="submit" disabled={committing}>Continue</button>
+            </footer>
+          </form>
+        </div>
       )}
     </main>
   );
