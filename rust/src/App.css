@@ -154,3 +154,7 @@
   grid-column: 2;
   font-size: 12px;
 }
+
+.load-more {
+  margin-top: 16px;
+}

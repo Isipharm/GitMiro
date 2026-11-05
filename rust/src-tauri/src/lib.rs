@@ -6,8 +6,9 @@ use std::{
     thread,
 };
 
-const MAX_GIT_STDOUT_BYTES: usize = 256 * 1024;
+const MAX_GIT_STDOUT_BYTES: usize = 512 * 1024;
 const MAX_GIT_STDERR_BYTES: usize = 16 * 1024;
+const COMMIT_PAGE_SIZE: usize = 500;
 
 #[derive(Serialize)]
 struct Commit {
@@ -22,7 +23,15 @@ struct RepositorySummary {
     path: String,
     name: String,
     branch: String,
+    history_head: Option<String>,
     commits: Vec<Commit>,
+    has_more_commits: bool,
+}
+
+#[derive(Serialize)]
+struct CommitPage {
+    commits: Vec<Commit>,
+    has_more_commits: bool,
 }
 
 fn read_capped(mut reader: impl Read, limit: usize) -> io::Result<(Vec<u8>, bool)> {
@@ -66,7 +75,7 @@ fn collect_output(mut child: Child) -> Result<Output, String> {
         .map_err(|error| format!("Could not read Git error output: {error}"))?;
 
     if stdout_truncated {
-        return Err("Git output exceeded the 256 KiB limit".to_owned());
+        return Err("Git output exceeded the 512 KiB limit".to_owned());
     }
     if stderr_truncated {
         stderr.extend_from_slice(b"\n[Git error output truncated]");
@@ -116,8 +125,8 @@ fn parse_commits(output: &str) -> Vec<Commit> {
         .filter(|fields| !fields[0].trim_matches(['\r', '\n']).is_empty())
         .map(|fields| Commit {
             id: fields[0].trim_matches(['\r', '\n']).to_owned(),
-            subject: fields[1].to_owned(),
-            author: fields[2].to_owned(),
+            subject: fields[1].trim_end().to_owned(),
+            author: fields[2].trim_end().to_owned(),
             date: fields[3].trim_end_matches(['\r', '\n']).to_owned(),
         })
         .collect()
@@ -137,26 +146,73 @@ fn current_branch(path: &Path) -> Result<String, String> {
     Err(String::from_utf8_lossy(&output.stderr).trim().to_owned())
 }
 
+fn repository_root(path: &Path) -> Result<String, String> {
+    if !path.is_dir() {
+        return Err("Selected path is not a directory".to_owned());
+    }
+    git_text(path, &["rev-parse", "--show-toplevel"])
+}
+
+fn history_head(path: &Path) -> Result<Option<String>, String> {
+    let output = git_output(path, &["rev-parse", "--verify", "--quiet", "HEAD^{commit}"])?;
+    if output.status.success() {
+        return Ok(Some(
+            String::from_utf8_lossy(&output.stdout)
+                .trim_end_matches(['\r', '\n'])
+                .to_owned(),
+        ));
+    }
+    if output.stderr.is_empty() {
+        return Ok(None);
+    }
+    Err(String::from_utf8_lossy(&output.stderr).trim().to_owned())
+}
+
+fn is_commit_id(value: &str) -> bool {
+    matches!(value.len(), 40 | 64) && value.bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
+fn commit_page(path: &Path, history_head: Option<&str>, skip: usize) -> Result<CommitPage, String> {
+    let Some(history_head) = history_head else {
+        return Ok(page_commits(Vec::new()));
+    };
+    if !is_commit_id(history_head) {
+        return Err("Invalid history commit ID".to_owned());
+    }
+
+    let skip_arg = format!("--skip={skip}");
+    let limit_arg = format!("--max-count={}", COMMIT_PAGE_SIZE + 1);
+    let output = git_text(
+        path,
+        &[
+            "log",
+            &skip_arg,
+            &limit_arg,
+            history_head,
+            "--format=%h%x00%<(256,trunc)%s%x00%<(256,trunc)%an%x00%aI%x00",
+        ],
+    )?;
+    Ok(page_commits(parse_commits(&output)))
+}
+
+fn page_commits(mut commits: Vec<Commit>) -> CommitPage {
+    let has_more_commits = commits.len() > COMMIT_PAGE_SIZE;
+    commits.truncate(COMMIT_PAGE_SIZE);
+    CommitPage {
+        commits,
+        has_more_commits,
+    }
+}
+
 #[tauri::command]
 async fn open_repository(path: String) -> Result<RepositorySummary, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let selected = Path::new(&path);
-        if !selected.is_dir() {
-            return Err("Selected path is not a directory".to_owned());
-        }
-
-        let root_path = git_text(selected, &["rev-parse", "--show-toplevel"])?;
+        let root_path = repository_root(selected)?;
         let root = Path::new(&root_path);
         let branch = current_branch(root)?;
-        let log = git_text(
-            root,
-            &[
-                "log",
-                "-n",
-                "20",
-                "--format=%h%x00%<(256,trunc)%s%x00%<(256,trunc)%an%x00%aI%x00",
-            ],
-        )?;
+        let history_head = history_head(root)?;
+        let page = commit_page(root, history_head.as_deref(), 0)?;
 
         Ok(RepositorySummary {
             path: root.display().to_string(),
@@ -166,8 +222,24 @@ async fn open_repository(path: String) -> Result<RepositorySummary, String> {
                 .unwrap_or("Repository")
                 .to_owned(),
             branch,
-            commits: parse_commits(&log),
+            history_head,
+            commits: page.commits,
+            has_more_commits: page.has_more_commits,
         })
+    })
+    .await
+    .map_err(|error| format!("Could not read repository: {error}"))?
+}
+
+#[tauri::command]
+async fn load_more_commits(
+    path: String,
+    history_head: String,
+    skip: usize,
+) -> Result<CommitPage, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let root_path = repository_root(Path::new(&path))?;
+        commit_page(Path::new(&root_path), Some(&history_head), skip)
     })
     .await
     .map_err(|error| format!("Could not read repository: {error}"))?
@@ -177,14 +249,17 @@ async fn open_repository(path: String) -> Result<RepositorySummary, String> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![open_repository])
+        .invoke_handler(tauri::generate_handler![open_repository, load_more_commits])
         .run(tauri::generate_context!())
         .expect("failed to run GitMiro");
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{MAX_GIT_STDERR_BYTES, collect_output, current_branch, parse_commits, read_capped};
+    use super::{
+        COMMIT_PAGE_SIZE, Commit, MAX_GIT_STDERR_BYTES, collect_output, commit_page,
+        current_branch, history_head, is_commit_id, page_commits, parse_commits, read_capped,
+    };
 
     #[test]
     fn caps_reader_output_and_reports_truncation() {
@@ -235,6 +310,74 @@ mod tests {
         assert_eq!(commits[0].date, "2026-11-04T10:00:00+01:00");
         assert_eq!(commits[1].id, "def456");
         assert_eq!(commits[1].author, "Ada");
+    }
+
+    #[test]
+    fn paginates_commits_without_dropping_the_next_page_marker() {
+        let commits = |count| {
+            (0..count)
+                .map(|id| Commit {
+                    id: id.to_string(),
+                    subject: String::new(),
+                    author: String::new(),
+                    date: String::new(),
+                })
+                .collect()
+        };
+
+        let page = page_commits(commits(COMMIT_PAGE_SIZE + 1));
+
+        assert_eq!(page.commits.len(), COMMIT_PAGE_SIZE);
+        assert!(page.has_more_commits);
+        assert!(!page_commits(commits(COMMIT_PAGE_SIZE)).has_more_commits);
+    }
+
+    #[test]
+    fn pagination_only_accepts_full_commit_ids() {
+        assert!(is_commit_id(&"a".repeat(40)));
+        assert!(is_commit_id(&"a".repeat(64)));
+        assert!(!is_commit_id("HEAD~1"));
+        assert!(!is_commit_id(&"g".repeat(40)));
+    }
+
+    #[test]
+    fn pagination_stays_on_the_head_captured_when_repository_opens() {
+        use std::{
+            fs,
+            process::Command,
+            time::{SystemTime, UNIX_EPOCH},
+        };
+
+        let path = std::env::temp_dir().join(format!(
+            "gitmiro-pinned-history-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir(&path).unwrap();
+        let run_git = |args: &[&str]| {
+            let status = Command::new("git")
+                .arg("-C")
+                .arg(&path)
+                .args(args)
+                .status()
+                .unwrap();
+            assert!(status.success());
+        };
+        run_git(&["init", "--quiet"]);
+        run_git(&["config", "user.name", "GitMiro Test"]);
+        run_git(&["config", "user.email", "gitmiro-test@example.invalid"]);
+        run_git(&["commit", "--allow-empty", "-m", "initial", "--quiet"]);
+        let initial_head = history_head(&path).unwrap().unwrap();
+        run_git(&["commit", "--allow-empty", "-m", "later", "--quiet"]);
+
+        let page = commit_page(&path, Some(&initial_head), 0).unwrap();
+
+        let _ = fs::remove_dir_all(&path);
+        assert_eq!(page.commits.len(), 1);
+        assert_eq!(page.commits[0].subject, "initial");
     }
 
     #[test]
