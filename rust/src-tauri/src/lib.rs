@@ -1814,12 +1814,10 @@ u UU N... 100644 100644 100644 100644 abc abc abc conflict.txt\0\
         let _ = fs::remove_dir_all(&path);
     }
 
-    #[cfg(unix)]
     #[test]
     fn returns_hook_stderr_and_keeps_commit_draft_on_rejection() {
         use std::{
             fs,
-            os::unix::fs::PermissionsExt,
             process::Command,
             time::{SystemTime, UNIX_EPOCH},
         };
@@ -1858,13 +1856,17 @@ u UU N... 100644 100644 100644 100644 abc abc abc conflict.txt\0\
             "#!/bin/sh\necho 'hook stdout reason'\necho 'hook stderr reason' >&2\nexit 1\n",
         )
         .unwrap();
+        #[cfg(unix)]
         fs::set_permissions(&hook, fs::Permissions::from_mode(0o755)).unwrap();
         run_git(&["config", "core.hooksPath", "hooks"]);
         fs::write(path.join("staged.txt"), "staged\n").unwrap();
         run_git(&["add", "staged.txt"]);
         write_commit_message(&path, "draft survives").unwrap();
 
-        let error = commit_changes(&path, "draft survives", false, None, false).unwrap_err();
+        let error = match commit_changes(&path, "draft survives", false, None, false) {
+            Ok(_) => panic!("hook should reject the commit"),
+            Err(error) => error,
+        };
 
         assert!(error.contains("hook stdout reason"));
         assert!(error.contains("hook stderr reason"));
