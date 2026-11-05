@@ -166,6 +166,7 @@ function App() {
 
   async function openRepositoryPath(path: string) {
     const opened = await invoke<RepositorySummary>("open_repository", { path });
+    statusRefreshRef.current++;
     setStatusError(null);
     setRepository(opened);
     setRecentRepositories((current) => [opened.path, ...current.filter((recent) => recent !== opened.path)]);
