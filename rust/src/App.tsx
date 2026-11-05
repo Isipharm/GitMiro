@@ -2,7 +2,10 @@ import "./App.css";
 import { open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { type CSSProperties, useEffect, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
+import { reachableCommitIds } from "./history-filter";
+
+type GraphState = { reserved_lanes: Record<string, string> };
 
 type RepositorySummary = {
   path: string;
@@ -12,7 +15,7 @@ type RepositorySummary = {
   history_refs: { tips: string[]; references: GitReference[] };
   commits: Commit[];
   has_more_commits: boolean;
-  graph_state: Record<string, string>;
+  graph_state: GraphState;
   status: RepositoryStatus;
 };
 
@@ -98,9 +101,11 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
   const [opening, setOpening] = useState(false);
+  const [historyFilter, setHistoryFilter] = useState("");
   const [loadingMore, setLoadingMore] = useState(false);
   const openingRef = useRef(false);
   const loadingMoreRef = useRef(false);
+  const historyRequestRef = useRef(0);
   const statusRefreshRef = useRef(0);
   const repositoryHeadingRef = useRef<HTMLHeadingElement>(null);
   const recentRepositoryRefs = useRef<Array<HTMLButtonElement | null>>([]);
@@ -166,6 +171,10 @@ function App() {
 
   async function openRepositoryPath(path: string) {
     const opened = await invoke<RepositorySummary>("open_repository", { path });
+    historyRequestRef.current++;
+    loadingMoreRef.current = false;
+    setLoadingMore(false);
+    setHistoryFilter("");
     statusRefreshRef.current++;
     setStatusError(null);
     setRepository(opened);
@@ -203,8 +212,17 @@ function App() {
     path.toLocaleLowerCase().includes(recentFilter.toLocaleLowerCase()),
   );
 
+  const branchReference = repository?.history_refs.references.find(
+    ({ kind, name }) => kind === "local" && name === historyFilter,
+  );
+  const reachableCommits = useMemo(() => {
+    if (!repository || !historyFilter || !branchReference) return null;
+    return reachableCommitIds(repository.commits, branchReference.id);
+  }, [repository?.commits, branchReference, historyFilter]);
+
   async function loadMoreCommits() {
     if (!repository || !repository.has_more_commits || loadingMoreRef.current) return;
+    const requestId = historyRequestRef.current;
     loadingMoreRef.current = true;
     setLoadingMore(true);
     setError(null);
@@ -215,19 +233,23 @@ function App() {
         skip: repository.commits.length,
         graphState: repository.graph_state,
       });
-      setRepository((current) => current?.path === repository.path && current.history_head === repository.history_head
-        ? {
-          ...current,
-          commits: [...current.commits, ...page.commits],
-          has_more_commits: page.has_more_commits,
-          graph_state: page.graph_state,
-        }
-        : current);
+      if (requestId === historyRequestRef.current) {
+        setRepository((current) => current?.path === repository.path && current.history_head === repository.history_head
+          ? {
+            ...current,
+            commits: [...current.commits, ...page.commits],
+            has_more_commits: page.has_more_commits,
+            graph_state: page.graph_state,
+          }
+          : current);
+      }
     } catch (error) {
-      setError(String(error));
+      if (requestId === historyRequestRef.current) setError(String(error));
     } finally {
-      loadingMoreRef.current = false;
-      setLoadingMore(false);
+      if (requestId === historyRequestRef.current) {
+        loadingMoreRef.current = false;
+        setLoadingMore(false);
+      }
     }
   }
 
@@ -274,13 +296,26 @@ function App() {
               );
             })}
           </div>
-          <h2>Commit history</h2>
+          <div className="commit-history-heading">
+            <h2>Commit history</h2>
+            <label htmlFor="history-branch-filter">Branch</label>
+            <select
+              id="history-branch-filter"
+              value={historyFilter}
+              onChange={(event) => setHistoryFilter(event.target.value)}
+            >
+              <option value="">All branches</option>
+              {repository.history_refs.references
+                .filter(({ kind }) => kind === "local")
+                .map(({ name }) => <option value={name} key={name}>{name}</option>)}
+            </select>
+          </div>
           {error && <p className="error-message" role="alert">{error}</p>}
           {repository.commits.length ? (
             <div className="commit-history" style={{ "--graph-width": `${Math.max(40, Math.max(...repository.commits.map(({ lane }) => lane)) * GRAPH_LANE_WIDTH + 36)}px` } as CSSProperties}>
               <ol className="commit-list">
                 {repository.commits.map((commit) => (
-                  <li key={commit.id}>
+                  <li className={reachableCommits && !reachableCommits.has(commit.id) ? "commit-dimmed" : undefined} key={commit.id}>
                     <CommitGraph commit={commit} />
                     <code>{commit.id.slice(0, 7)}</code>
                     <span className="commit-refs">

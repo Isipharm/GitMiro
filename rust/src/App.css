@@ -377,6 +377,10 @@
   white-space: nowrap;
 }
 
+.commit-dimmed .commit-subject {
+  color: var(--ink-muted);
+}
+
 .commit-meta {
   grid-column: 4;
   grid-row: 2;
@@ -385,4 +389,36 @@
 
 .load-more {
   margin-top: 16px;
+}
+
+.commit-history-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.repository-view .commit-history-heading h2 {
+  margin: 0 auto 0 0;
+}
+
+.commit-history-heading label {
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+
+.commit-history-heading select {
+  min-height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--ink);
+  background: var(--surface);
+  font: inherit;
+  font-size: 12px;
+}
+
+.commit-history-heading select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }

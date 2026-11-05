@@ -27,6 +27,9 @@ jobs:
       - name: Install frontend dependencies
         working-directory: rust
         run: npm ci
+      - name: Test frontend history filtering
+        working-directory: rust
+        run: npm test
       - name: Check Rust formatting
         working-directory: rust/src-tauri
         run: cargo fmt --check
