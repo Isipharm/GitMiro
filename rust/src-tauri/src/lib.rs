@@ -86,6 +86,13 @@ enum StatusGroup {
     Unstaged,
 }
 
+#[derive(Clone, Copy, Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum ConflictSide {
+    Current,
+    Incoming,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "lowercase")]
 enum FileDiffKind {
@@ -96,9 +103,33 @@ enum FileDiffKind {
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+enum ConflictVersionKind {
+    Text,
+    Binary,
+    Submodule,
+    Deleted,
+    TooLarge,
+}
+
+#[derive(Serialize)]
+struct ConflictVersion {
+    kind: ConflictVersionKind,
+    content: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct ConflictStage {
+    mode: Vec<u8>,
+    object_id: Vec<u8>,
+}
+
+#[derive(Serialize)]
 struct FileDiff {
     kind: FileDiffKind,
     patch: Option<String>,
+    current: Option<ConflictVersion>,
+    incoming: Option<ConflictVersion>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -169,6 +200,11 @@ fn collect_output_with_truncated_stdout(child: Child) -> Result<(Output, bool), 
 fn collect_output_killing_on_truncation(child: Child) -> Result<Output, String> {
     let mut child = child;
     collect_output_inner(&mut child, None, false, true).map(|(output, _)| output)
+}
+
+fn collect_output_capped_and_killing_on_truncation(child: Child) -> Result<(Output, bool), String> {
+    let mut child = child;
+    collect_output_inner(&mut child, None, true, true)
 }
 
 fn collect_output_inner(
@@ -266,12 +302,7 @@ fn git_output(path: &Path, args: &[&str], locale: Option<&str>) -> Result<Output
     collect_output(child)
 }
 
-fn git_output_with_paths(
-    path: &Path,
-    args: &[&str],
-    paths: &[&OsStr],
-    kill_on_truncated_stdout: bool,
-) -> Result<Output, String> {
+fn git_child_with_paths(path: &Path, args: &[&str], paths: &[&OsStr]) -> Result<Child, String> {
     let mut command = Command::new("git");
     command
         .arg("-C")
@@ -280,14 +311,32 @@ fn git_output_with_paths(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     command.args(paths);
-    let child = command
+    command
         .spawn()
-        .map_err(|error| format!("Could not start Git: {error}"))?;
+        .map_err(|error| format!("Could not start Git: {error}"))
+}
+
+fn git_output_with_paths(
+    path: &Path,
+    args: &[&str],
+    paths: &[&OsStr],
+    kill_on_truncated_stdout: bool,
+) -> Result<Output, String> {
+    let child = git_child_with_paths(path, args, paths)?;
     if kill_on_truncated_stdout {
         collect_output_killing_on_truncation(child)
     } else {
         collect_output(child)
     }
+}
+
+fn git_output_with_paths_capped(
+    path: &Path,
+    args: &[&str],
+    paths: &[&OsStr],
+) -> Result<(Output, bool), String> {
+    let child = git_child_with_paths(path, args, paths)?;
+    collect_output_capped_and_killing_on_truncation(child)
 }
 
 fn git_output_with_input(path: &Path, args: &[&str], input: &[u8]) -> Result<Output, String> {
@@ -564,6 +613,205 @@ fn is_gitlink(path: &Path, path_bytes: &[u8]) -> Result<bool, String> {
     }))
 }
 
+fn conflict_stages(path: &Path, path_bytes: &[u8]) -> Result<BTreeMap<u8, ConflictStage>, String> {
+    let path_argument = git_path_os_string(path_bytes)?;
+    let args = ["--literal-pathspecs", "ls-files", "--stage", "-z", "--"];
+    let index = git_output_with_paths(path, &args, &[path_argument.as_os_str()], false)?;
+    if !index.status.success() {
+        return Err(String::from_utf8_lossy(&index.stderr).trim().to_owned());
+    }
+
+    let mut stages = BTreeMap::new();
+    for record in index.stdout.split(|byte| *byte == 0) {
+        let Some(separator) = record.iter().position(|byte| *byte == b'\t') else {
+            continue;
+        };
+        if &record[separator + 1..] != path_bytes {
+            continue;
+        }
+        let fields: Vec<_> = record[..separator]
+            .split(|byte| *byte == b' ')
+            .filter(|field| !field.is_empty())
+            .collect();
+        if fields.len() != 3 {
+            return Err("Git returned an invalid conflict index entry".to_owned());
+        }
+        let stage = match fields[2] {
+            b"0" => 0,
+            b"1" => 1,
+            b"2" => 2,
+            b"3" => 3,
+            _ => return Err("Git returned an invalid index stage".to_owned()),
+        };
+        if !matches!(fields[1].len(), 40 | 64) || !fields[1].iter().all(u8::is_ascii_hexdigit) {
+            return Err("Git returned an invalid conflict object ID".to_owned());
+        }
+        if stages
+            .insert(
+                stage,
+                ConflictStage {
+                    mode: fields[0].to_vec(),
+                    object_id: fields[1].to_vec(),
+                },
+            )
+            .is_some()
+        {
+            return Err("Git returned duplicate conflict stages".to_owned());
+        }
+    }
+    Ok(stages)
+}
+
+fn resolve_conflict_side(
+    path: &Path,
+    path_bytes: &[u8],
+    side: ConflictSide,
+) -> Result<RepositoryStatus, String> {
+    if path_bytes.is_empty() || path_bytes.len() > MAX_GIT_STDOUT_BYTES || path_bytes.contains(&0) {
+        return Err("Invalid Git path".to_owned());
+    }
+    let status = repository_status(path)?;
+    if !status
+        .unstaged
+        .iter()
+        .any(|entry| entry.kind == StatusKind::Conflicting && entry.path_bytes == path_bytes)
+    {
+        return Err("The selected file is no longer in conflict".to_owned());
+    }
+
+    let stages = conflict_stages(path, path_bytes)?;
+    let (stage, other_stage) = match side {
+        ConflictSide::Current => (2, 3),
+        ConflictSide::Incoming => (3, 2),
+    };
+    let side_exists = stages.contains_key(&stage);
+    if !side_exists && !stages.contains_key(&other_stage) {
+        return Err("The selected file is no longer in conflict".to_owned());
+    }
+    let expected = stages.get(&stage).map(|entry| ConflictStage {
+        mode: entry.mode.clone(),
+        object_id: entry.object_id.clone(),
+    });
+
+    let path_argument = git_path_os_string(path_bytes)?;
+    // shortcut: Git CLI has no conditional index transaction; compare the full snapshot before mutation.
+    if conflict_stages(path, path_bytes)? != stages {
+        return Err("Conflict changed while resolving; review the file again".to_owned());
+    }
+    let status = repository_status(path)?;
+    if !status
+        .unstaged
+        .iter()
+        .any(|entry| entry.kind == StatusKind::Conflicting && entry.path_bytes == path_bytes)
+    {
+        return Err("The selected file is no longer in conflict".to_owned());
+    }
+    let args = if side_exists {
+        match side {
+            ConflictSide::Current => vec!["--literal-pathspecs", "checkout", "--ours", "--"],
+            ConflictSide::Incoming => vec!["--literal-pathspecs", "checkout", "--theirs", "--"],
+        }
+    } else {
+        vec!["--literal-pathspecs", "rm", "--force", "--"]
+    };
+    let output = git_output_with_paths(path, &args, &[path_argument.as_os_str()], false)?;
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).trim().to_owned());
+    }
+    if side_exists {
+        let expected = expected
+            .as_ref()
+            .ok_or_else(|| "The selected conflict side is unavailable".to_owned())?;
+        let current_stages = conflict_stages(path, path_bytes)?;
+        if !current_stages.get(&stage).is_some_and(|entry| {
+            entry.mode == expected.mode && entry.object_id == expected.object_id
+        }) {
+            return Err("Conflict changed while resolving; review the file again".to_owned());
+        }
+        let args = ["--literal-pathspecs", "add", "--"];
+        let output = git_output_with_paths(path, &args, &[path_argument.as_os_str()], false)?;
+        if !output.status.success() {
+            return Err(String::from_utf8_lossy(&output.stderr).trim().to_owned());
+        }
+        let current_stages = conflict_stages(path, path_bytes)?;
+        if current_stages.len() != 1
+            || !current_stages.get(&0).is_some_and(|entry| {
+                entry.mode == expected.mode && entry.object_id == expected.object_id
+            })
+        {
+            return Err("File changed while resolving; review its staged content".to_owned());
+        }
+    } else if !conflict_stages(path, path_bytes)?.is_empty() {
+        return Err("Index changed while resolving; review the file again".to_owned());
+    }
+    let status = repository_status(path)?;
+    if status
+        .unstaged
+        .iter()
+        .any(|entry| entry.path_bytes == path_bytes)
+    {
+        return Err("Worktree changed while resolving; review the file again".to_owned());
+    }
+    Ok(status)
+}
+
+fn conflict_versions(
+    path: &Path,
+    path_bytes: &[u8],
+) -> Result<(ConflictVersion, ConflictVersion), String> {
+    let stages = conflict_stages(path, path_bytes)?;
+    if !stages.contains_key(&2) && !stages.contains_key(&3) {
+        return Err("The selected file is no longer in conflict".to_owned());
+    }
+
+    let mut versions = Vec::with_capacity(2);
+    for stage in [stages.get(&2), stages.get(&3)] {
+        let Some(stage) = stage else {
+            versions.push(ConflictVersion {
+                kind: ConflictVersionKind::Deleted,
+                content: None,
+            });
+            continue;
+        };
+        let object_id = String::from_utf8(stage.object_id.clone())
+            .map_err(|_| "Git returned an invalid conflict object ID".to_owned())?;
+        if stage.mode == b"160000" {
+            versions.push(ConflictVersion {
+                kind: ConflictVersionKind::Submodule,
+                content: Some(object_id),
+            });
+            continue;
+        }
+        let (output, truncated) =
+            git_output_with_paths_capped(path, &["cat-file", "blob", &object_id], &[])?;
+        if truncated {
+            versions.push(ConflictVersion {
+                kind: ConflictVersionKind::TooLarge,
+                content: None,
+            });
+            continue;
+        }
+        if !output.status.success() {
+            return Err(String::from_utf8_lossy(&output.stderr).trim().to_owned());
+        }
+        if output.stdout.contains(&0) {
+            versions.push(ConflictVersion {
+                kind: ConflictVersionKind::Binary,
+                content: None,
+            });
+        } else {
+            versions.push(ConflictVersion {
+                kind: ConflictVersionKind::Text,
+                content: Some(String::from_utf8_lossy(&output.stdout).into_owned()),
+            });
+        }
+    }
+    let [current, incoming] = versions
+        .try_into()
+        .map_err(|_| "Git returned an invalid number of conflict sides".to_owned())?;
+    Ok((current, incoming))
+}
+
 fn file_diff(path: &Path, path_bytes: &[u8], group: StatusGroup) -> Result<FileDiff, String> {
     if path_bytes.is_empty() || path_bytes.len() > MAX_GIT_STDOUT_BYTES || path_bytes.contains(&0) {
         return Err("Invalid Git path".to_owned());
@@ -580,6 +828,15 @@ fn file_diff(path: &Path, path_bytes: &[u8], group: StatusGroup) -> Result<FileD
             .find(|entry| entry.path_bytes == path_bytes),
     }
     .ok_or_else(|| "The file is no longer in this change list".to_owned())?;
+    if entry.kind == StatusKind::Conflicting {
+        let (current, incoming) = conflict_versions(path, path_bytes)?;
+        return Ok(FileDiff {
+            kind: FileDiffKind::Conflict,
+            patch: None,
+            current: Some(current),
+            incoming: Some(incoming),
+        });
+    }
     let untracked = group == StatusGroup::Unstaged && entry.kind == StatusKind::Added;
     let path_argument = git_path_os_string(path_bytes)?;
     let mut args = vec!["--literal-pathspecs", "diff"];
@@ -597,9 +854,6 @@ fn file_diff(path: &Path, path_bytes: &[u8], group: StatusGroup) -> Result<FileD
         "--submodule=short",
         "--unified=3",
     ]);
-    if entry.kind == StatusKind::Conflicting {
-        args.push("--cc");
-    }
     args.push("--");
     #[cfg(windows)]
     let null_device = OsStr::new("NUL");
@@ -614,12 +868,6 @@ fn file_diff(path: &Path, path_bytes: &[u8], group: StatusGroup) -> Result<FileD
     if !(output.status.success() || untracked && output.status.code() == Some(1)) {
         return Err(String::from_utf8_lossy(&output.stderr).trim().to_owned());
     }
-    if entry.kind == StatusKind::Conflicting {
-        return Ok(FileDiff {
-            kind: FileDiffKind::Conflict,
-            patch: String::from_utf8(output.stdout).ok(),
-        });
-    }
     let is_binary = output.stdout.split(|byte| *byte == b'\n').any(|line| {
         let line = line.strip_suffix(b"\r").unwrap_or(line);
         line.starts_with(b"Binary files ") && line.ends_with(b" differ")
@@ -628,12 +876,16 @@ fn file_diff(path: &Path, path_bytes: &[u8], group: StatusGroup) -> Result<FileD
         return Ok(FileDiff {
             kind: FileDiffKind::Binary,
             patch: None,
+            current: None,
+            incoming: None,
         });
     }
     let Ok(patch) = String::from_utf8(output.stdout) else {
         return Ok(FileDiff {
             kind: FileDiffKind::Binary,
             patch: None,
+            current: None,
+            incoming: None,
         });
     };
     let kind = if patch.lines().any(|line| line.starts_with("Submodule ")) {
@@ -644,6 +896,8 @@ fn file_diff(path: &Path, path_bytes: &[u8], group: StatusGroup) -> Result<FileD
     Ok(FileDiff {
         kind,
         patch: Some(patch),
+        current: None,
+        incoming: None,
     })
 }
 
@@ -1009,6 +1263,20 @@ async fn get_file_diff(
 }
 
 #[tauri::command]
+async fn resolve_conflict_file(
+    path: String,
+    path_bytes: Vec<u8>,
+    side: ConflictSide,
+) -> Result<RepositoryStatus, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let root_path = repository_root(Path::new(&path))?;
+        resolve_conflict_side(Path::new(&root_path), &path_bytes, side)
+    })
+    .await
+    .map_err(|error| format!("Could not resolve conflict: {error}"))?
+}
+
+#[tauri::command]
 async fn stage_status_entry(path: String, path_bytes: Vec<u8>) -> Result<RepositoryStatus, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let root_path = repository_root(Path::new(&path))?;
@@ -1056,6 +1324,7 @@ pub fn run() {
             load_more_commits,
             refresh_repository_status,
             get_file_diff,
+            resolve_conflict_file,
             stage_status_entry,
             unstage_status_entry
         ])
@@ -1066,11 +1335,12 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::{
-        COMMIT_PAGE_SIZE, Commit, FileDiffKind, GraphState, MAX_GIT_STDERR_BYTES,
-        MAX_GIT_STDOUT_BYTES, StatusGroup, StatusKind, collect_output, commit_page, current_branch,
-        file_diff, history_head, history_refs, is_commit_id, is_gitlink, page_commits,
-        parse_commits, parse_status, read_capped, repository_root, repository_status,
-        stage_status_path, unstage_status_path, validate_graph_state,
+        COMMIT_PAGE_SIZE, Commit, ConflictSide, ConflictVersionKind, FileDiffKind, GraphState,
+        MAX_GIT_STDERR_BYTES, MAX_GIT_STDOUT_BYTES, StatusGroup, StatusKind, collect_output,
+        commit_page, current_branch, file_diff, history_head, history_refs, is_commit_id,
+        is_gitlink, page_commits, parse_commits, parse_status, read_capped, repository_root,
+        repository_status, resolve_conflict_side, stage_status_path, unstage_status_path,
+        validate_graph_state,
     };
 
     #[test]
@@ -1328,6 +1598,134 @@ u UU N... 100644 100644 100644 100644 abc abc abc conflict.txt\0\
             fs::read_to_string(path.join("new.txt")).unwrap(),
             "keep this worktree content\n"
         );
+        let _ = fs::remove_dir_all(&path);
+    }
+
+    #[test]
+    fn resolves_conflicts_by_exact_requested_side() {
+        use std::{
+            fs,
+            process::Command,
+            time::{SystemTime, UNIX_EPOCH},
+        };
+
+        let path = std::env::temp_dir().join(format!(
+            "gitmiro-conflict-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir(&path).unwrap();
+        let run_git = |args: &[&str]| {
+            let status = Command::new("git")
+                .arg("-C")
+                .arg(&path)
+                .args(args)
+                .status()
+                .unwrap();
+            assert!(status.success(), "git {args:?} failed");
+        };
+        run_git(&["init", "--quiet"]);
+        run_git(&["config", "user.name", "GitMiro Test"]);
+        run_git(&["config", "user.email", "gitmiro-test@example.invalid"]);
+        run_git(&["config", "commit.gpgsign", "false"]);
+        run_git(&["config", "core.autocrlf", "false"]);
+        run_git(&["config", "core.hooksPath", ".git/gitmiro-test-hooks"]);
+        fs::create_dir(path.join(".git/gitmiro-test-hooks")).unwrap();
+        fs::write(path.join("conflict[1].txt"), "base\n").unwrap();
+        fs::write(path.join("delete.txt"), "base\n").unwrap();
+        fs::write(path.join("invalid.txt"), b"base\n").unwrap();
+        fs::write(path.join("large.txt"), b"base\n").unwrap();
+        run_git(&["add", "--all"]);
+        run_git(&["commit", "--quiet", "-m", "base"]);
+        run_git(&["branch", "current"]);
+        run_git(&["checkout", "--quiet", "-b", "incoming"]);
+        fs::write(path.join("conflict[1].txt"), "incoming\n").unwrap();
+        fs::write(path.join("invalid.txt"), b"incoming-\xff\n").unwrap();
+        fs::write(
+            path.join("large.txt"),
+            "incoming\n".repeat(MAX_GIT_STDOUT_BYTES / 9 + 2),
+        )
+        .unwrap();
+        fs::remove_file(path.join("delete.txt")).unwrap();
+        run_git(&["add", "--all"]);
+        run_git(&["commit", "--quiet", "-m", "incoming"]);
+        run_git(&["checkout", "--quiet", "current"]);
+        fs::write(path.join("conflict[1].txt"), "current\n").unwrap();
+        fs::write(path.join("invalid.txt"), b"current-\xff\n").unwrap();
+        fs::write(
+            path.join("large.txt"),
+            "current\n".repeat(MAX_GIT_STDOUT_BYTES / 8 + 2),
+        )
+        .unwrap();
+        fs::write(path.join("delete.txt"), "current\n").unwrap();
+        run_git(&["add", "--all"]);
+        run_git(&["commit", "--quiet", "-m", "current"]);
+        let merge = Command::new("git")
+            .arg("-C")
+            .arg(&path)
+            .args(["merge", "--no-edit", "incoming"])
+            .status()
+            .unwrap();
+        assert!(!merge.success(), "merge should create conflicts");
+
+        let diff = file_diff(&path, b"conflict[1].txt", StatusGroup::Unstaged).unwrap();
+        assert!(matches!(diff.kind, FileDiffKind::Conflict));
+        assert_eq!(diff.current.unwrap().content.as_deref(), Some("current\n"));
+        assert_eq!(
+            diff.incoming.unwrap().content.as_deref(),
+            Some("incoming\n")
+        );
+        let diff = file_diff(&path, b"delete.txt", StatusGroup::Unstaged).unwrap();
+        assert!(matches!(
+            diff.incoming.unwrap().kind,
+            ConflictVersionKind::Deleted
+        ));
+        let diff = file_diff(&path, b"invalid.txt", StatusGroup::Unstaged).unwrap();
+        let current = diff.current.unwrap();
+        assert!(matches!(current.kind, ConflictVersionKind::Text));
+        assert!(current.content.unwrap().contains('\u{fffd}'));
+        let diff = file_diff(&path, b"large.txt", StatusGroup::Unstaged).unwrap();
+        assert!(matches!(
+            diff.current.unwrap().kind,
+            ConflictVersionKind::TooLarge
+        ));
+        assert!(matches!(
+            diff.incoming.unwrap().kind,
+            ConflictVersionKind::TooLarge
+        ));
+
+        let status =
+            resolve_conflict_side(&path, b"conflict[1].txt", ConflictSide::Current).unwrap();
+        assert!(!status.unstaged.iter().any(|entry| {
+            entry.kind == StatusKind::Conflicting && entry.path_bytes == b"conflict[1].txt"
+        }));
+        assert!(
+            !status
+                .staged
+                .iter()
+                .chain(&status.unstaged)
+                .any(|entry| entry.path_bytes == b"conflict[1].txt")
+        );
+        assert_eq!(
+            fs::read_to_string(path.join("conflict[1].txt")).unwrap(),
+            "current\n"
+        );
+
+        let status = resolve_conflict_side(&path, b"delete.txt", ConflictSide::Incoming).unwrap();
+        assert!(!status.unstaged.iter().any(|entry| {
+            entry.kind == StatusKind::Conflicting && entry.path_bytes == b"delete.txt"
+        }));
+        assert!(
+            status
+                .staged
+                .iter()
+                .any(|entry| entry.path == "delete.txt" && entry.kind == StatusKind::Removed)
+        );
+        assert!(!path.join("delete.txt").exists());
+        assert!(resolve_conflict_side(&path, b"conflict[1].txt", ConflictSide::Incoming).is_err());
         let _ = fs::remove_dir_all(&path);
     }
 

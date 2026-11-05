@@ -356,6 +356,56 @@
   font-size: 11px;
 }
 
+.conflict-preview {
+  display: grid;
+  min-height: 0;
+  flex: 1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  overflow: auto;
+  padding: 10px 14px;
+}
+
+.conflict-version {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.conflict-version > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.conflict-version h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.conflict-version > pre {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  margin: 0;
+  padding: 10px;
+  color: var(--ink);
+  font: 11px/1.55 "Geist Mono", monospace;
+  white-space: pre;
+}
+
+.conflict-version > p {
+  padding: 10px;
+}
+
 .file-diff-patch {
   min-height: 0;
   flex: 1;

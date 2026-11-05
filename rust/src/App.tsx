@@ -22,7 +22,13 @@ type RepositorySummary = {
 type RepositoryStatus = { staged: StatusEntry[]; unstaged: StatusEntry[]; truncated: boolean };
 type StatusEntry = { path: string; path_bytes: number[]; kind: "added" | "modified" | "removed" | "conflicting" };
 type StatusGroup = "staged" | "unstaged";
-type FileDiff = { kind: "text" | "binary" | "submodule" | "conflict"; patch: string | null };
+type ConflictVersion = { kind: "text" | "binary" | "submodule" | "deleted" | "tooLarge"; content: string | null };
+type FileDiff = {
+  kind: "text" | "binary" | "submodule" | "conflict";
+  patch: string | null;
+  current: ConflictVersion | null;
+  incoming: ConflictVersion | null;
+};
 
 type Commit = {
   id: string;
@@ -335,6 +341,36 @@ function App() {
     }
   }
 
+  async function resolveConflict(pathBytes: number[], side: "current" | "incoming") {
+    if (!repository || changingStatusRef.current) return;
+    const targetPath = repository.path;
+    changingStatusRef.current = true;
+    setChangingStatus(true);
+    const requestId = ++statusRefreshRef.current;
+    setStatusError(null);
+    try {
+      const status = await invoke<RepositoryStatus>("resolve_conflict_file", {
+        path: targetPath,
+        pathBytes,
+        side,
+      });
+      if (requestId === statusRefreshRef.current) {
+        setRepository((current) => current?.path === targetPath ? { ...current, status } : current);
+        const currentSelection = selectedDiffRef.current;
+        if (currentSelection && samePathBytes(currentSelection.pathBytes, pathBytes)) {
+          const resolvedEntry = status.staged.find((candidate) => samePathBytes(candidate.path_bytes, pathBytes));
+          if (resolvedEntry) void viewFileDiff(resolvedEntry, "staged");
+          else closeFileDiff();
+        }
+      }
+    } catch (error) {
+      if (requestId === statusRefreshRef.current) setStatusError(String(error));
+    } finally {
+      changingStatusRef.current = false;
+      setChangingStatus(false);
+    }
+  }
+
   return (
     <main className="app-shell" aria-label="GitMiro">
       <header className="titlebar" data-tauri-drag-region>
@@ -387,7 +423,44 @@ function App() {
                   {diffLoading && <p className="muted" role="status">Loading diff…</p>}
                   {diffError && <p className="error-message" role="alert">{diffError}</p>}
                   {fileDiff?.kind === "binary" && <p className="muted" role="status">Binary file preview is not available.</p>}
-                  {fileDiff?.kind === "conflict" && <p className="muted" role="status">Combined conflict preview. Side-by-side resolution is not available yet.</p>}
+                  {fileDiff?.kind === "conflict" && (
+                    <>
+                      <p className="muted" role="status">Choose a complete side to resolve and stage this file.</p>
+                      <div className="conflict-preview">
+                        {(["current", "incoming"] as const).map((side) => {
+                          const version = fileDiff[side];
+                          if (!version) return null;
+                          const label = side === "current" ? "Current" : "Incoming";
+                          return (
+                            <section className="conflict-version" aria-label={`${label} side`} key={side}>
+                              <header>
+                                <h3>{label}</h3>
+                                <button
+                                  className="button button-secondary"
+                                  type="button"
+                                  onClick={() => void resolveConflict(selectedDiff.pathBytes, side)}
+                                  disabled={changingStatus}
+                                >
+                                  {version.kind === "deleted" ? `Keep ${side} (delete)` : `Keep ${side}`}
+                                </button>
+                              </header>
+                              {version.kind === "submodule" ? (
+                                <p className="muted" role="status">Submodule commit: {version.content}</p>
+                              ) : version.content !== null ? (
+                                <pre>{version.content}</pre>
+                              ) : (
+                                <p className="muted" role="status">
+                                  {version.kind === "deleted" ? "File is deleted on this side."
+                                    : version.kind === "tooLarge" ? "Side exceeds the 512 KiB preview limit."
+                                      : "Binary side preview is unavailable."}
+                                </p>
+                              )}
+                            </section>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
                   {fileDiff?.kind === "submodule" && <p className="muted" role="status">Submodule change</p>}
                   {fileDiff?.patch ? (
                     <pre className="file-diff-patch">{fileDiff.patch}</pre>
