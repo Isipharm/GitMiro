@@ -60,6 +60,15 @@ type CommitPage = Pick<RepositorySummary, "commits" | "has_more_commits" | "grap
 const GRAPH_COLORS = ["#42a5f5", "#ef5350", "#78909c", "#ff7043", "#66bb6a", "#ec407a"];
 const GRAPH_LANE_WIDTH = 18;
 const COMMIT_ROW_HEIGHT = 50;
+const REFERENCE_GROUPS: Array<{ kind: GitReference["kind"]; label: string }> = [
+  { kind: "local", label: "Local branches" },
+  { kind: "remote", label: "Remotes" },
+  { kind: "tag", label: "Tags" },
+];
+
+function referenceKey(reference: GitReference) {
+  return `${reference.kind}:${reference.name}`;
+}
 
 function samePathBytes(left: number[], right: number[]) {
   return left.length === right.length && left.every((byte, index) => byte === right[index]);
@@ -327,7 +336,7 @@ function App() {
   );
 
   const branchReference = repository?.history_refs.references.find(
-    ({ kind, name }) => kind === "local" && name === historyFilter,
+    (reference) => referenceKey(reference) === historyFilter,
   );
   const reachableCommits = useMemo(() => {
     if (!repository || !historyFilter || !branchReference) return null;
@@ -480,24 +489,31 @@ function App() {
             </button>
           </header>
           <div className="repository-layout">
-            <aside className="reference-sidebar" aria-label="Local branches">
-              <h2>Local branches</h2>
-              <ul>
-                {repository.history_refs.references
-                  .filter(({ kind }) => kind === "local")
-                  .map(({ name }) => (
-                    <li key={name}>
-                      <button
-                        className={name === historyFilter ? "reference-item reference-item-selected" : "reference-item"}
-                        aria-pressed={name === historyFilter}
-                        onClick={() => setHistoryFilter(historyFilter === name ? "" : name)}
-                      >
-                        <span className="reference-dot" aria-hidden="true" />
-                        <span>{name}</span>
-                      </button>
-                    </li>
-                  ))}
-              </ul>
+            <aside className="reference-sidebar" aria-label="Repository references">
+              {REFERENCE_GROUPS.map(({ kind, label }) => (
+                <section className="reference-group" aria-label={label} key={kind}>
+                  <h2>{label}</h2>
+                  <ul>
+                    {repository.history_refs.references
+                      .filter((reference) => reference.kind === kind)
+                      .map((reference) => {
+                        const key = referenceKey(reference);
+                        return (
+                          <li key={key}>
+                            <button
+                              className={key === historyFilter ? "reference-item reference-item-selected" : "reference-item"}
+                              aria-pressed={key === historyFilter}
+                              onClick={() => setHistoryFilter(historyFilter === key ? "" : key)}
+                            >
+                              <span className="reference-dot" aria-hidden="true" />
+                              <span>{reference.name}</span>
+                            </button>
+                          </li>
+                        );
+                      })}
+                  </ul>
+                </section>
+              ))}
             </aside>
             <section className="history-panel" aria-label="Commit history">
               {selectedDiff ? (
@@ -561,16 +577,23 @@ function App() {
                 <>
                   <div className="commit-history-heading">
                     <h2>Commit history</h2>
-                    <label htmlFor="history-branch-filter">Branch</label>
+                    <label htmlFor="history-branch-filter">Reference</label>
                     <select
                       id="history-branch-filter"
                       value={historyFilter}
                       onChange={(event) => setHistoryFilter(event.target.value)}
                     >
-                      <option value="">All branches</option>
-                      {repository.history_refs.references
-                        .filter(({ kind }) => kind === "local")
-                        .map(({ name }) => <option value={name} key={name}>{name}</option>)}
+                      <option value="">All references</option>
+                      {REFERENCE_GROUPS.map(({ kind, label }) => (
+                        <optgroup label={label} key={kind}>
+                          {repository.history_refs.references
+                            .filter((reference) => reference.kind === kind)
+                            .map((reference) => {
+                              const key = referenceKey(reference);
+                              return <option value={key} key={key}>{reference.name}</option>;
+                            })}
+                        </optgroup>
+                      ))}
                     </select>
                   </div>
                   {error && <p className="error-message" role="alert">{error}</p>}

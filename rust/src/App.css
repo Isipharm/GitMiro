@@ -344,6 +344,10 @@
   text-transform: uppercase;
 }
 
+.reference-group + .reference-group {
+  margin-top: 18px;
+}
+
 .reference-sidebar ul {
   margin: 0;
   padding: 0;
