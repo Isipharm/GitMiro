@@ -87,20 +87,25 @@ fn collect_output(mut child: Child) -> Result<Output, String> {
     })
 }
 
-fn git_output(path: &Path, args: &[&str]) -> Result<Output, String> {
-    let child = Command::new("git")
+fn git_output(path: &Path, args: &[&str], locale: Option<&str>) -> Result<Output, String> {
+    let mut command = Command::new("git");
+    command
         .arg("-C")
         .arg(path)
         .args(args)
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
+        .stderr(Stdio::piped());
+    if let Some(locale) = locale {
+        command.env("LC_ALL", locale);
+    }
+    let child = command
         .spawn()
         .map_err(|error| format!("Could not start Git: {error}"))?;
     collect_output(child)
 }
 
 fn git(path: &Path, args: &[&str]) -> Result<Output, String> {
-    let output = git_output(path, args)?;
+    let output = git_output(path, args, None)?;
 
     if !output.status.success() {
         return Err(String::from_utf8_lossy(&output.stderr).trim().to_owned());
@@ -133,7 +138,7 @@ fn parse_commits(output: &str) -> Vec<Commit> {
 }
 
 fn current_branch(path: &Path) -> Result<String, String> {
-    let output = git_output(path, &["symbolic-ref", "--quiet", "--short", "HEAD"])?;
+    let output = git_output(path, &["symbolic-ref", "--quiet", "--short", "HEAD"], None)?;
 
     if output.status.success() {
         return Ok(String::from_utf8_lossy(&output.stdout)
@@ -150,11 +155,28 @@ fn repository_root(path: &Path) -> Result<String, String> {
     if !path.is_dir() {
         return Err("Selected path is not a directory".to_owned());
     }
-    git_text(path, &["rev-parse", "--show-toplevel"])
+    let output = git_output(path, &["rev-parse", "--show-toplevel"], Some("C"))?;
+    if output.status.success() {
+        return Ok(String::from_utf8_lossy(&output.stdout)
+            .trim_end_matches(['\r', '\n'])
+            .to_owned());
+    }
+    let error = String::from_utf8_lossy(&output.stderr);
+    if error.contains("not a git repository") {
+        return Err(
+            "Failed to open repository, could not find a repository in the specified path"
+                .to_owned(),
+        );
+    }
+    Err(error.trim().to_owned())
 }
 
 fn history_head(path: &Path) -> Result<Option<String>, String> {
-    let output = git_output(path, &["rev-parse", "--verify", "--quiet", "HEAD^{commit}"])?;
+    let output = git_output(
+        path,
+        &["rev-parse", "--verify", "--quiet", "HEAD^{commit}"],
+        None,
+    )?;
     if output.status.success() {
         return Ok(Some(
             String::from_utf8_lossy(&output.stdout)
@@ -259,6 +281,7 @@ mod tests {
     use super::{
         COMMIT_PAGE_SIZE, Commit, MAX_GIT_STDERR_BYTES, collect_output, commit_page,
         current_branch, history_head, is_commit_id, page_commits, parse_commits, read_capped,
+        repository_root,
     };
 
     #[test]
@@ -267,6 +290,33 @@ mod tests {
 
         assert_eq!(bytes, b"abcd");
         assert!(truncated);
+    }
+
+    #[test]
+    fn reports_a_clear_error_for_a_directory_without_a_git_repository() {
+        use std::{
+            fs,
+            time::{SystemTime, UNIX_EPOCH},
+        };
+
+        let path = std::env::temp_dir().join(format!(
+            "gitmiro-not-a-repository-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir(&path).unwrap();
+
+        let result = repository_root(&path);
+
+        let _ = fs::remove_dir_all(&path);
+        let error = result.unwrap_err();
+        assert_eq!(
+            error,
+            "Failed to open repository, could not find a repository in the specified path"
+        );
     }
 
     #[cfg(windows)]
