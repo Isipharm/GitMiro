@@ -35,6 +35,7 @@
   --on-accent: #0e0f13;
   --accent-soft: #1d1a33;
   --error: #f87171;
+  --success: #66bb6a;
 }
 
 @media (prefers-color-scheme: light) {
@@ -53,6 +54,7 @@
     --on-accent: #ffffff;
     --accent-soft: #edebfc;
     --error: #d9363e;
+    --success: #2e7d32;
   }
 }
 

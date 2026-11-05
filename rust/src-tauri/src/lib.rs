@@ -60,9 +60,31 @@ struct RepositorySummary {
     branch: String,
     history_head: Option<String>,
     history_refs: HistoryRefs,
+    status: RepositoryStatus,
     commits: Vec<Commit>,
     has_more_commits: bool,
     graph_state: GraphState,
+}
+
+#[derive(Default, Serialize)]
+struct RepositoryStatus {
+    staged: Vec<StatusEntry>,
+    unstaged: Vec<StatusEntry>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+struct StatusEntry {
+    path: String,
+    kind: StatusKind,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "lowercase")]
+enum StatusKind {
+    Added,
+    Modified,
+    Removed,
+    Conflicting,
 }
 
 #[derive(Serialize)]
@@ -219,6 +241,93 @@ fn parse_commits(output: &str) -> Vec<Commit> {
             references: Vec::new(),
         })
         .collect()
+}
+
+fn parse_status(output: &[u8]) -> Result<RepositoryStatus, String> {
+    let mut status = RepositoryStatus::default();
+    let mut records = output.split(|byte| *byte == 0);
+    while let Some(record) = records.next().filter(|record| !record.is_empty()) {
+        let record_type = record[0];
+        if record_type == b'#' || record_type == b'!' {
+            continue;
+        }
+        if record_type == b'?' {
+            let path = record
+                .strip_prefix(b"? ")
+                .ok_or_else(|| "Malformed Git status record".to_owned())?;
+            status.unstaged.push(StatusEntry {
+                path: String::from_utf8_lossy(path).into_owned(),
+                kind: StatusKind::Added,
+            });
+            continue;
+        }
+
+        let field_count = match record_type {
+            b'1' => 9,
+            b'2' => 10,
+            b'u' => 11,
+            _ => return Err("Unsupported Git status record".to_owned()),
+        };
+        let fields = record
+            .splitn(field_count, |byte| *byte == b' ')
+            .collect::<Vec<_>>();
+        if fields.len() != field_count
+            || fields[1].len() != 2
+            || fields.last().is_none_or(|p| p.is_empty())
+        {
+            return Err("Malformed Git status record".to_owned());
+        }
+        if record_type == b'2' {
+            records
+                .next()
+                .ok_or_else(|| "Malformed Git rename record".to_owned())?;
+        }
+
+        let pair = fields[1];
+        let path = String::from_utf8_lossy(fields[field_count - 1]).into_owned();
+        if record_type == b'u' || pair.contains(&b'U') {
+            status.unstaged.push(StatusEntry {
+                path,
+                kind: StatusKind::Conflicting,
+            });
+            continue;
+        }
+        if pair[0] != b'.' {
+            status.staged.push(StatusEntry {
+                path: path.clone(),
+                kind: status_kind(pair[0]),
+            });
+        }
+        if pair[1] != b'.' {
+            status.unstaged.push(StatusEntry {
+                path,
+                kind: status_kind(pair[1]),
+            });
+        }
+    }
+    status
+        .staged
+        .sort_by(|left, right| left.path.cmp(&right.path));
+    status
+        .unstaged
+        .sort_by(|left, right| left.path.cmp(&right.path));
+    Ok(status)
+}
+
+fn status_kind(code: u8) -> StatusKind {
+    match code {
+        b'A' | b'C' | b'?' => StatusKind::Added,
+        b'D' => StatusKind::Removed,
+        _ => StatusKind::Modified,
+    }
+}
+
+fn repository_status(path: &Path) -> Result<RepositoryStatus, String> {
+    let output = git(
+        path,
+        &["status", "--porcelain=v2", "-z", "--untracked-files=all"],
+    )?;
+    parse_status(&output.stdout)
 }
 
 fn graph_reservations_for(state: &mut GraphState, hash: &str) -> Vec<usize> {
@@ -467,6 +576,7 @@ async fn open_repository(path: String) -> Result<RepositorySummary, String> {
         let branch = current_branch(root)?;
         let history_head = history_head(root)?;
         let history_refs = history_refs(root, history_head.as_deref())?;
+        let status = repository_status(root)?;
         let page = commit_page(root, &history_refs, 0, GraphState::default())?;
 
         Ok(RepositorySummary {
@@ -479,6 +589,7 @@ async fn open_repository(path: String) -> Result<RepositorySummary, String> {
             branch,
             history_head,
             history_refs,
+            status,
             commits: page.commits,
             has_more_commits: page.has_more_commits,
             graph_state: page.graph_state,
@@ -516,9 +627,10 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::{
-        COMMIT_PAGE_SIZE, Commit, GraphState, MAX_GIT_STDERR_BYTES, collect_output, commit_page,
-        current_branch, history_head, history_refs, is_commit_id, page_commits, parse_commits,
-        read_capped, repository_root, validate_graph_state,
+        COMMIT_PAGE_SIZE, Commit, GraphState, MAX_GIT_STDERR_BYTES, StatusKind, collect_output,
+        commit_page, current_branch, history_head, history_refs, is_commit_id, page_commits,
+        parse_commits, parse_status, read_capped, repository_root, repository_status,
+        validate_graph_state,
     };
 
     #[test]
@@ -527,6 +639,86 @@ mod tests {
 
         assert_eq!(bytes, b"abcd");
         assert!(truncated);
+    }
+
+    #[test]
+    fn parses_porcelain_v2_staged_unstaged_untracked_conflict_and_rename_paths() {
+        let output = b"1 M. N... 100644 100644 100644 abc abc staged file.txt\0\
+1 .M N... 100644 100644 100644 abc abc worktree.txt\0\
+? new\nfile.txt\0\
+u UU N... 100644 100644 100644 100644 abc abc abc conflict.txt\0\
+2 R. N... 100644 100644 100644 abc abc R100 renamed file.txt\0old file.txt\0";
+
+        let status = parse_status(output).unwrap();
+
+        assert_eq!(status.staged.len(), 2);
+        assert_eq!(status.staged[0].path, "renamed file.txt");
+        assert!(matches!(status.staged[0].kind, StatusKind::Modified));
+        assert_eq!(status.staged[1].path, "staged file.txt");
+        assert!(matches!(status.staged[1].kind, StatusKind::Modified));
+        assert_eq!(status.unstaged.len(), 3);
+        assert_eq!(status.unstaged[0].path, "conflict.txt");
+        assert!(matches!(status.unstaged[0].kind, StatusKind::Conflicting));
+        assert_eq!(status.unstaged[1].path, "new\nfile.txt");
+        assert!(matches!(status.unstaged[1].kind, StatusKind::Added));
+        assert_eq!(status.unstaged[2].path, "worktree.txt");
+        assert!(matches!(status.unstaged[2].kind, StatusKind::Modified));
+    }
+
+    #[test]
+    fn rejects_malformed_porcelain_v2_records() {
+        assert!(parse_status(b"1 M. missing fields\0").is_err());
+        assert!(parse_status(b"2 R. missing original path\0").is_err());
+    }
+
+    #[test]
+    fn reads_staged_unstaged_and_untracked_changes_from_a_temporary_repository() {
+        use std::{
+            fs,
+            process::Command,
+            time::{SystemTime, UNIX_EPOCH},
+        };
+
+        let path = std::env::temp_dir().join(format!(
+            "gitmiro-status-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir(&path).unwrap();
+        let run_git = |args: &[&str]| {
+            let status = Command::new("git")
+                .arg("-C")
+                .arg(&path)
+                .args(args)
+                .status()
+                .unwrap();
+            assert!(status.success(), "git {args:?} failed");
+        };
+        run_git(&["init", "--quiet"]);
+        run_git(&["config", "user.name", "GitMiro Test"]);
+        run_git(&["config", "user.email", "gitmiro-test@example.invalid"]);
+        fs::write(path.join("tracked.txt"), "original\n").unwrap();
+        run_git(&["add", "tracked.txt"]);
+        run_git(&["commit", "--quiet", "-m", "initial"]);
+        fs::write(path.join("tracked.txt"), "staged\n").unwrap();
+        run_git(&["add", "tracked.txt"]);
+        fs::write(path.join("tracked.txt"), "unstaged\n").unwrap();
+        fs::write(path.join("new.txt"), "new\n").unwrap();
+
+        let status = repository_status(&path).unwrap();
+        let _ = fs::remove_dir_all(&path);
+
+        assert_eq!(status.staged.len(), 1);
+        assert_eq!(status.staged[0].path, "tracked.txt");
+        assert!(matches!(status.staged[0].kind, StatusKind::Modified));
+        assert_eq!(status.unstaged.len(), 2);
+        assert_eq!(status.unstaged[0].path, "new.txt");
+        assert!(matches!(status.unstaged[0].kind, StatusKind::Added));
+        assert_eq!(status.unstaged[1].path, "tracked.txt");
+        assert!(matches!(status.unstaged[1].kind, StatusKind::Modified));
     }
 
     #[test]

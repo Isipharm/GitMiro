@@ -224,6 +224,80 @@
   font-weight: 600;
 }
 
+.status-panels {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin: 0 0 28px;
+}
+
+.status-pane {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.status-pane h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.status-count {
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.status-pane ul {
+  max-height: 180px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.status-pane li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 5px 0;
+  border-top: 1px solid var(--border);
+}
+
+.status-pane code {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font: 11px "Geist Mono", monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-kind {
+  flex: none;
+  width: 72px;
+  color: var(--ink-muted);
+  font-size: 10px;
+  text-transform: capitalize;
+}
+
+.status-added { color: var(--success); }
+.status-removed, .status-conflicting { color: var(--error); }
+
+.status-pane .muted {
+  margin: 0;
+  font-size: 12px;
+}
+
+@media (max-width: 640px) {
+  .status-panels { grid-template-columns: 1fr; }
+}
+
 .commit-history {
   overflow-x: auto;
 }

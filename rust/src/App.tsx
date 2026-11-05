@@ -12,7 +12,11 @@ type RepositorySummary = {
   commits: Commit[];
   has_more_commits: boolean;
   graph_state: Record<string, string>;
+  status: RepositoryStatus;
 };
+
+type RepositoryStatus = { staged: StatusEntry[]; unstaged: StatusEntry[] };
+type StatusEntry = { path: string; kind: "added" | "modified" | "removed" | "conflicting" };
 
 type Commit = {
   id: string;
@@ -213,6 +217,27 @@ function App() {
             </button>
           </div>
           <div className="branch-label">{repository.branch}</div>
+          <div className="status-panels">
+            {(["staged", "unstaged"] as const).map((group) => {
+              const entries = repository.status[group];
+              const title = group === "staged" ? "Staged changes" : "Unstaged changes";
+              return (
+                <section className="status-pane" aria-label={title} key={group}>
+                  <h2>{title} <span className="status-count">{entries.length}</span></h2>
+                  {entries.length ? (
+                    <ul>
+                      {entries.map((entry) => (
+                        <li key={`${entry.kind}-${entry.path}`}>
+                          <span className={`status-kind status-${entry.kind}`}>{entry.kind}</span>
+                          <code title={entry.path}>{entry.path}</code>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : <p className="muted">No changes.</p>}
+                </section>
+              );
+            })}
+          </div>
           <h2>Commit history</h2>
           {error && <p className="error-message" role="alert">{error}</p>}
           {repository.commits.length ? (
