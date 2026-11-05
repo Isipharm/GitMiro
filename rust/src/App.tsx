@@ -21,6 +21,8 @@ type RepositorySummary = {
 
 type RepositoryStatus = { staged: StatusEntry[]; unstaged: StatusEntry[]; truncated: boolean };
 type StatusEntry = { path: string; path_bytes: number[]; kind: "added" | "modified" | "removed" | "conflicting" };
+type StatusGroup = "staged" | "unstaged";
+type FileDiff = { kind: "text" | "binary" | "submodule" | "conflict"; patch: string | null };
 
 type Commit = {
   id: string;
@@ -43,6 +45,10 @@ type CommitPage = Pick<RepositorySummary, "commits" | "has_more_commits" | "grap
 const GRAPH_COLORS = ["#42a5f5", "#ef5350", "#78909c", "#ff7043", "#66bb6a", "#ec407a"];
 const GRAPH_LANE_WIDTH = 18;
 const COMMIT_ROW_HEIGHT = 50;
+
+function samePathBytes(left: number[], right: number[]) {
+  return left.length === right.length && left.every((byte, index) => byte === right[index]);
+}
 
 function CommitGraph({ commit }: { commit: Commit }) {
   const laneX = (lane: number) => GRAPH_LANE_WIDTH * (lane + 1);
@@ -104,9 +110,15 @@ function App() {
   const [historyFilter, setHistoryFilter] = useState("");
   const [loadingMore, setLoadingMore] = useState(false);
   const [changingStatus, setChangingStatus] = useState(false);
+  const [selectedDiff, setSelectedDiff] = useState<{ path: string; pathBytes: number[]; group: StatusGroup } | null>(null);
+  const [fileDiff, setFileDiff] = useState<FileDiff | null>(null);
+  const [diffLoading, setDiffLoading] = useState(false);
+  const [diffError, setDiffError] = useState<string | null>(null);
+  const selectedDiffRef = useRef<typeof selectedDiff>(null);
   const openingRef = useRef(false);
   const loadingMoreRef = useRef(false);
   const changingStatusRef = useRef(false);
+  const diffRequestRef = useRef(0);
   const historyRequestRef = useRef(0);
   const statusRefreshRef = useRef(0);
   const repositoryHeadingRef = useRef<HTMLHeadingElement>(null);
@@ -179,6 +191,11 @@ function App() {
     setHistoryFilter("");
     statusRefreshRef.current++;
     setStatusError(null);
+    diffRequestRef.current++;
+    selectedDiffRef.current = null;
+    setSelectedDiff(null);
+    setFileDiff(null);
+    setDiffError(null);
     setRepository(opened);
     setRecentRepositories((current) => [opened.path, ...current.filter((recent) => recent !== opened.path)]);
   }
@@ -255,6 +272,39 @@ function App() {
     }
   }
 
+  async function viewFileDiff(entry: StatusEntry, group: StatusGroup) {
+    if (!repository) return;
+    const targetPath = repository.path;
+    const requestId = ++diffRequestRef.current;
+    const selection = { path: entry.path, pathBytes: entry.path_bytes, group };
+    selectedDiffRef.current = selection;
+    setSelectedDiff(selection);
+    setFileDiff(null);
+    setDiffError(null);
+    setDiffLoading(true);
+    try {
+      const diff = await invoke<FileDiff>("get_file_diff", {
+        path: targetPath,
+        pathBytes: entry.path_bytes,
+        group,
+      });
+      if (requestId === diffRequestRef.current) setFileDiff(diff);
+    } catch (error) {
+      if (requestId === diffRequestRef.current) setDiffError(String(error));
+    } finally {
+      if (requestId === diffRequestRef.current) setDiffLoading(false);
+    }
+  }
+
+  function closeFileDiff() {
+    diffRequestRef.current++;
+    selectedDiffRef.current = null;
+    setSelectedDiff(null);
+    setFileDiff(null);
+    setDiffError(null);
+    setDiffLoading(false);
+  }
+
   async function changeStatusEntry(entry: StatusEntry, action: "stage" | "unstage") {
     if (!repository || changingStatusRef.current) return;
     const targetPath = repository.path;
@@ -269,6 +319,13 @@ function App() {
       });
       if (requestId === statusRefreshRef.current) {
         setRepository((current) => current?.path === targetPath ? { ...current, status } : current);
+        const currentSelection = selectedDiffRef.current;
+        if (currentSelection && samePathBytes(currentSelection.pathBytes, entry.path_bytes)) {
+          const nextGroup = action === "stage" ? "staged" : "unstaged";
+          const updatedEntry = status[nextGroup].find((candidate) => samePathBytes(candidate.path_bytes, entry.path_bytes));
+          if (updatedEntry) void viewFileDiff(updatedEntry, nextGroup);
+          else closeFileDiff();
+        }
       }
     } catch (error) {
       if (requestId === statusRefreshRef.current) setStatusError(String(error));
@@ -318,46 +375,70 @@ function App() {
               </ul>
             </aside>
             <section className="history-panel" aria-label="Commit history">
-              <div className="commit-history-heading">
-                <h2>Commit history</h2>
-                <label htmlFor="history-branch-filter">Branch</label>
-                <select
-                  id="history-branch-filter"
-                  value={historyFilter}
-                  onChange={(event) => setHistoryFilter(event.target.value)}
-                >
-                  <option value="">All branches</option>
-                  {repository.history_refs.references
-                    .filter(({ kind }) => kind === "local")
-                    .map(({ name }) => <option value={name} key={name}>{name}</option>)}
-                </select>
-              </div>
-              {error && <p className="error-message" role="alert">{error}</p>}
-              {repository.commits.length ? (
-                <div className="commit-history" style={{ "--graph-width": `${Math.max(40, Math.max(...repository.commits.map(({ lane }) => lane)) * GRAPH_LANE_WIDTH + 36)}px` } as CSSProperties}>
-                  <ol className="commit-list">
-                    {repository.commits.map((commit) => (
-                      <li className={reachableCommits && !reachableCommits.has(commit.id) ? "commit-dimmed" : undefined} key={commit.id}>
-                        <CommitGraph commit={commit} />
-                        <code>{commit.id.slice(0, 7)}</code>
-                        <span className="commit-refs">
-                          {commit.references.map((reference) => (
-                            <span className={`ref-chip ref-${reference.kind}`} key={`${reference.kind}-${reference.name}`}>
-                              {reference.name}
-                            </span>
-                          ))}
-                        </span>
-                        <span className="commit-subject">{commit.subject}</span>
-                        <span className="commit-meta">{commit.author} · {new Date(commit.date).toLocaleString()}</span>
-                      </li>
-                    ))}
-                  </ol>
+              {selectedDiff ? (
+                <div className="file-diff-view" aria-label="File diff">
+                  <header className="file-diff-heading">
+                    <button className="button button-secondary" onClick={closeFileDiff}>Back to history</button>
+                    <div>
+                      <h2 title={selectedDiff.path}>{selectedDiff.path}</h2>
+                      <span>{selectedDiff.group === "staged" ? "Staged changes" : "Unstaged changes"}</span>
+                    </div>
+                  </header>
+                  {diffLoading && <p className="muted" role="status">Loading diff…</p>}
+                  {diffError && <p className="error-message" role="alert">{diffError}</p>}
+                  {fileDiff?.kind === "binary" && <p className="muted" role="status">Binary file preview is not available.</p>}
+                  {fileDiff?.kind === "conflict" && <p className="muted" role="status">Combined conflict preview. Side-by-side resolution is not available yet.</p>}
+                  {fileDiff?.kind === "submodule" && <p className="muted" role="status">Submodule change</p>}
+                  {fileDiff?.patch ? (
+                    <pre className="file-diff-patch">{fileDiff.patch}</pre>
+                  ) : fileDiff && fileDiff.kind !== "binary" && fileDiff.kind !== "conflict" ? (
+                    <p className="muted">No diff available.</p>
+                  ) : null}
                 </div>
-              ) : <p className="muted">No commits yet.</p>}
-              {repository.has_more_commits && (
-                <button className="button button-secondary load-more" onClick={loadMoreCommits} disabled={loadingMore}>
-                  {loadingMore ? "Loading…" : "Load older commits"}
-                </button>
+              ) : (
+                <>
+                  <div className="commit-history-heading">
+                    <h2>Commit history</h2>
+                    <label htmlFor="history-branch-filter">Branch</label>
+                    <select
+                      id="history-branch-filter"
+                      value={historyFilter}
+                      onChange={(event) => setHistoryFilter(event.target.value)}
+                    >
+                      <option value="">All branches</option>
+                      {repository.history_refs.references
+                        .filter(({ kind }) => kind === "local")
+                        .map(({ name }) => <option value={name} key={name}>{name}</option>)}
+                    </select>
+                  </div>
+                  {error && <p className="error-message" role="alert">{error}</p>}
+                  {repository.commits.length ? (
+                    <div className="commit-history" style={{ "--graph-width": `${Math.max(40, Math.max(...repository.commits.map(({ lane }) => lane)) * GRAPH_LANE_WIDTH + 36)}px` } as CSSProperties}>
+                      <ol className="commit-list">
+                        {repository.commits.map((commit) => (
+                          <li className={reachableCommits && !reachableCommits.has(commit.id) ? "commit-dimmed" : undefined} key={commit.id}>
+                            <CommitGraph commit={commit} />
+                            <code>{commit.id.slice(0, 7)}</code>
+                            <span className="commit-refs">
+                              {commit.references.map((reference) => (
+                                <span className={`ref-chip ref-${reference.kind}`} key={`${reference.kind}-${reference.name}`}>
+                                  {reference.name}
+                                </span>
+                              ))}
+                            </span>
+                            <span className="commit-subject">{commit.subject}</span>
+                            <span className="commit-meta">{commit.author} · {new Date(commit.date).toLocaleString()}</span>
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
+                  ) : <p className="muted">No commits yet.</p>}
+                  {repository.has_more_commits && (
+                    <button className="button button-secondary load-more" onClick={loadMoreCommits} disabled={loadingMore}>
+                      {loadingMore ? "Loading…" : "Load older commits"}
+                    </button>
+                  )}
+                </>
               )}
             </section>
             <aside className="status-column" aria-label="Repository status">
@@ -378,6 +459,14 @@ function App() {
                             <li key={`${entry.kind}-${entry.path_bytes.join(",")}`}>
                               <span className={`status-kind status-${entry.kind}`}>{entry.kind}</span>
                               <code title={entry.path}>{entry.path}</code>
+                              <button
+                                className="status-action"
+                                type="button"
+                                aria-label={`View diff for ${entry.path}`}
+                                onClick={() => void viewFileDiff(entry, group)}
+                              >
+                                Diff
+                              </button>
                               {group === "staged" ? (
                                 <button
                                   className="status-action"

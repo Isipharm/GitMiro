@@ -1,11 +1,16 @@
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, BTreeSet},
-    ffi::OsString,
+    ffi::{OsStr, OsString},
     io::{self, Read, Write},
     path::{Path, PathBuf},
     process::{Child, Command, Output, Stdio},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
     thread,
+    time::Duration,
 };
 
 const MAX_GIT_STDOUT_BYTES: usize = 512 * 1024;
@@ -74,6 +79,28 @@ struct RepositoryStatus {
     truncated: bool,
 }
 
+#[derive(Clone, Copy, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+enum StatusGroup {
+    Staged,
+    Unstaged,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "lowercase")]
+enum FileDiffKind {
+    Text,
+    Binary,
+    Submodule,
+    Conflict,
+}
+
+#[derive(Serialize)]
+struct FileDiff {
+    kind: FileDiffKind,
+    patch: Option<String>,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize)]
 struct StatusEntry {
     path: String,
@@ -98,6 +125,14 @@ struct CommitPage {
 }
 
 fn read_capped(mut reader: impl Read, limit: usize) -> io::Result<(Vec<u8>, bool)> {
+    read_capped_signaling(&mut reader, limit, None)
+}
+
+fn read_capped_signaling(
+    mut reader: impl Read,
+    limit: usize,
+    overflow: Option<Arc<AtomicBool>>,
+) -> io::Result<(Vec<u8>, bool)> {
     let mut bytes = Vec::with_capacity(limit.min(8192));
     let mut truncated = false;
     let mut chunk = [0; 8192];
@@ -108,7 +143,12 @@ fn read_capped(mut reader: impl Read, limit: usize) -> io::Result<(Vec<u8>, bool
         }
         let remaining = limit.saturating_sub(bytes.len());
         bytes.extend_from_slice(&chunk[..read.min(remaining)]);
-        truncated |= read > remaining;
+        if read > remaining {
+            truncated = true;
+            if let Some(overflow) = &overflow {
+                overflow.store(true, Ordering::Relaxed);
+            }
+        }
     }
     Ok((bytes, truncated))
 }
@@ -118,22 +158,32 @@ fn collect_output(mut child: Child) -> Result<Output, String> {
 }
 
 fn collect_output_with_input(child: &mut Child, input: Option<&[u8]>) -> Result<Output, String> {
-    collect_output_inner(child, input, false).map(|(output, _)| output)
+    collect_output_inner(child, input, false, false).map(|(output, _)| output)
 }
 
 fn collect_output_with_truncated_stdout(child: Child) -> Result<(Output, bool), String> {
     let mut child = child;
-    collect_output_inner(&mut child, None, true)
+    collect_output_inner(&mut child, None, true, false)
+}
+
+fn collect_output_killing_on_truncation(child: Child) -> Result<Output, String> {
+    let mut child = child;
+    collect_output_inner(&mut child, None, false, true).map(|(output, _)| output)
 }
 
 fn collect_output_inner(
     child: &mut Child,
     input: Option<&[u8]>,
     allow_truncated_stdout: bool,
+    kill_on_truncated_stdout: bool,
 ) -> Result<(Output, bool), String> {
     let stdout = child.stdout.take().expect("piped stdout");
     let stderr = child.stderr.take().expect("piped stderr");
-    let stdout_reader = thread::spawn(move || read_capped(stdout, MAX_GIT_STDOUT_BYTES));
+    let stdout_overflow = Arc::new(AtomicBool::new(false));
+    let stdout_reader_overflow = kill_on_truncated_stdout.then(|| Arc::clone(&stdout_overflow));
+    let stdout_reader = thread::spawn(move || {
+        read_capped_signaling(stdout, MAX_GIT_STDOUT_BYTES, stdout_reader_overflow)
+    });
     let stderr_reader = thread::spawn(move || read_capped(stderr, MAX_GIT_STDERR_BYTES));
     if let Some(input) = input {
         let result = child.stdin.take().expect("piped stdin").write_all(input);
@@ -145,14 +195,33 @@ fn collect_output_inner(
             return Err(format!("Could not write Git input: {error}"));
         }
     }
-    let status = match child.wait() {
-        Ok(status) => status,
-        Err(error) => {
-            let _ = child.kill();
-            let _ = child.wait();
-            let _ = stdout_reader.join();
-            let _ = stderr_reader.join();
-            return Err(format!("Could not wait for Git: {error}"));
+    let status = if kill_on_truncated_stdout {
+        loop {
+            if stdout_overflow.load(Ordering::Relaxed) {
+                let _ = child.kill();
+            }
+            match child.try_wait() {
+                Ok(Some(status)) => break status,
+                Ok(None) => thread::sleep(Duration::from_millis(5)),
+                Err(error) => {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    let _ = stdout_reader.join();
+                    let _ = stderr_reader.join();
+                    return Err(format!("Could not wait for Git: {error}"));
+                }
+            }
+        }
+    } else {
+        match child.wait() {
+            Ok(status) => status,
+            Err(error) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                let _ = stdout_reader.join();
+                let _ = stderr_reader.join();
+                return Err(format!("Could not wait for Git: {error}"));
+            }
         }
     };
     let (stdout, stdout_truncated) = stdout_reader
@@ -197,23 +266,28 @@ fn git_output(path: &Path, args: &[&str], locale: Option<&str>) -> Result<Output
     collect_output(child)
 }
 
-fn git_output_with_path(
+fn git_output_with_paths(
     path: &Path,
     args: &[&str],
-    path_argument: &std::ffi::OsStr,
+    paths: &[&OsStr],
+    kill_on_truncated_stdout: bool,
 ) -> Result<Output, String> {
     let mut command = Command::new("git");
     command
         .arg("-C")
         .arg(path)
         .args(args)
-        .arg(path_argument)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+    command.args(paths);
     let child = command
         .spawn()
         .map_err(|error| format!("Could not start Git: {error}"))?;
-    collect_output(child)
+    if kill_on_truncated_stdout {
+        collect_output_killing_on_truncation(child)
+    } else {
+        collect_output(child)
+    }
 }
 
 fn git_output_with_input(path: &Path, args: &[&str], input: &[u8]) -> Result<Output, String> {
@@ -475,7 +549,7 @@ fn git_path_os_string(path_bytes: &[u8]) -> Result<OsString, String> {
 fn is_gitlink(path: &Path, path_bytes: &[u8]) -> Result<bool, String> {
     let path_argument = git_path_os_string(path_bytes)?;
     let args = ["--literal-pathspecs", "ls-files", "--stage", "-z", "--"];
-    let output = git_output_with_path(path, &args, path_argument.as_os_str())?;
+    let output = git_output_with_paths(path, &args, &[path_argument.as_os_str()], false)?;
     if !output.status.success() {
         return Err(String::from_utf8_lossy(&output.stderr).trim().to_owned());
     }
@@ -488,6 +562,89 @@ fn is_gitlink(path: &Path, path_bytes: &[u8]) -> Result<bool, String> {
                     && &record[separator + 1..] == path_bytes
             })
     }))
+}
+
+fn file_diff(path: &Path, path_bytes: &[u8], group: StatusGroup) -> Result<FileDiff, String> {
+    if path_bytes.is_empty() || path_bytes.len() > MAX_GIT_STDOUT_BYTES || path_bytes.contains(&0) {
+        return Err("Invalid Git path".to_owned());
+    }
+    let status = repository_status(path)?;
+    let entry = match group {
+        StatusGroup::Staged => status
+            .staged
+            .iter()
+            .find(|entry| entry.path_bytes == path_bytes),
+        StatusGroup::Unstaged => status
+            .unstaged
+            .iter()
+            .find(|entry| entry.path_bytes == path_bytes),
+    }
+    .ok_or_else(|| "The file is no longer in this change list".to_owned())?;
+    let untracked = group == StatusGroup::Unstaged && entry.kind == StatusKind::Added;
+    let path_argument = git_path_os_string(path_bytes)?;
+    let mut args = vec!["--literal-pathspecs", "diff"];
+    if untracked {
+        args.push("--no-index");
+    } else if group == StatusGroup::Staged {
+        args.push("--cached");
+    }
+    args.extend([
+        "--no-ext-diff",
+        "--no-textconv",
+        "--no-color",
+        "--no-relative",
+        "--no-renames",
+        "--submodule=short",
+        "--unified=3",
+    ]);
+    if entry.kind == StatusKind::Conflicting {
+        args.push("--cc");
+    }
+    args.push("--");
+    #[cfg(windows)]
+    let null_device = OsStr::new("NUL");
+    #[cfg(not(windows))]
+    let null_device = OsStr::new("/dev/null");
+    let paths = if untracked {
+        vec![null_device, path_argument.as_os_str()]
+    } else {
+        vec![path_argument.as_os_str()]
+    };
+    let output = git_output_with_paths(path, &args, &paths, true)?;
+    if !(output.status.success() || untracked && output.status.code() == Some(1)) {
+        return Err(String::from_utf8_lossy(&output.stderr).trim().to_owned());
+    }
+    if entry.kind == StatusKind::Conflicting {
+        return Ok(FileDiff {
+            kind: FileDiffKind::Conflict,
+            patch: String::from_utf8(output.stdout).ok(),
+        });
+    }
+    let is_binary = output.stdout.split(|byte| *byte == b'\n').any(|line| {
+        let line = line.strip_suffix(b"\r").unwrap_or(line);
+        line.starts_with(b"Binary files ") && line.ends_with(b" differ")
+    });
+    if is_binary {
+        return Ok(FileDiff {
+            kind: FileDiffKind::Binary,
+            patch: None,
+        });
+    }
+    let Ok(patch) = String::from_utf8(output.stdout) else {
+        return Ok(FileDiff {
+            kind: FileDiffKind::Binary,
+            patch: None,
+        });
+    };
+    let kind = if patch.lines().any(|line| line.starts_with("Submodule ")) {
+        FileDiffKind::Submodule
+    } else {
+        FileDiffKind::Text
+    };
+    Ok(FileDiff {
+        kind,
+        patch: Some(patch),
+    })
 }
 
 fn stage_status_path(path: &Path, path_bytes: &[u8]) -> Result<RepositoryStatus, String> {
@@ -838,6 +995,20 @@ async fn refresh_repository_status(path: String) -> Result<RepositoryStatus, Str
 }
 
 #[tauri::command]
+async fn get_file_diff(
+    path: String,
+    path_bytes: Vec<u8>,
+    group: StatusGroup,
+) -> Result<FileDiff, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let root_path = repository_root(Path::new(&path))?;
+        file_diff(Path::new(&root_path), &path_bytes, group)
+    })
+    .await
+    .map_err(|error| format!("Could not load file diff: {error}"))?
+}
+
+#[tauri::command]
 async fn stage_status_entry(path: String, path_bytes: Vec<u8>) -> Result<RepositoryStatus, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let root_path = repository_root(Path::new(&path))?;
@@ -884,6 +1055,7 @@ pub fn run() {
             open_repository,
             load_more_commits,
             refresh_repository_status,
+            get_file_diff,
             stage_status_entry,
             unstage_status_entry
         ])
@@ -894,9 +1066,10 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::{
-        COMMIT_PAGE_SIZE, Commit, GraphState, MAX_GIT_STDERR_BYTES, StatusKind, collect_output,
-        commit_page, current_branch, history_head, history_refs, is_commit_id, is_gitlink,
-        page_commits, parse_commits, parse_status, read_capped, repository_root, repository_status,
+        COMMIT_PAGE_SIZE, Commit, FileDiffKind, GraphState, MAX_GIT_STDERR_BYTES,
+        MAX_GIT_STDOUT_BYTES, StatusGroup, StatusKind, collect_output, commit_page, current_branch,
+        file_diff, history_head, history_refs, is_commit_id, is_gitlink, page_commits,
+        parse_commits, parse_status, read_capped, repository_root, repository_status,
         stage_status_path, unstage_status_path, validate_graph_state,
     };
 
@@ -955,7 +1128,7 @@ u UU N... 100644 100644 100644 100644 abc abc abc conflict.txt\0\
     #[test]
     fn drops_incomplete_rename_from_capped_status_output() {
         let status = parse_status(
-            b"? complete.txt\02 R. N... 100644 100644 100644 abc abc R100 target.txt\0",
+            b"? complete.txt\x002 R. N... 100644 100644 100644 abc abc R100 target.txt\0",
             true,
         )
         .unwrap();
@@ -1009,7 +1182,11 @@ u UU N... 100644 100644 100644 100644 abc abc abc conflict.txt\0\
         fs::write(path.join("tracked.txt"), "staged\n").unwrap();
         run_git(&["add", "tracked.txt"]);
         fs::write(path.join("tracked.txt"), "unstaged\n").unwrap();
-        fs::write(path.join("new.txt"), "new\n").unwrap();
+        fs::write(
+            path.join("new.txt"),
+            "Binary files are ordinary words here\nSubmodule description is text too\n",
+        )
+        .unwrap();
         fs::write(path.join("glob[1].txt"), "literal\n").unwrap();
         fs::write(path.join("glob1.txt"), "match\n").unwrap();
 
@@ -1028,6 +1205,18 @@ u UU N... 100644 100644 100644 100644 abc abc abc conflict.txt\0\
         assert_eq!(status.unstaged[3].path, "tracked.txt");
         assert!(matches!(status.unstaged[3].kind, StatusKind::Modified));
 
+        let staged_diff = file_diff(&path, b"tracked.txt", StatusGroup::Staged).unwrap();
+        assert!(matches!(staged_diff.kind, FileDiffKind::Text));
+        assert!(staged_diff.patch.unwrap().contains("+staged"));
+        let unstaged_diff = file_diff(&path, b"tracked.txt", StatusGroup::Unstaged).unwrap();
+        let unstaged_patch = unstaged_diff.patch.unwrap();
+        assert!(unstaged_patch.contains("-staged"));
+        assert!(unstaged_patch.contains("+unstaged"));
+        let phrase_diff = file_diff(&path, b"new.txt", StatusGroup::Unstaged).unwrap();
+        assert!(matches!(phrase_diff.kind, FileDiffKind::Text));
+
+        let untracked_diff = file_diff(&path, b"glob[1].txt", StatusGroup::Unstaged).unwrap();
+        assert!(untracked_diff.patch.unwrap().contains("+literal"));
         let staged = stage_status_path(&path, b"glob[1].txt").unwrap();
         assert!(
             staged
@@ -1044,6 +1233,17 @@ u UU N... 100644 100644 100644 100644 abc abc abc conflict.txt\0\
         );
         assert!(staged.unstaged.iter().any(|entry| entry.path == "new.txt"));
         assert!(stage_status_path(&path, b"glob*").is_err());
+        fs::write(path.join("binary.dat"), [0, 1, 2, 3]).unwrap();
+        let binary_diff = file_diff(&path, b"binary.dat", StatusGroup::Unstaged).unwrap();
+        assert!(matches!(binary_diff.kind, FileDiffKind::Binary));
+        assert!(binary_diff.patch.is_none());
+        assert!(file_diff(&path, b"glob*", StatusGroup::Unstaged).is_err());
+        fs::write(
+            path.join("large.txt"),
+            vec![b'x'; MAX_GIT_STDOUT_BYTES + 32],
+        )
+        .unwrap();
+        assert!(file_diff(&path, b"large.txt", StatusGroup::Unstaged).is_err());
 
         let unstaged = unstage_status_path(&path, b"glob[1].txt").unwrap();
         assert!(
@@ -1117,6 +1317,8 @@ u UU N... 100644 100644 100644 100644 abc abc abc conflict.txt\0\
         fs::write(path.join("new.txt"), "staged\n").unwrap();
         run_git(&["add", "new.txt"]);
         fs::write(path.join("new.txt"), "keep this worktree content\n").unwrap();
+        let staged_diff = file_diff(&path, b"new.txt", StatusGroup::Staged).unwrap();
+        assert!(staged_diff.patch.unwrap().contains("+staged"));
 
         let status = unstage_status_path(&path, b"new.txt").unwrap();
 

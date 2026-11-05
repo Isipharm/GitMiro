@@ -321,6 +321,54 @@
   flex-direction: column;
 }
 
+.file-diff-view {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.file-diff-heading {
+  display: flex;
+  min-height: 52px;
+  align-items: center;
+  gap: 12px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.file-diff-heading > div {
+  min-width: 0;
+}
+
+.repository-view .file-diff-heading h2 {
+  overflow: hidden;
+  margin: 0 0 2px;
+  font-family: "Geist Mono", monospace;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-diff-heading span {
+  color: var(--ink-muted);
+  font-size: 11px;
+}
+
+.file-diff-patch {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  margin: 0;
+  padding: 14px;
+  color: var(--ink);
+  background: var(--surface);
+  font: 11px/1.55 "Geist Mono", monospace;
+  tab-size: 4;
+  white-space: pre;
+}
+
 .repository-view h2 {
   margin: 0 0 12px;
   color: var(--ink);
