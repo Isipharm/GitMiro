@@ -1,5 +1,7 @@
 package com.hugodehu.gitmiro.domain
 
+import com.hugodehu.gitmiro.common.extensions.TAG
+import com.hugodehu.gitmiro.common.printError
 import com.hugodehu.gitmiro.domain.errors.*
 import com.hugodehu.gitmiro.domain.extensions.runOperationInTabScope
 import com.hugodehu.gitmiro.domain.extensions.runOperationInTabScopeAsync
@@ -9,6 +11,7 @@ import com.hugodehu.gitmiro.domain.repositories.RepositoryDataRepository
 import com.hugodehu.gitmiro.domain.repositories.RepositoryStateRepository
 import com.hugodehu.gitmiro.domain.usecases.DataToRefresh
 import com.hugodehu.gitmiro.domain.usecases.RefreshDataUseCase
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -119,6 +122,9 @@ class UseCaseExecutor @Inject constructor(
         try {
             val repositoryPath = repositoryDataRepository.repositoryPath ?: return Either.Err(RepositoryPathNotSetError)
             return either { block(repositoryPath) }.apply {
+                if (this is Either.Err) {
+                    printError(TAG, "Operation failed on $repositoryPath: ${this.error}", (this.error as? GenericError)?.exception)
+                }
                 if (this is Either.Ok || refreshEvenIfFailed) {
                     if (dataToRefresh.isNotEmpty()) {
                         refreshDataUseCase.get()(*dataToRefresh)
@@ -126,6 +132,9 @@ class UseCaseExecutor @Inject constructor(
                 }
             }
         } catch (e: Exception) {
+            if (e !is CancellationException) {
+                printError(TAG, "Operation threw: ${e.message}", e)
+            }
             return Either.Err(GenericError(e.message.orEmpty(), e))
         }
     }
