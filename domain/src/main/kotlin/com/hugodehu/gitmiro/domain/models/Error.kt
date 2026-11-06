@@ -1,6 +1,6 @@
 package com.hugodehu.gitmiro.domain.models
 
-import com.hugodehu.gitmiro.domain.exceptions.GitnuroException
+import com.hugodehu.gitmiro.domain.exceptions.GitMiroException
 
 data class Error(
     val taskType: TaskType,
@@ -18,6 +18,6 @@ fun newErrorNow(
         taskType = taskType,
         date = System.currentTimeMillis(),
         exception = exception,
-        isUnhandled = exception !is GitnuroException
+        isUnhandled = exception !is GitMiroException
     )
 }

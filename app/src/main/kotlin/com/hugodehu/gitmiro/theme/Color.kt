@@ -93,7 +93,7 @@ val darkTheme = ColorsScheme(
     ),
 )
 
-// Dark theme of Gitnuro 1.x, with blueish background and surfaces
+// Dark theme of GitMiro 1.x, with blueish background and surfaces
 val darkBlueTheme = ColorsScheme(
     primary = Color(0xFF0169cb),
     primaryVariant = Color(0xFF9FD1FF),

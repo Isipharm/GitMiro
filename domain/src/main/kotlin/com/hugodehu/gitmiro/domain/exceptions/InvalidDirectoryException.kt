@@ -1,3 +1,3 @@
 package com.hugodehu.gitmiro.domain.exceptions
 
-class InvalidDirectoryException(msg: String) : GitnuroException(msg)
+class InvalidDirectoryException(msg: String) : GitMiroException(msg)

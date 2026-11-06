@@ -28,7 +28,7 @@ class ThemeMapper @Inject constructor() : DataMapper<Theme?, String?> {
             DARK_BLUE -> Theme.DarkBlue
             CUSTOM -> Theme.Custom
             null -> null
-            // Unknown values (e.g. written by another Gitnuro version) fall back to the default theme
+            // Unknown values (e.g. written by another GitMiro version) fall back to the default theme
             else -> null
         }
     }

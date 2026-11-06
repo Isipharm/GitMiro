@@ -1,3 +1,3 @@
 package com.hugodehu.gitmiro.domain.exceptions
 
-class InvalidRemoteUrlException(msg: String) : GitnuroException(msg)
+class InvalidRemoteUrlException(msg: String) : GitMiroException(msg)
