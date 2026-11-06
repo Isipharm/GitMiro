@@ -33,6 +33,7 @@ import com.hugodehu.gitmiro.app.generated.resources.logo
 import com.hugodehu.gitmiro.app.generated.resources.logo_branch
 import com.hugodehu.gitmiro.avatarproviders.GravatarAvatarProvider
 import com.hugodehu.gitmiro.avatarproviders.NoneAvatarProvider
+import com.hugodehu.gitmiro.common.printLog
 import com.hugodehu.gitmiro.common.OS
 import com.hugodehu.gitmiro.common.currentOs
 import com.hugodehu.gitmiro.common.printError
@@ -123,6 +124,7 @@ class App @Inject constructor(
     suspend fun start(args: Array<String>) {
         initNativeDependencies()
         logsRepository.initLogging()
+        printLog("App", "GitMiro ${AppConstants.APP_VERSION} (${AppConstants.APP_VERSION_CODE}) starting")
         initProxySettings()
 
         Signers.set(GpgConfig.GpgFormat.OPENPGP, gpgSigner)
