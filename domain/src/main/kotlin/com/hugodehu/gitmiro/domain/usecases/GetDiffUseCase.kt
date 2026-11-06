@@ -2,7 +2,8 @@ package com.hugodehu.gitmiro.domain.usecases
 
 import com.hugodehu.gitmiro.common.extensions.TAG
 import com.hugodehu.gitmiro.common.printError
-import com.hugodehu.gitmiro.domain.errors.okOrNull
+import com.hugodehu.gitmiro.domain.errors.Either
+import com.hugodehu.gitmiro.domain.errors.GenericError
 import com.hugodehu.gitmiro.domain.interfaces.IFormatDiffGitAction
 import com.hugodehu.gitmiro.domain.interfaces.IGenerateSplitHunkFromDiffResultGitAction
 import com.hugodehu.gitmiro.domain.models.DiffResult
@@ -23,7 +24,13 @@ class GetDiffUseCase @Inject constructor(
         val repositoryPath = repositoryDataRepository.repositoryPath ?: return ViewDiffResult.None
 
         return try {
-            val diffFormat = formatDiffGitAction(repositoryPath, diffType, isDisplayFullFile).okOrNull()!!
+            val diffFormat = when (val result = formatDiffGitAction(repositoryPath, diffType, isDisplayFullFile)) {
+                is Either.Ok -> result.value
+                is Either.Err -> {
+                    printError(TAG, "Could not compute the diff for $diffType: ${result.error}", (result.error as? GenericError)?.exception)
+                    return ViewDiffResult.DiffNotFound(diffType)
+                }
+            }
             val diffEntry = diffFormat.diffEntry
             if (
                 // Conflicts are always shown side by side: current on the left, incoming on the right
