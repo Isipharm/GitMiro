@@ -1,4 +1,4 @@
 package com.hugodehu.gitmiro.domain.exceptions
 
-class CommandExecutionFailed(msg: String, cause: Exception) : GitnuroException(msg, cause) {
+class CommandExecutionFailed(msg: String, cause: Exception) : GitMiroException(msg, cause) {
 }

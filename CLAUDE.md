@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Gitnuro is a desktop Git client written in Kotlin/JVM with Compose Multiplatform (Desktop) for the UI and JGit for Git operations. A small Rust library (`rs/`) handles file watching and LibSSH-based SSH.
+GitMiro is a desktop Git client written in Kotlin/JVM with Compose Multiplatform (Desktop) for the UI and JGit for Git operations. A small Rust library (`rs/`) handles file watching and LibSSH-based SSH.
 
 ## Build & run
 
@@ -25,7 +25,7 @@ The Gradle daemon itself must run on a HotSpot JDK 25: OpenJ9 builds (e.g. IBM S
 ./gradlew createDistributable     # native distribution (Windows/macOS)
 ```
 
-`createDistributable` embeds a Java runtime with `includeAllModules = true`, so it must run on a JDK that ships `jmods` (e.g. the JetBrains Runtime SDK `jbrsdk`, as in CI). Temurin 25 doesn't ship them and `jlink` fails with "This JDK does not contain packaged modules". The Windows installer is then built from the distributable with Inno Setup: `iscc /DMyAppVersion=1.0.0 gitnuro.iss` writes `Output/GitMiro_Windows_Installer_1.0.0.exe` (per-user install, no admin rights needed). When releasing, bump `projectVersion`/`projectVersionSimplified` in `app/build.gradle.kts` and `APP_VERSION`/`APP_VERSION_CODE` in `AppConstants` together. Installed apps check `AppConstants.VERSION_CHECK_URL` every 5 minutes and offer the update when its `appCode` is greater than `APP_VERSION_CODE`. That URL is a public Azure blob (the repository is private, and the check runs without authentication); null disables the checks.
+`createDistributable` embeds a Java runtime with `includeAllModules = true`, so it must run on a JDK that ships `jmods` (e.g. the JetBrains Runtime SDK `jbrsdk`, as in CI). Temurin 25 doesn't ship them and `jlink` fails with "This JDK does not contain packaged modules". The Windows installer is then built from the distributable with Inno Setup: `iscc /DMyAppVersion=1.0.0 gitmiro.iss` writes `Output/GitMiro_Windows_Installer_1.0.0.exe` (per-user install, no admin rights needed). When releasing, bump `projectVersion`/`projectVersionSimplified` in `app/build.gradle.kts` and `APP_VERSION`/`APP_VERSION_CODE` in `AppConstants` together. Installed apps check `AppConstants.VERSION_CHECK_URL` every 5 minutes and offer the update when its `appCode` is greater than `APP_VERSION_CODE`. That URL is a public Azure blob (the repository is private, and the check runs without authentication); null disables the checks.
 
 Tests live in `domain/src/test/kotlin` (pure model logic) and `data/src/test/kotlin` (Git actions). Git action tests run against real temporary repositories (`@TempDir` + `Git.init()`), build `JGit { WindowsFs(ShellManager()) }` directly instead of going through Dagger, and set `core.autocrlf=false` on the test repo so results don't depend on the machine's global Git config. Only `:app:compileKotlin` triggers the Rust build, so `:domain:test` and `:data:test` run without `cargo` (they still need the generated bindings from a previous `rustTasks` run).
 

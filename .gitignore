@@ -22,5 +22,5 @@ src/main/resources/*gitnuro_rs*
 *.dylib
 *.dll
 *.so
-# Inno Setup installers (iscc gitnuro.iss)
+# Inno Setup installers (iscc gitmiro.iss)
 Output/

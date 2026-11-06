@@ -64,8 +64,8 @@ class LogsRepository @Inject constructor() {
     private fun windowsLogsDirectory(): File {
         val localAppData = System.getenv("LOCALAPPDATA")
 
-        val gitnuroDir = File(localAppData).openDirectory(APP_FOLDER_NAME)
-        val logsDir = gitnuroDir.openDirectory("logs")
+        val appDir = File(localAppData).openDirectory(APP_FOLDER_NAME)
+        val logsDir = appDir.openDirectory("logs")
 
         return logsDir
     }
@@ -80,14 +80,14 @@ class LogsRepository @Inject constructor() {
         else
             xdgStateHome
 
-        val gitnuroDir = File(safeXdgStateHome).openDirectory(APP_FOLDER_NAME)
-        val logsDir = gitnuroDir.openDirectory("logs")
+        val appDir = File(safeXdgStateHome).openDirectory(APP_FOLDER_NAME)
+        val logsDir = appDir.openDirectory("logs")
 
         return logsDir
     }
 
     private fun logsFile(): String {
-        val file = File(logsDirectory, "gitnuro.log")
+        val file = File(logsDirectory, "gitmiro.log")
 
         return file.absolutePath
     }

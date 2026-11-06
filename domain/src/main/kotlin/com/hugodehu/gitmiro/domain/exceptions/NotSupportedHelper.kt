@@ -1,3 +1,3 @@
 package com.hugodehu.gitmiro.domain.exceptions
 
-class NotSupportedHelper(message: String) : GitnuroException(message)
+class NotSupportedHelper(message: String) : GitMiroException(message)

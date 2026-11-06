@@ -109,7 +109,7 @@ object GitHubUpdater {
 
     /**
      * Runs the installer and quits so it can replace the app's files. Silent mode only shows the progress, and the
-     * installer relaunches GitMiro when it's done (gitnuro.iss).
+     * installer relaunches GitMiro when it's done (gitmiro.iss).
      */
     fun install(installer: File): Nothing {
         ProcessBuilder(installer.absolutePath, "/SILENT", "/SP-").start()

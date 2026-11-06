@@ -1,3 +1,3 @@
 package com.hugodehu.gitmiro.domain.exceptions
 
-class FetchException(msg: String) : GitnuroException(msg)
+class FetchException(msg: String) : GitMiroException(msg)
