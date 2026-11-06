@@ -5,6 +5,17 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalClipboard
+import com.hugodehu.gitmiro.domain.models.EntryType
+import com.hugodehu.gitmiro.ui.components.GhostButton
+import com.hugodehu.gitmiro.ui.context_menu.ContextMenu
+import com.hugodehu.gitmiro.ui.context_menu.statusEntryContextMenuItems
+import com.hugodehu.gitmiro.ui.status.StatusAction
+import com.hugodehu.gitmiro.ui.status.copyEntriesPath
+import kotlinx.coroutines.launch
 import androidx.compose.material.Icon
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
@@ -130,7 +141,12 @@ fun ConflictsAttentionPanel(
     unresolved: List<StatusEntry>,
     resolvedCount: Int,
     isRebasing: Boolean,
+    otherUnstaged: List<StatusEntry>,
+    repositoryPath: String?,
     onOpen: (StatusEntry) -> Unit,
+    onAction: (StatusAction) -> Unit,
+    onBlameFile: (String) -> Unit,
+    onHistoryFile: (String) -> Unit,
     // Only asked for operations that create a commit from a message the user has to write, like a revert
     commitMessage: TextFieldValue? = null,
     onCommitMessageChange: (TextFieldValue) -> Unit = {},
@@ -140,6 +156,7 @@ fun ConflictsAttentionPanel(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(18.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
@@ -175,35 +192,7 @@ fun ConflictsAttentionPanel(
             }
 
             unresolved.forEach { entry ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(32.dp)
-                        .background(MaterialTheme.colors.background, MaterialTheme.shapes.small)
-                        .handMouseClickable { onOpen(entry) }
-                        .padding(horizontal = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    val dir = entry.parentDirectoryPath
-
-                    if (dir.isNotEmpty()) {
-                        Text(
-                            text = dir,
-                            style = MaterialTheme.typography.body2,
-                            color = MaterialTheme.colors.onBackgroundSecondary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, false),
-                        )
-                    }
-                    Text(
-                        text = entry.fileName,
-                        style = MaterialTheme.typography.body2,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colors.onBackground,
-                        maxLines = 1,
-                    )
-                }
+                AttentionFileRow(entry, onOpen)
             }
 
             if (!allResolved) {
@@ -219,12 +208,59 @@ fun ConflictsAttentionPanel(
             text = when {
                 unresolved.isNotEmpty() && isRebasing -> "Fixing the conflict stages the file. Then Continue replays the next commit."
                 unresolved.isNotEmpty() -> "Fixing the conflict stages the file. Then Continue finishes the operation."
+                otherUnstaged.isNotEmpty() -> "Some changes aren't staged yet."
                 isRebasing -> "Everything is staged. Continue replays the next commit."
                 else -> "Everything is staged. Continue finishes the operation."
             },
             style = MaterialTheme.typography.body2,
             color = MaterialTheme.colors.onBackgroundSecondary.copy(alpha = 0.9f),
         )
+
+        // Changes outside the conflicts aren't part of the commit, and they stop the rebase on the next commit
+        if (otherUnstaged.isNotEmpty()) {
+            val scope = rememberCoroutineScope()
+            val clipboard = LocalClipboard.current
+
+            PanelLabel("CHANGES NOT STAGED (${otherUnstaged.size})", Modifier.padding(top = 6.dp))
+
+            otherUnstaged.forEach { entry ->
+                ContextMenu(
+                    items = {
+                        statusEntryContextMenuItems(
+                            statusEntry = entry,
+                            entryType = EntryType.UNSTAGED,
+                            onReset = { onAction(StatusAction.Reset(entry)) },
+                            onDelete = { onAction(StatusAction.Delete(entry)) },
+                            onBlame = { onBlameFile(entry.filePath) },
+                            onHistory = { onHistoryFile(entry.filePath) },
+                            onCopyFilePath = { relative ->
+                                scope.launch { copyEntriesPath(clipboard, listOf(entry), relative, repositoryPath) }
+                            },
+                            onOpenFileInFolder = { onAction(StatusAction.OpenInFolder(entry.filePath)) },
+                            onResolveConflict = { side -> onAction(StatusAction.ResolveConflict(entry, side)) },
+                            onToggleStage = { onAction(StatusAction.EntryAction(entry)) },
+                        )
+                    },
+                ) {
+                    AttentionFileRow(entry, onOpen)
+                }
+            }
+
+            // Staging everything while conflicts are left would mark them as resolved with their markers
+            if (unresolved.isEmpty()) {
+                GhostButton(
+                    text = "Stage all",
+                    modifier = Modifier.fillMaxWidth().height(34.dp),
+                    onClick = { onAction(StatusAction.AllEntriesAction(EntryType.UNSTAGED)) },
+                )
+            }
+
+            Text(
+                text = "Stage them to include them in the commit, or discard them from the right click menu.",
+                style = MaterialTheme.typography.body2,
+                color = MaterialTheme.colors.onBackgroundSecondary.copy(alpha = 0.9f),
+            )
+        }
 
         if (commitMessage != null) {
             PanelLabel("COMMIT MESSAGE", Modifier.padding(top = 6.dp))
@@ -245,6 +281,39 @@ fun ConflictsAttentionPanel(
                 color = MaterialTheme.colors.onBackgroundSecondary,
             )
         }
+    }
+}
+
+@Composable
+private fun AttentionFileRow(entry: StatusEntry, onOpen: (StatusEntry) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(32.dp)
+            .background(MaterialTheme.colors.background, MaterialTheme.shapes.small)
+            .handMouseClickable { onOpen(entry) }
+            .padding(horizontal = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        val dir = entry.parentDirectoryPath
+
+        if (dir.isNotEmpty()) {
+            Text(
+                text = dir,
+                style = MaterialTheme.typography.body2,
+                color = MaterialTheme.colors.onBackgroundSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, false),
+            )
+        }
+        Text(
+            text = entry.fileName,
+            style = MaterialTheme.typography.body2,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colors.onBackground,
+            maxLines = 1,
+        )
     }
 }
 

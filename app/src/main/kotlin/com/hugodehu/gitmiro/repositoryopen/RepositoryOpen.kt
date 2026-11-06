@@ -496,12 +496,23 @@ fun MainContentView(
                         unresolved = conflicting,
                         resolvedCount = conflictRows.count { it.isResolved },
                         isRebasing = repositoryState.isRebasing,
+                        otherUnstaged = statusState.unstaged.mapNotNull {
+                            (it as? TreeItem.File<StatusEntry>)?.data?.takeIf { entry -> entry.statusType != StatusType.CONFLICTING }
+                        },
+                        repositoryPath = statusState.repositoryPath,
                         commitMessage = if (repositoryState.isReverting) statusState.commitMessage else null,
                         onCommitMessageChange = { viewModel.onAction(StatusAction.UpdateCommitMessage(it)) },
                         onOpen = { entry ->
-                            // Skips the file that is already open, so the button always goes somewhere new
-                            openConflict(conflicting.firstOrNull { it.filePath != diffSelected?.entries?.firstOrNull()?.filePath } ?: entry)
+                            if (entry.statusType != StatusType.CONFLICTING) {
+                                openConflict(entry)
+                            } else {
+                                // Skips the file that is already open, so the button always goes somewhere new
+                                openConflict(conflicting.firstOrNull { it.filePath != diffSelected?.entries?.firstOrNull()?.filePath } ?: entry)
+                            }
                         },
+                        onAction = { viewModel.onAction(it) },
+                        onBlameFile = { viewModel.blameFile(it) },
+                        onHistoryFile = { viewModel.fileHistory(it) },
                     )
                 } else if (commitChangesState != null) {
                     CommitChanges(

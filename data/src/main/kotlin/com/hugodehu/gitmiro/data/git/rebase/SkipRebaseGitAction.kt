@@ -12,10 +12,10 @@ class SkipRebaseGitAction @Inject constructor(
     private val jgit: JGit,
 ) : ISkipRebaseGitAction {
     override suspend operator fun invoke(repositoryPath: String) = jgit.provide(repositoryPath) { git ->
-        git.rebase()
+        val result = git.rebase()
             .setOperation(RebaseCommand.Operation.SKIP)
             .call()
 
-        Unit
+        checkRebaseStepResult(git, result)
     }
 }

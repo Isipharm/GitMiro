@@ -67,11 +67,14 @@ fun RepositoryStateBanner(
             "$prefix$files, then continue the $operation."
         }
 
+        // JGit commits only the index on continue, and changes left in the working tree stop the next commit
+        isRebasing && statusState.hasUnstagedFiles -> "Some changes aren't staged. Stage or discard them, then continue the rebase."
+        isRebasing && !statusState.hasStagedFiles -> "Nothing left to commit for this commit. Skip it to go on with the rebase."
         else -> "All conflicts are resolved. Continue the $operation."
     }
 
     val canContinue = conflictsCount == 0 && !statusState.isLoading && when {
-        isRebasing -> statusState.hasStagedFiles || statusState.hasUnstagedFiles
+        isRebasing -> statusState.hasStagedFiles && !statusState.hasUnstagedFiles
         repositoryState.isReverting -> message.isNotBlank()
         else -> true
     }

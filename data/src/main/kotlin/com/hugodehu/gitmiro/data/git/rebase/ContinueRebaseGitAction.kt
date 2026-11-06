@@ -9,11 +9,10 @@ class ContinueRebaseGitAction @Inject constructor(
     private val jgit: JGit,
 ) : IContinueRebaseGitAction {
     override suspend operator fun invoke(repositoryPath: String) = jgit.provide(repositoryPath) { git ->
-        git.rebase()
+        val result = git.rebase()
             .setOperation(RebaseCommand.Operation.CONTINUE)
             .call()
 
-        // TODO Throw error if call result is not continue?
-        Unit
+        checkRebaseStepResult(git, result)
     }
 }
