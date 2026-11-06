@@ -21,8 +21,8 @@ object AppConstants {
     const val APP_NAME = "GitMiro"
     const val APP_DESCRIPTION =
         "GitMiro is a modified Gitnuro, a Git client to manage multiple repositories with a modern experience and a live visual representation of their state. It looked at so many Git repositories that it went \"miro\" (French slang for short-sighted)."
-    const val APP_VERSION = "2.0.1"
-    const val APP_VERSION_CODE = 11
+    const val APP_VERSION = "2.0.2"
+    const val APP_VERSION_CODE = 12
     /**
      * latest.json (same format as the one at the root of the repository) checked for updates. It must be readable
      * without authentication, so it lives in a public Azure blob instead of this private repository. The release
