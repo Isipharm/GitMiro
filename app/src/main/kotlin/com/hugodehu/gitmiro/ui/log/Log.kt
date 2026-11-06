@@ -1348,24 +1348,23 @@ fun DividerLog(modifier: Modifier, graphWidth: Dp) {
     val interactionSource = remember { MutableInteractionSource() }
     val isHovered by interactionSource.collectIsHoveredAsState()
 
-    // Only shown while hovered, to tell the graph width can be dragged
+    // Always visible handle to resize the graph column, highlighted while hovered
     Box(
         modifier = Modifier
             .padding(start = graphWidth)
             .width(DIVIDER_WIDTH.dp)
+            .fillMaxHeight()
             .then(modifier)
             .hoverable(interactionSource)
             .pointerHoverIcon(resizePointerIconEast)
     ) {
-        if (isHovered) {
-            Box(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .width(2.dp)
-                    .background(color = MaterialTheme.colors.onBackground.copy(alpha = 0.2F))
-                    .align(Alignment.Center)
-            )
-        }
+        Box(
+            modifier = Modifier
+                .fillMaxHeight()
+                .width(if (isHovered) 2.dp else 1.dp)
+                .background(if (isHovered) MaterialTheme.colors.scrollbarHover else MaterialTheme.colors.scrollbarNormal)
+                .align(Alignment.Center)
+        )
     }
 }
 
