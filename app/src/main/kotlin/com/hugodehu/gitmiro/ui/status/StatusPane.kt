@@ -1035,7 +1035,7 @@ fun getActionInfo(entryType: EntryType): ActionInfo {
 }
 
 
-private suspend fun copyEntriesPath(
+internal suspend fun copyEntriesPath(
     clipboard: Clipboard,
     entries: List<StatusEntry>,
     relative: Boolean,
