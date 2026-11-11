@@ -1,5 +1,5 @@
 # Verify app code on main/story pushes and relevant pull requests.
-# Legacy Compose Windows/macOS and LibSSH builds remain excluded to limit CI time.
+# Feature pushes run Windows checks only; full platform and legacy checks run on PRs/main.
 
 name: Test Build
 
@@ -9,11 +9,13 @@ on:
     paths-ignore:
       - "docs/**"
       - "**/*.md"
+      - ".impeccable/**"
   pull_request:
     branches: [ "main", "feat/rust-port" ]
     paths-ignore:
       - "docs/**"
       - "**/*.md"
+      - ".impeccable/**"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -54,6 +56,7 @@ jobs:
         run: npm run tauri build
 
   build_tauri_unix:
+    if: github.event_name != 'push' || github.ref == 'refs/heads/main'
     strategy:
       matrix:
         os: [ubuntu-22.04, macos-latest]
@@ -93,6 +96,7 @@ jobs:
         run: npm run tauri build
 
   build:
+    if: github.event_name != 'push' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
 
     steps:
