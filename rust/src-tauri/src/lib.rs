@@ -19,6 +19,14 @@ const MAX_GIT_STDERR_BYTES: usize = 16 * 1024;
 const COMMIT_PAGE_SIZE: usize = 500;
 const MAX_GRAPH_LANES: usize = 4096;
 
+/// Git command that never creates a console window (the release build uses the GUI subsystem, so each spawn would otherwise allocate a console host).
+fn git_command() -> Command {
+    let mut command = Command::new("git");
+    #[cfg(windows)]
+    std::os::windows::process::CommandExt::creation_flags(&mut command, 0x0800_0000); // CREATE_NO_WINDOW
+    command
+}
+
 #[derive(Clone, Deserialize, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 enum ReferenceKind {
@@ -302,7 +310,7 @@ fn collect_output_inner(
 }
 
 fn git_output(path: &Path, args: &[&str], locale: Option<&str>) -> Result<Output, String> {
-    let mut command = Command::new("git");
+    let mut command = git_command();
     command
         .arg("-C")
         .arg(path)
@@ -319,7 +327,7 @@ fn git_output(path: &Path, args: &[&str], locale: Option<&str>) -> Result<Output
 }
 
 fn git_child_with_paths(path: &Path, args: &[&str], paths: &[&OsStr]) -> Result<Child, String> {
-    let mut command = Command::new("git");
+    let mut command = git_command();
     command
         .arg("-C")
         .arg(path)
@@ -356,7 +364,7 @@ fn git_output_with_paths_capped(
 }
 
 fn git_output_with_input(path: &Path, args: &[&str], input: &[u8]) -> Result<Output, String> {
-    let mut command = Command::new("git");
+    let mut command = git_command();
     command
         .arg("-C")
         .arg(path)
@@ -579,7 +587,7 @@ fn status_kind(code: u8) -> StatusKind {
 }
 
 fn repository_status(path: &Path) -> Result<RepositoryStatus, String> {
-    let mut command = Command::new("git");
+    let mut command = git_command();
     command
         .arg("-C")
         .arg(path)
@@ -1301,7 +1309,7 @@ fn commit_changes(
 
     let message = commit_sign_off(path, message, &resolved_identity)?;
     let merging = git_path(path, "MERGE_HEAD")?.exists();
-    let mut command = Command::new("git");
+    let mut command = git_command();
     command
         .arg("-C")
         .arg(path)
