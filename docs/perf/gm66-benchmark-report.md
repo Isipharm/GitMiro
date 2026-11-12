@@ -9,8 +9,8 @@ Task GM-66 (parent US4.1 / GM-35). Run date: 2026-11-12. Raw results (JSONL, gol
 - Rendering: in the Tauri slice, scrolling 500 commits with the SVG graph ran at 16.7 ms median frame time (p95 17.0 ms, 0 frames over 25 ms), and the branch filter repainted in about 32 ms.
 - Latency of Git-backed actions in the Tauri slice is the main finding. Opening the repository took 2.95 s p50 inside the app (3.0 s painted), while the same Git commands run alone take 0.6 s. A file diff took 1.18 s p50 (Git alone: 45 ms) and a status refresh 0.73 s (Git alone: 47 ms). Kotlin painted its diff in 0.30 s p50 and was ready 3.4 s after launch, Tauri 4.9 s (including the click on the recent repository).
 - Startup to a visible window is much faster for Tauri (about 0.2 s vs 2.6 s p50; the window poll has about 0.2 s resolution, so 0.21 s is an upper bound); time to a repository ready on screen is slower (4.95 vs 3.41 s p50).
-- The measured overhead is consistent with the release build starting `git.exe` without `CREATE_NO_WINDOW` (22 new `conhost.exe` observed during one repository open, for about 14 distinct Git commands plus `cmdgit.exe` shim children). That causal link is inferred from the process counts, not proven by an A/B build.
-- Conclusion (section 12): the Tauri + React/TypeScript + Rust foundation is acceptable to continue the replacement on memory, idle CPU and rendering; it is not shown to be faster than Kotlin, and the Git process-spawn overhead must be fixed and re-measured before any interaction-latency claim.
+- The measured overhead is consistent with the release build starting `git.exe` without `CREATE_NO_WINDOW` (22 new `conhost.exe` observed during one repository open, for about 14 distinct Git commands plus `cmdgit.exe` shim children). The causal link was first inferred from the process counts; a follow-up run of the same in-page scenarios on a build with the flag (`f1793e27`, section 5b) confirmed it: open 2.95 s to 0.73 s, diff 1.19 s to 0.20 s, status refresh 0.73 s to 0.11 s (p50, only 3 repetitions).
+- Conclusion (section 12): the Tauri + React/TypeScript + Rust foundation is acceptable to continue the replacement on memory, idle CPU and rendering; it is not shown to be faster than Kotlin, and the full campaign must be re-run on the build with the Git spawn fix (`f1793e27`) before any interaction-latency claim.
 
 ## 2. Versions and hardware
 
@@ -103,6 +103,23 @@ Kotlin run 3 shows "repository ready" at 50,021 ms although its window, diff tim
 
 Per-process rows at idle 5 min (last run) are reproducible with `summarize.mjs`: Kotlin 395.6 MiB working set JVM + 10.5 MiB launcher; Tauri app 29.9 MiB plus six `msedgewebview2` processes of 15-125 MiB each.
 
+## 5b. Follow-up: Git spawned with CREATE_NO_WINDOW (n = 3, in-page only)
+
+After the campaign, `rust/src-tauri/src/lib.rs` was changed so every production Git spawn goes through `git_command()`, which sets `CREATE_NO_WINDOW` (commit `f1793e27`, 5 call sites; test-only spawns unchanged). The release build was rebuilt once (same machine, same fixture, same `tauri-cdp.mjs`, debug port attached) and the scenarios were run once with 3 repetitions each. The user was working on the machine at the same time, and the screen-capture driver was not used, so these figures are in-page only.
+
+| Scenario (p50) | Before (n = 10, `693d05b2`) | After (n = 3, `f1793e27`) |
+|---|---|---|
+| Open repository, history painted | 3,007 ms | 767 ms |
+| IPC `open_repository` | 2,950 ms | 725 ms |
+| File diff painted / IPC | 1,185 / 1,136 ms | 200 / 162 ms |
+| Status refresh (IPC) | 727 ms | 105 ms |
+| Load older commits painted / IPC | 533 / 477 ms | 165 / 107 ms |
+| Stage / unstage painted | 907 / 1,252 ms | 241 / 250 ms |
+| Branch filter select / clear | 32 / 34 ms | 31 / 34 ms |
+| Scroll frame p50 / p95 | 17 / 17 ms | 17 / 17 ms |
+
+The overhead is therefore mostly the per-spawn console creation: open is now close to the 0.6 s of the Git commands alone. Rendering numbers did not move, as expected. Not re-measured after the fix: memory, idle CPU, window and repository-ready time, and the Kotlin comparison of the diff time (screen-capture campaign). With n = 3 there is no usable p95, and the before and after runs differ in repetition count and in background load.
+
 ## 6. Differences from the ADR snapshots
 
 - ADR release sample (Ryzen 7 7800X3D, Git 2.54.0): Tauri 465 MiB RSS / 229 MiB private vs Kotlin 281 MiB / 538 MiB. Here: Tauri 429 / 228 vs Kotlin 403 / 439. Tauri private memory matches; Kotlin's working set is larger here (400 vs 281 MiB), so the RSS gap narrowed from +65% to +7%. The Kotlin side here is the packaged release (launcher + JVM, Java 25.0.4), not a `gradle run` JVM, which probably explains part of the difference. Different machine, one warm sample versus five.
@@ -116,7 +133,7 @@ Private memory (what the OS must back with RAM and page file) is roughly halved 
 ## 8. Response time analysis
 
 - Frontend rendering is fine: filter 32 ms, smooth scrolling at the 60 Hz frame time with the SVG graph, load-more 0.5 s.
-- Backend-bound actions are slow in the Tauri slice because each Git operation adds hundreds of milliseconds beyond the Git process itself: open 2.95 s vs 0.6 s of Git, status 0.73 s vs 0.05 s, diff 1.14 s vs 0.05 s. During a repository open, 22 new `conhost.exe` appeared, evenly spaced about 400 ms, for about 14 distinct Git commands (about 20 `git.exe` processes seen, some being the `cmdgit.exe` shim's children). `rust/src-tauri/src/lib.rs` starts Git with `Command::new("git")` and no `creation_flags(CREATE_NO_WINDOW)`, and the release binary uses the Windows GUI subsystem, so each spawn creates a console host (and a visible console flash that also disturbed the screen-capture frames). This is consistent with the numbers but remains a hypothesis until an A/B build with the flag is measured.
+- Backend-bound actions are slow in the Tauri slice because each Git operation adds hundreds of milliseconds beyond the Git process itself: open 2.95 s vs 0.6 s of Git, status 0.73 s vs 0.05 s, diff 1.14 s vs 0.05 s. During a repository open, 22 new `conhost.exe` appeared, evenly spaced about 400 ms, for about 14 distinct Git commands (about 20 `git.exe` processes seen, some being the `cmdgit.exe` shim's children). `rust/src-tauri/src/lib.rs` starts Git with `Command::new("git")` and no `creation_flags(CREATE_NO_WINDOW)`, and the release binary uses the Windows GUI subsystem, so each spawn creates a console host (and a visible console flash that also disturbed the screen-capture frames). This was consistent with the numbers and was then confirmed by the follow-up in section 5b (same scenarios with the flag: open 0.73 s, diff 0.20 s, status 0.11 s; n = 3, in-page only).
 - The external (screen) measure of open, 3.6-4.5 s from the click, is about 0.6-1.5 s higher than the in-page measure (3.0 s). The gap was not reconciled; it includes capture latency, frame flashing and the debug port being attached only in the in-page runs.
 - Kotlin: window 2.6 s (JVM and Compose start), repository ready 0.9 s later, diff 0.3 s. JGit time versus UI time is not separable in the release package.
 
@@ -127,6 +144,7 @@ Private memory (what the OS must back with RAM and page file) is roughly halved 
 - Tauri commit selection and commit diff: not implemented in this slice (only worktree file diffs), so `Non mesurée` for both.
 - Kotlin backend (JGit) timing versus UI timing: not isolable in the release package.
 - 100,000-commit fixture in the apps: not run.
+- Full campaign (startup, memory, CPU, screen-captured diff and ready times) on the fixed build `f1793e27`: only a 3-repetition in-page run was done.
 - 10 repetitions for the startup/memory/CPU campaign: 5 were run (owner decision after the campaign was paused at run 5 of 10).
 - Other DPI factors, a desktop-class machine, and battery power.
 
@@ -145,7 +163,7 @@ Private memory (what the OS must back with RAM and page file) is roughly halved 
 
 ## 10. Technical risks
 
-1. Git process spawn overhead (high): about 2.3 s added to opening a repository and 0.7-1.1 s to status refresh and file diff in the Tauri release build, plus visible console windows and focus stealing. Fix candidate: `CommandExt::creation_flags(0x08000000)` on every Git `Command`, followed by a re-run of the same protocol. Not done here to keep the measured SHA unchanged.
+1. Git process spawn overhead (high, fixed in `f1793e27`): about 2.3 s was added to opening a repository and 0.7-1.1 s to status refresh and file diff in the measured build, plus visible console windows and focus stealing. The fix (`creation_flags(0x08000000)` on every production Git `Command`) removed most of it in a 3-repetition in-page check (section 5b). The full screen-capture campaign was not re-run on the fixed build, so the campaign tables above still describe `693d05b2`.
 2. WebView2 dependency (medium): memory is spread across six processes and the runtime auto-updates (157.0.4341.42 became 157.0.4341.46 during the day); installer or enterprise-policy variations were not tested.
 3. Large histories (medium): load-more adds 0.5 s per 500 commits and the list holds all loaded rows in the DOM; only 1,000 commits were scrolled.
 4. Parity gaps (medium): no commit selection or commit diff yet, so key flows cannot be compared.
@@ -167,7 +185,7 @@ Use AC power, leave the machine untouched, and write results outside the reposit
 
 ## 12. Conclusion
 
-Does Tauri + React/TypeScript + Rust show acceptable performance to continue replacing GitMiro Kotlin, for the scenarios actually measured? Yes for the foundation, with one condition. Memory (half the private memory, similar working set), idle CPU, window start, scrolling and filtering are acceptable and give no reason to reopen the framework choice. The condition is that Git-backed actions take 5 to 25 times the time of the Git commands alone (open 5x, status 15x, diff 25x) and the Tauri diff is about 6 times slower than Kotlin's, probably because of console creation on every Git spawn; this should be fixed and the same protocol re-run before any claim about interaction latency. These data do not show that Tauri is faster than Kotlin, nor that parity is reached; scenarios not implemented or not scriptable (commit selection, Kotlin filter/scroll/status) remain unmeasured.
+Does Tauri + React/TypeScript + Rust show acceptable performance to continue replacing GitMiro Kotlin, for the scenarios actually measured? Yes for the foundation, with one condition. Memory (half the private memory, similar working set), idle CPU, window start, scrolling and filtering are acceptable and give no reason to reopen the framework choice. The condition is that Git-backed actions take 5 to 25 times the time of the Git commands alone (open 5x, status 15x, diff 25x) and the Tauri diff is about 6 times slower than Kotlin's, because of console creation on every Git spawn. That cause was fixed afterwards (`f1793e27`) and a 3-repetition in-page check shows open 0.73 s, diff 0.20 s and status 0.11 s (section 5b); the complete protocol (5 runs with screen capture, memory, CPU, startup) must still be re-run on the fixed build before any claim about interaction latency against Kotlin. These data do not show that Tauri is faster than Kotlin, nor that parity is reached; scenarios not implemented or not scriptable (commit selection, Kotlin filter/scroll/status) remain unmeasured.
 
 ## 13. Review status
 
