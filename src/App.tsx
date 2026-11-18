@@ -278,7 +278,6 @@ function App() {
   }
 
   function openClonePrompt() {
-    if (openingRef.current || committingRef.current || changingStatusRef.current) return;
     cloneOpenerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setCloneError(null);
     setClonePrompt({ source: "", parent: "", folder: "" });
@@ -311,14 +310,11 @@ function App() {
     cloningRef.current = true;
     setCloning(true);
     setCloneError(null);
-    // The destination, not the source: a URL may carry a token as its user name.
-    setActivity(`Cloning into ${destination}…`);
     focusTargetRef.current = () => document.getElementById("clone-source"); // the inputs are disabled while cloning
     try {
       await invoke("clone_repository", { source, destination });
     } catch (error) {
       setCloneError(String(error));
-      setActivity("");
       return;
     } finally {
       cloningRef.current = false;
@@ -665,7 +661,7 @@ function App() {
               </div>
               <span className="branch-label">{repository.branch}</span>
             </div>
-            <div className="repository-actions">
+            <div className="actions">
               <button className="button button-secondary" onClick={openClonePrompt} disabled={opening || changingStatus || committing}>
                 Clone
               </button>
@@ -926,7 +922,7 @@ function App() {
         <section className="welcome-panel">
           <h1>Open a repository</h1>
           <p>Choose a local Git repository, or clone one, to view its branch and recent commits.</p>
-          <div className="welcome-actions">
+          <div className="actions">
             <button className="button button-primary" onClick={() => void openRepository()} disabled={opening} autoFocus={recentRepositories.length === 0}>
               {opening ? "Opening…" : "Open repository"}
             </button>
