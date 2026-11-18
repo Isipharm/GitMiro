@@ -807,3 +807,10 @@
 .clone-parent input {
   flex: 1;
 }
+
+.clone-progress {
+  margin: 0 auto 0 0;
+  align-self: center;
+  color: var(--ink-muted);
+  font-size: 12px;
+}

@@ -153,8 +153,7 @@ function App() {
   const [commitError, setCommitError] = useState<string | null>(null);
   const [identityPrompt, setIdentityPrompt] = useState<{ name: string; email: string; save: boolean } | null>(null);
   const [identityError, setIdentityError] = useState<string | null>(null);
-  // folderEdited: the user typed a folder name, so a new source no longer replaces it.
-  const [clonePrompt, setClonePrompt] = useState<{ source: string; parent: string; folder: string; folderEdited: boolean } | null>(null);
+  const [clonePrompt, setClonePrompt] = useState<{ source: string; parent: string; folder: string } | null>(null);
   const [cloning, setCloning] = useState(false);
   const [cloneError, setCloneError] = useState<string | null>(null);
   const [openGeneration, setOpenGeneration] = useState(0);
@@ -282,7 +281,7 @@ function App() {
     if (openingRef.current || committingRef.current || changingStatusRef.current) return;
     cloneOpenerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setCloneError(null);
-    setClonePrompt({ source: "", parent: "", folder: "", folderEdited: false });
+    setClonePrompt({ source: "", parent: "", folder: "" });
   }
 
   function closeClonePrompt() {
@@ -312,7 +311,8 @@ function App() {
     cloningRef.current = true;
     setCloning(true);
     setCloneError(null);
-    setActivity(`Cloning ${source}…`);
+    // The destination, not the source: a URL may carry a token as its user name.
+    setActivity(`Cloning into ${destination}…`);
     focusTargetRef.current = () => document.getElementById("clone-source"); // the inputs are disabled while cloning
     try {
       await invoke("clone_repository", { source, destination });
@@ -1046,7 +1046,10 @@ function App() {
               onChange={(event) => {
                 const source = event.target.value;
                 setCloneError(null);
-                setClonePrompt({ ...clonePrompt, source, folder: clonePrompt.folderEdited ? clonePrompt.folder : cloneFolderName(source) });
+                // The folder follows the source until the user types a name of their own.
+                const following = !clonePrompt.folder || clonePrompt.folder === cloneFolderName(clonePrompt.source);
+                const folder = following ? cloneFolderName(source) : clonePrompt.folder;
+                setClonePrompt({ ...clonePrompt, source, folder });
               }}
             />
             <label htmlFor="clone-parent">Clone into</label>
@@ -1073,11 +1076,13 @@ function App() {
               spellCheck={false}
               onChange={(event) => {
                 setCloneError(null);
-                setClonePrompt({ ...clonePrompt, folder: event.target.value, folderEdited: event.target.value !== "" });
+                setClonePrompt({ ...clonePrompt, folder: event.target.value });
               }}
             />
             {cloneError && <p className="error-message" role="alert">{cloneError}</p>}
             <footer>
+              {/* Inside the dialog, since the titlebar status is inert behind it; always rendered so the change is announced. */}
+              <p className="clone-progress" role="status">{cloning ? "Cloning, this can take a while…" : ""}</p>
               <button className="button button-secondary" type="button" disabled={cloning} onClick={closeClonePrompt}>Cancel</button>
               <button className="button button-primary" type="submit" disabled={cloning}>{cloning ? "Cloning…" : "Clone"}</button>
             </footer>
