@@ -70,8 +70,10 @@ fun CommitChanges(
     val stats by viewModel.commitStats.collectAsState()
     val logState by viewModel.logState.collectAsState()
     val commit = commitChangesState.commit
-    val branchName = logState.branches[commit.hash].orEmpty().firstOrNull { it.isLocal }?.simpleName
-        ?: logState.currentBranch?.simpleName
+    // Only the branches pointing at this commit: a commit below a branch tip isn't "on" that branch in this header
+    val commitBranches = logState.branches[commit.hash].orEmpty()
+    val branchName = commitBranches.firstOrNull { it.isLocal }?.simpleName
+        ?: commitBranches.firstOrNull()?.simpleNameWithRemote
 
     CommitChangesView(
         stats = stats,
